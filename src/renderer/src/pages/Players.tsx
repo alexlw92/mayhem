@@ -143,16 +143,15 @@ interface Props {
 
 export default function Players({ players, onPlayersChange, selectedPatches }: Props) {
   const [selectedPuuid, setSelectedPuuid] = useState<string | null>(null)
+  const [selectedPlayerData, setSelectedPlayerData] = useState<PlayerStats | null>(null)
 
-  const selectedPlayer = players.find((p) => p.puuid === selectedPuuid) ?? null
-
-  if (selectedPuuid && selectedPlayer) {
+  if (selectedPuuid && selectedPlayerData) {
     return (
       <PlayerDetail
         puuid={selectedPuuid}
-        player={selectedPlayer}
+        player={selectedPlayerData}
         selectedPatches={selectedPatches}
-        onBack={() => setSelectedPuuid(null)}
+        onBack={() => { setSelectedPuuid(null); setSelectedPlayerData(null) }}
       />
     )
   }
@@ -160,7 +159,7 @@ export default function Players({ players, onPlayersChange, selectedPatches }: P
   return (
     <PlayerList
       players={players}
-      onSelect={setSelectedPuuid}
+      onSelect={(puuid, player) => { setSelectedPuuid(puuid); setSelectedPlayerData(player) }}
       onPlayersChange={onPlayersChange}
       selectedPatches={selectedPatches}
     />
@@ -176,7 +175,7 @@ function PlayerList({
   selectedPatches,
 }: {
   players: Player[]
-  onSelect: (puuid: string) => void
+  onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
   selectedPatches: string[] | null
 }) {
@@ -344,7 +343,7 @@ function PlayerList({
               <div
                 key={p.puuid}
                 className="card lb-row"
-                onClick={() => onSelect(p.puuid)}
+                onClick={() => onSelect(p.puuid, p)}
               >
                 <div className="lb-rank">
                   {globalRank < 3 ? MEDALS[globalRank] : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>#{globalRank + 1}</span>}

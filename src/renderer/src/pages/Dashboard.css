@@ -1,0 +1,112 @@
+.stat-card {
+  text-align: center;
+}
+
+.result-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.result-badge.win {
+  background: rgba(60, 184, 120, 0.15);
+  color: var(--green);
+}
+
+.result-badge.loss {
+  background: rgba(212, 76, 76, 0.15);
+  color: var(--red);
+}
+
+.champ-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.champ-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+
+.summoner-name {
+  color: var(--blue-light);
+  font-weight: 500;
+}
+
+.kda-ratio {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.time-ago {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.match-card {
+  padding: 10px 14px;
+}
+
+.match-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.match-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.match-teams {
+  display: flex;
+  gap: 0;
+}
+
+.team-table {
+  flex: 1;
+  border-collapse: collapse;
+}
+
+.team-table td {
+  padding: 2px 6px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.team-divider {
+  width: 1px;
+  background: var(--border);
+  margin: 0 12px;
+  align-self: stretch;
+}
+
+.selected-player td {
+  background: rgba(99, 148, 255, 0.08);
+}
+
+.selected-player .summoner-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.loader {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

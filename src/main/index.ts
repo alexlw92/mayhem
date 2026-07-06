@@ -6,11 +6,9 @@ import axios from 'axios'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
   isClientRunning,
-  getLCUCredentials,
   getCurrentSummoner,
   getMatchHistory,
   getGameDetails,
-  getRawMatchHistory,
   lookupSummonerByRiotId,
   getChampionData,
   getAugmentData,
@@ -30,7 +28,6 @@ import {
   getChampionStats,
   getAugmentStats,
   getPatches,
-  getRecentGames,
   getRecentMatches,
   getWinRateTrend,
   getGroupSummary,
@@ -40,6 +37,7 @@ import {
   getAugmentCache,
   clearMetaCache,
   getPlayerName,
+  inferPatch,
   AugmentInfo
 } from './db'
 
@@ -146,11 +144,6 @@ function ensureChampionNames(): void {
 
 // ─── Core import logic ───────────────────────────────────────────────────────
 
-function parsePatch(v?: string): string | undefined {
-  if (!v) return undefined
-  const parts = v.split('.')
-  return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : undefined
-}
 
 function mapGame(game: LCUMatchHistoryGame) {
   return {
@@ -158,7 +151,7 @@ function mapGame(game: LCUMatchHistoryGame) {
     queueId: game.queueId,
     gameCreation: game.gameCreation,
     gameDuration: game.gameDuration,
-    gameVersion: parsePatch(game.gameVersion),
+    gameVersion: inferPatch(game.gameCreation),
     participants: game.participants.map((p) => {
       const identity = game.participantIdentities.find(
         (pi) => pi.participantId === p.participantId
@@ -376,9 +369,7 @@ app.whenReady().then(async () => {
 
   mainWindow!.webContents.once('did-finish-load', async () => {
     try {
-      await initDb((done, total) => {
-        mainWindow?.webContents.send('migration-progress', { done, total })
-      })
+      await initDb()
     } catch (err) {
       console.error('[db] init failed:', err)
       mainWindow?.webContents.send('db-error', String(err))
@@ -478,7 +469,6 @@ ipcMain.handle('lcu:lookupPlayer', async (_e, gameName: string, tagLine: string)
 ipcMain.handle('db:patches', () => getPatches())
 ipcMain.handle('db:playerStats', (_e, patches?: string[]) => getPlayerStats(patches))
 ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => getChampionStats(puuid, patches))
-ipcMain.handle('db:recentGames', (_e, limit?: number, puuid?: string) => getRecentGames(limit, puuid))
 ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => getRecentMatches(limit, puuid, patches))
 ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => getWinRateTrend(puuid, days))
 ipcMain.handle('db:groupSummary', () => getGroupSummary())
@@ -497,41 +487,5 @@ ipcMain.handle('meta:refresh', async () => {
   return {
     champions: Object.keys(getChampionCache()).length,
     augments: Object.keys(getAugmentCache()).length
-  }
-})
-
-ipcMain.handle('lcu:debugGame', async () => {
-  const summoner = await getCurrentSummoner()
-  if (!summoner) return { error: 'No summoner' }
-  const raw = await getRawMatchHistory(summoner.puuid)
-  const games = raw?.games?.games ?? []
-  if (games.length === 0) return { error: 'No games found' }
-  const firstGame = games[0]
-  return {
-    gameId: firstGame.gameId,
-    queueId: firstGame.queueId,
-    gameMode: firstGame.gameMode,
-    topLevelKeys: Object.keys(firstGame),
-    firstParticipant: firstGame.participants?.[0],
-    firstIdentity: firstGame.participantIdentities?.[0]
-  }
-})
-
-ipcMain.handle('lcu:debug', async () => {
-  const creds = getLCUCredentials()
-  if (!creds) return { error: 'No lockfile found — League client not running or installed in a non-standard path' }
-  const summoner = await getCurrentSummoner()
-  if (!summoner) return { creds, error: 'Could not reach LCU API — check client is fully loaded' }
-  try {
-    const raw = await getRawMatchHistory(summoner.puuid)
-    const games = raw?.games?.games ?? []
-    return {
-      summoner: { name: summoner.displayName, puuid: summoner.puuid },
-      totalGamesInResponse: games.length,
-      queueIds: games.map((g: any) => ({ gameId: g.gameId, queueId: g.queueId, gameMode: g.gameMode })),
-      rawTopLevelKeys: Object.keys(raw ?? {})
-    }
-  } catch (e: any) {
-    return { creds, summoner, error: e?.message ?? String(e) }
   }
 })

@@ -4,8 +4,7 @@ import { app } from 'electron'
 import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(__dirname, '../../.env') })
 import postgres from 'postgres'
-import { drizzle } from 'drizzle-orm/postgres-js'
-import { matches, participants, participantAugments, playerSyncTimes } from './schema'
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,17 +36,13 @@ export interface Match {
 
 // ─── DB init ─────────────────────────────────────────────────────────────────
 
-let db: ReturnType<typeof drizzle>
 let sql_: ReturnType<typeof postgres>
 
-export async function initDb(
-  onMigrationProgress?: (done: number, total: number) => void
-): Promise<void> {
+export async function initDb(): Promise<void> {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is not set')
 
   sql_ = postgres(url, { onnotice: () => {} })
-  db = drizzle(sql_)
 
   await sql_`
     CREATE TABLE IF NOT EXISTS matches (
@@ -97,10 +92,9 @@ export async function initDb(
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation    ON matches("gameCreation")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId  ON participant_augments("participantId")`
 
-  await migrateFromJsonIfNeeded(onMigrationProgress)
 }
 
-// ─── JSON migration ───────────────────────────────────────────────────────────
+// ─── Patch inference ──────────────────────────────────────────────────────────
 
 // Patch date table: { patch, startMs } sorted ascending.
 // For a game, find the last entry where startMs <= gameCreation.
@@ -143,105 +137,38 @@ const PATCH_DATES: { patch: string; startMs: number }[] = [
   { patch: '15.12', startMs: new Date('2025-06-11T12:00:00Z').getTime() },
   { patch: '15.13', startMs: new Date('2025-06-25T12:00:00Z').getTime() },
   { patch: '15.14', startMs: new Date('2025-07-09T12:00:00Z').getTime() },
+  { patch: '15.15', startMs: new Date('2025-07-23T12:00:00Z').getTime() },
+  { patch: '15.16', startMs: new Date('2025-08-06T12:00:00Z').getTime() },
+  { patch: '15.17', startMs: new Date('2025-08-20T12:00:00Z').getTime() },
+  { patch: '15.18', startMs: new Date('2025-09-03T12:00:00Z').getTime() },
+  { patch: '15.19', startMs: new Date('2025-09-17T12:00:00Z').getTime() },
+  { patch: '15.20', startMs: new Date('2025-10-01T12:00:00Z').getTime() },
+  { patch: '15.21', startMs: new Date('2025-10-15T12:00:00Z').getTime() },
+  { patch: '15.22', startMs: new Date('2025-10-29T12:00:00Z').getTime() },
+  { patch: '15.23', startMs: new Date('2025-11-12T12:00:00Z').getTime() },
+  { patch: '15.24', startMs: new Date('2025-11-26T12:00:00Z').getTime() },
+  { patch: '16.1',  startMs: new Date('2026-01-07T12:00:00Z').getTime() },
+  { patch: '16.2',  startMs: new Date('2026-01-21T12:00:00Z').getTime() },
+  { patch: '16.3',  startMs: new Date('2026-02-04T12:00:00Z').getTime() },
+  { patch: '16.4',  startMs: new Date('2026-02-18T12:00:00Z').getTime() },
+  { patch: '16.5',  startMs: new Date('2026-03-04T12:00:00Z').getTime() },
+  { patch: '16.6',  startMs: new Date('2026-03-18T12:00:00Z').getTime() },
+  { patch: '16.7',  startMs: new Date('2026-04-01T12:00:00Z').getTime() },
+  { patch: '16.8',  startMs: new Date('2026-04-15T12:00:00Z').getTime() },
+  { patch: '16.9',  startMs: new Date('2026-04-29T12:00:00Z').getTime() },
+  { patch: '16.10', startMs: new Date('2026-05-13T12:00:00Z').getTime() },
+  { patch: '16.11', startMs: new Date('2026-05-27T12:00:00Z').getTime() },
+  { patch: '16.12', startMs: new Date('2026-06-10T12:00:00Z').getTime() },
+  { patch: '16.13', startMs: new Date('2026-06-24T12:00:00Z').getTime() },
 ]
 
-function inferPatch(gameCreation: number): string | undefined {
+export function inferPatch(gameCreation: number): string | undefined {
   let result: string | undefined
   for (const entry of PATCH_DATES) {
     if (entry.startMs <= gameCreation) result = entry.patch
     else break
   }
   return result
-}
-
-async function migrateFromJsonIfNeeded(
-  onProgress?: (done: number, total: number) => void
-): Promise<void> {
-  const base = path.join(app.getPath('userData'), 'mayhem-data.json')
-  const backup = base + '.backup'
-  const jsonPath = fs.existsSync(base) ? base : fs.existsSync(backup) ? backup : null
-  console.log('[db] looking for JSON at:', base)
-  if (!jsonPath) {
-    console.log('[db] mayhem-data.json not found, skipping migration')
-    return
-  }
-
-  const existing = await sql_`SELECT COUNT(*) FROM matches`
-  console.log('[db] existing match count:', existing[0].count)
-  if (Number(existing[0].count) > 0) {
-    console.log('[db] matches table already has data, skipping migration')
-    return
-  }
-
-  console.log('[db] migrating mayhem-data.json to PostgreSQL…')
-
-  let raw: { matches: any[]; playerSyncTimes: Record<string, number> }
-  try {
-    raw = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
-  } catch {
-    console.error('[db] failed to read mayhem-data.json, skipping migration')
-    return
-  }
-
-  const allMatches = raw.matches ?? []
-  const syncTimes = raw.playerSyncTimes ?? {}
-  let matchCount = 0
-  let participantCount = 0
-  let backfilled = 0
-
-  const BATCH = 100
-  for (let i = 0; i < allMatches.length; i += BATCH) {
-    const chunk = allMatches.slice(i, i + BATCH)
-    await sql_.begin(async (tx) => {
-      for (const m of chunk) {
-        const version = m.gameVersion ?? inferPatch(m.gameCreation)
-        if (!m.gameVersion && version) backfilled++
-
-        await tx`
-          INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-          VALUES (${m.gameId},${m.queueId},${m.gameCreation},${m.gameDuration},${version ?? null})
-          ON CONFLICT ("gameId") DO NOTHING
-        `
-        matchCount++
-
-        for (const p of (m.participants ?? [])) {
-          const [row] = await tx`
-            INSERT INTO participants
-              ("gameId",puuid,"summonerName","championId","championName","teamId",
-               win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel")
-            VALUES
-              (${m.gameId},${p.puuid},${p.summonerName},${p.championId},${p.championName},
-               ${p.teamId},${p.win},${p.kills},${p.deaths},${p.assists},
-               ${p.damageDealt},${p.damageTaken},${p.goldEarned},${p.champLevel})
-            RETURNING id
-          `
-          participantCount++
-
-          for (const augId of (p.augments ?? [])) {
-            if (!augId) continue
-            await tx`
-              INSERT INTO participant_augments ("participantId","augmentId")
-              VALUES (${row.id},${augId})
-            `
-          }
-        }
-      }
-    })
-    onProgress?.(Math.min(i + BATCH, allMatches.length), allMatches.length)
-  }
-
-  if (Object.keys(syncTimes).length > 0) {
-    const rows = Object.entries(syncTimes).map(([puuid, syncedAt]) => ({ puuid, syncedAt }))
-    for (const r of rows) {
-      await sql_`
-        INSERT INTO player_sync_times (puuid,"syncedAt") VALUES (${r.puuid},${r.syncedAt})
-        ON CONFLICT (puuid) DO UPDATE SET "syncedAt" = EXCLUDED."syncedAt"
-      `
-    }
-  }
-
-  if (jsonPath === base) fs.renameSync(base, backup)
-  console.log(`[db] migration done — ${matchCount} matches, ${participantCount} participants, ${backfilled} patch versions backfilled`)
 }
 
 // ─── Write ops ───────────────────────────────────────────────────────────────
@@ -361,11 +288,6 @@ export async function getCoplayerPuuids(puuid: string): Promise<string[]> {
     JOIN participants p2 ON p1."gameId" = p2."gameId"
     WHERE p1.puuid = ${puuid} AND p2.puuid != ${puuid} AND p2.puuid != ''
   `
-  return rows.map((r: any) => r.puuid)
-}
-
-export async function getAllKnownPuuids(): Promise<string[]> {
-  const rows = await sql_`SELECT DISTINCT puuid FROM participants WHERE puuid != ''`
   return rows.map((r: any) => r.puuid)
 }
 
@@ -523,68 +445,6 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
       avgDpm: parseFloat(r.avgDpm)
     }
   })
-}
-
-export interface RecentGame {
-  gameId: number
-  gameCreation: number
-  gameDuration: number
-  puuid: string
-  summonerName: string
-  championId: number
-  championName: string
-  win: boolean
-  kills: number
-  deaths: number
-  assists: number
-  damageDealt: number
-  augments: number[]
-}
-
-export async function getRecentGames(limit = 20, puuid?: string): Promise<RecentGame[]> {
-  const rows = puuid
-    ? await sql_`
-        SELECT m."gameId", m."gameCreation", m."gameDuration",
-          p.id, p.puuid, p."summonerName", p."championId", p."championName",
-          p.win, p.kills, p.deaths, p.assists, p."damageDealt"
-        FROM participants p JOIN matches m ON p."gameId" = m."gameId"
-        WHERE p.puuid = ${puuid}
-        ORDER BY m."gameCreation" DESC LIMIT ${limit}
-      `
-    : await sql_`
-        SELECT m."gameId", m."gameCreation", m."gameDuration",
-          p.id, p.puuid, p."summonerName", p."championId", p."championName",
-          p.win, p.kills, p.deaths, p.assists, p."damageDealt"
-        FROM participants p JOIN matches m ON p."gameId" = m."gameId"
-        ORDER BY m."gameCreation" DESC LIMIT ${limit}
-      `
-  if (rows.length === 0) return []
-
-  const participantIds = rows.map((r: any) => r.id).filter(Boolean)
-  const augRows = participantIds.length > 0
-    ? await sql_`SELECT "participantId","augmentId" FROM participant_augments WHERE "participantId" = ANY(${participantIds})`
-    : []
-  const augMap = new Map<number, number[]>()
-  for (const a of augRows) {
-    if (!augMap.has(a.participantId)) augMap.set(a.participantId, [])
-    augMap.get(a.participantId)!.push(a.augmentId)
-  }
-
-  return rows.map((r: any) => ({
-    gameId: r.gameId,
-    gameCreation: r.gameCreation,
-    gameDuration: r.gameDuration,
-    puuid: r.puuid,
-    summonerName: r.summonerName,
-    championId: r.championId,
-    championName: r.championName,
-    win: r.win,
-    kills: r.kills,
-    deaths: r.deaths,
-    assists: r.assists,
-    damageDealt: r.damageDealt,
-    augments: augMap.get(r.id) ?? []
-  }))
 }
 
 export interface MatchView {

@@ -29,9 +29,9 @@ export default function App() {
   const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
   const [dbReady, setDbReady] = useState(false)
   const [dbError, setDbError] = useState<string | null>(null)
-  const [migrationProgress, setMigrationProgress] = useState<{ done: number; total: number } | null>(null)
   const [assetsReady, setAssetsReady] = useState(false)
   const [assetsProgress, setAssetsProgress] = useState<{ done: number; total: number } | null>(null)
+
 
   const refreshPlayers = useCallback(async () => {
     try {
@@ -60,19 +60,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const unsubReady = api.on('db-ready', () => {
-      setDbReady(true)
-      setMigrationProgress(null)
-    })
-    const unsubMigration = api.on('migration-progress', (data: { done: number; total: number }) => {
-      setMigrationProgress(data)
-    })
+    const unsubReady = api.on('db-ready', () => setDbReady(true))
     const unsubAssetsReady = api.on('assets-ready', () => setAssetsReady(true))
     const unsubAssetsProgress = api.on('assets-progress', (data: { done: number; total: number }) => {
       setAssetsProgress(data)
     })
     const unsubDbError = api.on('db-error', (msg: string) => setDbError(msg))
-    return () => { unsubReady(); unsubMigration(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError() }
+    return () => { unsubReady(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError() }
   }, [])
 
   useEffect(() => {
@@ -161,14 +155,12 @@ export default function App() {
   }
 
   if (!dbReady || !assetsReady) {
-    const progress = migrationProgress ?? assetsProgress
-    const label = migrationProgress
-      ? `Migrating data… ${migrationProgress.done} / ${migrationProgress.total}`
-      : assetsProgress
-        ? `Loading assets… ${assetsProgress.done} / ${assetsProgress.total}`
-        : dbReady
-          ? 'Loading assets…'
-          : 'Connecting to database…'
+    const progress = assetsProgress
+    const label = assetsProgress
+      ? `Loading assets… ${assetsProgress.done} / ${assetsProgress.total}`
+      : dbReady
+        ? 'Loading assets…'
+        : 'Connecting to database…'
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12, color: 'var(--text-secondary)', fontFamily: 'inherit' }}>

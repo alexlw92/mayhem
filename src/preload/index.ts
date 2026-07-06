@@ -8,8 +8,6 @@ const api = {
     fullSync: (puuid?: string) => ipcRenderer.invoke('lcu:fullSync', puuid),
     syncStatus: () => ipcRenderer.invoke('lcu:syncStatus'),
     currentSummoner: () => ipcRenderer.invoke('db:currentSummoner'),
-    debug: () => ipcRenderer.invoke('lcu:debug'),
-    debugGame: () => ipcRenderer.invoke('lcu:debugGame'),
     syncPlayer: (puuid: string) => ipcRenderer.invoke('lcu:syncPlayer', puuid),
     lookupPlayer: (gameName: string, tagLine: string) =>
       ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine)
@@ -18,8 +16,6 @@ const api = {
     patches: () => ipcRenderer.invoke('db:patches'),
     playerStats: (patches?: string[]) => ipcRenderer.invoke('db:playerStats', patches),
     championStats: (puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:championStats', puuid, patches),
-    recentGames: (limit?: number, puuid?: string) =>
-      ipcRenderer.invoke('db:recentGames', limit, puuid),
     recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
       ipcRenderer.invoke('db:recentMatches', limit, puuid, patches),
     winRateTrend: (puuid?: string, days?: number) =>

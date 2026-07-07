@@ -38,6 +38,7 @@ let mainWindow: BrowserWindow | null = null
 let pollInterval: ReturnType<typeof setInterval> | null = null
 let workerRunning = false
 let syncInProgress = false
+let syncCancelled = false
 let syncAccum = { imported: 0, playerssynced: 0 }
 
 const CLIENT_ID = `electron-${os.hostname()}-${process.pid}`
@@ -150,6 +151,12 @@ async function syncWorker(): Promise<void> {
   const draining = syncInProgress
 
   while (true) {
+    if (syncCancelled) {
+      syncCancelled = false
+      syncInProgress = false
+      mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'cancelled' })
+      return
+    }
     if (!isClientRunning()) {
       if (draining && syncInProgress) {
         syncInProgress = false
@@ -300,6 +307,7 @@ ipcMain.handle('lcu:syncStatus', () => ({ syncing: workerRunning }))
 ipcMain.handle('lcu:sync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  syncCancelled = false
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.enqueuePlayer(summoner.puuid)
@@ -310,12 +318,15 @@ ipcMain.handle('lcu:sync', async () => {
 ipcMain.handle('lcu:fullSync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  syncCancelled = false
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.invalidateSyncTimes()
   mainWindow?.webContents.send('sync-started')
   return { started: true }
 })
+
+ipcMain.handle('lcu:stopSync', () => { syncCancelled = true })
 
 ipcMain.handle('lcu:syncPlayer', async (_e, puuid: string) => {
   if (!isClientRunning()) return { error: 'Client not running', imported: 0 }

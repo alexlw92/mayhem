@@ -9,6 +9,7 @@ const api = {
     syncStatus: () => ipcRenderer.invoke('lcu:syncStatus'),
     currentSummoner: () => ipcRenderer.invoke('db:currentSummoner'),
     syncPlayer: (puuid: string) => ipcRenderer.invoke('lcu:syncPlayer', puuid),
+    stopSync: () => ipcRenderer.invoke('lcu:stopSync'),
     lookupPlayer: (gameName: string, tagLine: string) =>
       ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine)
   },

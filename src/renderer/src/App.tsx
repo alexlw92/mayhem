@@ -58,6 +58,10 @@ export default function App() {
     }
   }, [])
 
+  const handleStopSync = useCallback(async () => {
+    await api.lcu.stopSync()
+  }, [])
+
   const handleFullSync = useCallback(async () => {
     const result = await api.lcu.fullSync()
     if (result?.started === false && result?.reason === 'no-summoner') {
@@ -111,6 +115,8 @@ export default function App() {
         setLastSync('Client offline')
       } else if (data.reason === 'no-summoner') {
         setLastSync('Client not ready')
+      } else if (data.reason === 'cancelled') {
+        setLastSync('Sync stopped')
       } else if (data.reason === 'error') {
         setLastSync('Sync error — check console')
       } else {
@@ -261,11 +267,11 @@ export default function App() {
             {clientRunning ? 'Client Online' : 'Client Offline'}
           </div>
           <button
-            className="sync-btn"
-            onClick={handleSync}
-            disabled={!clientRunning || syncing}
+            className={`sync-btn${syncing ? ' sync-btn--stop' : ''}`}
+            onClick={syncing ? handleStopSync : handleSync}
+            disabled={!clientRunning && !syncing}
           >
-            {syncing ? 'Syncing…' : 'Sync Now'}
+            {syncing ? 'Stop Sync' : 'Sync Now'}
           </button>
           <button
             className="sync-btn sync-btn--full"

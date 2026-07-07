@@ -66,9 +66,17 @@ export interface AugmentInfo {
   rarity: number
 }
 
-type Tab = 'matches' | 'champions' | 'augments'
+export interface CoplayerStat {
+  puuid: string
+  summonerName: string
+  games: number
+  wins: number
+}
+
+type Tab = 'matches' | 'champions' | 'augments' | 'coplayers'
 type ChampionSortKey = 'games' | 'winRate' | 'kda' | 'avgDpm'
 type AugmentSortKey = 'pickCount' | 'winRate' | 'avgDpm'
+type CoplayerSortKey = 'games' | 'winRate'
 
 const RECENT_KEY = 'mayhem-recent-players'
 const MAX_RECENT = 10
@@ -466,6 +474,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
   const [championStats, setChampionStats] = useState<ChampionStat[]>([])
   const [augmentStats, setAugmentStats] = useState<AugmentStat[]>([])
   const [augmentCache, setAugmentCache] = useState<Record<number, AugmentInfo>>({})
+  const [coplayerStats, setCoplayerStats] = useState<CoplayerStat[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
 
@@ -474,6 +483,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
     setLoading(true)
     setChampionStats([])
     setAugmentStats([])
+    setCoplayerStats([])
     Promise.all([
       api.db.playerOneStats(puuid, selectedPatches),
       api.db.recentMatches(20, puuid, selectedPatches),
@@ -494,7 +504,10 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
     if (tab === 'augments' && augmentStats.length === 0) {
       api.db.augmentStats(puuid, undefined, selectedPatches).then(setAugmentStats).catch(() => {})
     }
-  }, [tab, puuid, selectedPatches, championStats.length, augmentStats.length])
+    if (tab === 'coplayers' && coplayerStats.length === 0) {
+      api.db.coplayerStats(puuid, selectedPatches ?? undefined).then(setCoplayerStats).catch(() => {})
+    }
+  }, [tab, puuid, selectedPatches, championStats.length, augmentStats.length, coplayerStats.length])
 
   const backBtn = (
     <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}>
@@ -555,7 +568,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
       )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {(['matches', 'champions', 'augments'] as Tab[]).map((t) => (
+        {(['matches', 'champions', 'augments', 'coplayers'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -601,6 +614,14 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
           <div className="card"><div className="empty-state"><div>No augment data</div></div></div>
         ) : (
           <AugmentTable data={augmentStats} augmentCache={augmentCache} onAugmentClick={onAugmentClick} />
+        )
+      )}
+
+      {tab === 'coplayers' && (
+        coplayerStats.length === 0 ? (
+          <div className="card"><div className="empty-state"><div>No coplayer data</div></div></div>
+        ) : (
+          <CoplayerTable data={coplayerStats} />
         )
       )}
     </div>
@@ -829,5 +850,58 @@ function TeamTable({ participants, selectedPuuid, augments }: { participants: Ma
         ))}
       </tbody>
     </table>
+  )
+}
+
+// ─── Coplayer sub-tab table ───────────────────────────────────────────────────
+
+export function CoplayerTable({ data }: { data: CoplayerStat[] }) {
+  const [sortKey, setSortKey] = useState<CoplayerSortKey>('games')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const onSort = (key: CoplayerSortKey) => {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+  const arrow = (key: CoplayerSortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
+  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
+
+  const sorted = [...data].sort((a, b) => {
+    const aVal = sortKey === 'winRate' ? (a.games > 0 ? a.wins / a.games : 0) : a.games
+    const bVal = sortKey === 'winRate' ? (b.games > 0 ? b.wins / b.games : 0) : b.games
+    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
+  })
+
+  return (
+    <div className="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th style={thStyle} onClick={() => onSort('games')}>Games{arrow('games')}</th>
+            <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r) => {
+            const wr = r.games > 0 ? r.wins / r.games : 0
+            return (
+              <tr key={r.puuid}>
+                <td style={{ fontWeight: 500 }}>{r.summonerName}</td>
+                <td>{r.games}</td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
+                    </div>
+                    <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }

@@ -43,6 +43,46 @@ const sampleMatch: Match = {
   ]
 }
 
+const sampleMatch2: Match = {
+  gameId: 5002,
+  queueId: 2400,
+  gameCreation: new Date('2025-06-16T10:00:00Z').getTime(),
+  gameDuration: 1200,
+  gameVersion: '15.12',
+  participants: [
+    {
+      puuid: 'test-puuid-1', summonerName: 'Foo#NA1', championId: 10, championName: 'Kayle',
+      teamId: 100, win: true, kills: 2, deaths: 1, assists: 4,
+      damageDealt: 30000, damageTaken: 12000, goldEarned: 9000, champLevel: 13, augments: []
+    },
+    {
+      puuid: 'test-puuid-3', summonerName: 'Baz#NA1', championId: 30, championName: 'Lux',
+      teamId: 100, win: true, kills: 3, deaths: 0, assists: 5,
+      damageDealt: 35000, damageTaken: 10000, goldEarned: 9500, champLevel: 14, augments: []
+    }
+  ]
+}
+
+const sampleMatch3: Match = {
+  gameId: 5003,
+  queueId: 2400,
+  gameCreation: new Date('2025-06-17T10:00:00Z').getTime(),
+  gameDuration: 1300,
+  gameVersion: '15.12',
+  participants: [
+    {
+      puuid: 'test-puuid-1', summonerName: 'Foo#NA1', championId: 10, championName: 'Kayle',
+      teamId: 100, win: false, kills: 1, deaths: 3, assists: 2,
+      damageDealt: 25000, damageTaken: 18000, goldEarned: 8000, champLevel: 12, augments: []
+    },
+    {
+      puuid: 'test-puuid-3', summonerName: 'Baz#NA1', championId: 30, championName: 'Lux',
+      teamId: 100, win: false, kills: 2, deaths: 2, assists: 3,
+      damageDealt: 28000, damageTaken: 14000, goldEarned: 8500, champLevel: 13, augments: []
+    }
+  ]
+}
+
 describe('GET /api/patches', () => {
   it('returns an empty array when DB is empty', async () => {
     const res = await request(app).get('/api/patches')
@@ -257,5 +297,46 @@ describe('Meta endpoints', () => {
     })
     const res = await request(appWithCache).get('/api/meta/champions')
     expect(res.body[64]).toBe('Lee Sin')
+  })
+})
+
+describe('GET /api/players/:puuid/coplayers', () => {
+  it('returns empty when no shared games', async () => {
+    const res = await request(app).get('/api/players/test-puuid-1/coplayers')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('requires >= 2 games together — single shared game returns empty', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2] })
+    const res = await request(app).get('/api/players/test-puuid-1/coplayers')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns coplayer stats after 2+ shared games on same team', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2, sampleMatch3] })
+    const res = await request(app).get('/api/players/test-puuid-1/coplayers')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    const row = res.body[0]
+    expect(row.puuid).toBe('test-puuid-3')
+    expect(row.summonerName).toBe('Baz#NA1')
+    expect(row.games).toBe(2)
+    expect(row.wins).toBe(1)
+  })
+
+  it('opposite-team players do not appear as coplayers', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/coplayers')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters by patch — returns empty for non-matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2, sampleMatch3] })
+    const res = await request(app).get('/api/players/test-puuid-1/coplayers?patches=99.99')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
   })
 })

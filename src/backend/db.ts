@@ -508,18 +508,22 @@ export interface ChampionStats {
 }
 
 export async function getChampionStats(puuid?: string, patches?: string[]): Promise<ChampionStats[]> {
-  const COLS = `p."championId", p."championName",
+  const COLS_PUUID = `p."championId", p."championName",
+    COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
+    SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
+    CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm"`
+  const COLS_ALL = `p."championId", MIN(p."championName") AS "championName",
     COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
     SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
     CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm"`
 
   const rows = puuid && patches?.length
-    ? await sql_.unsafe(`SELECT ${COLS}, p.puuid, p."summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE p.puuid = $1 AND m."gameVersion" = ANY($2) GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`, [puuid, patches])
+    ? await sql_.unsafe(`SELECT ${COLS_PUUID}, p.puuid, p."summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE p.puuid = $1 AND m."gameVersion" = ANY($2) GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`, [puuid, patches])
     : puuid
-    ? await sql_.unsafe(`SELECT ${COLS}, p.puuid, p."summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE p.puuid = $1 GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`, [puuid])
+    ? await sql_.unsafe(`SELECT ${COLS_PUUID}, p.puuid, p."summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE p.puuid = $1 GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`, [puuid])
     : patches?.length
-    ? await sql_.unsafe(`SELECT ${COLS}, ''::text AS puuid, ''::text AS "summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE m."gameVersion" = ANY($1) GROUP BY p."championId", p."championName" ORDER BY games DESC`, [patches])
-    : await sql_.unsafe(`SELECT ${COLS}, ''::text AS puuid, ''::text AS "summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" GROUP BY p."championId", p."championName" ORDER BY games DESC`)
+    ? await sql_.unsafe(`SELECT ${COLS_ALL}, ''::text AS puuid, ''::text AS "summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" WHERE m."gameVersion" = ANY($1) GROUP BY p."championId" ORDER BY games DESC`, [patches])
+    : await sql_.unsafe(`SELECT ${COLS_ALL}, ''::text AS puuid, ''::text AS "summonerName" FROM participants p JOIN matches m ON p."gameId" = m."gameId" GROUP BY p."championId" ORDER BY games DESC`)
   return rows.map((r: any) => ({
     championId: r.championId,
     championName: r.championName,

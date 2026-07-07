@@ -204,23 +204,31 @@ export async function lookupSummonerByRiotId(
 ): Promise<LCUSummoner | null> {
   const client = getAxios()
   if (!client) return null
-  try {
-    // Try Riot ID lookup endpoint first
-    const res = await client.get(
-      `/lol-summoner/v1/summoners?name=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`
-    )
-    return Array.isArray(res.data) ? res.data[0] ?? null : res.data
-  } catch {
+
+  const attempts = [
+    `/lol-summoner/v1/summoners?name=${encodeURIComponent(`${gameName}#${tagLine}`)}`,
+    `/lol-summoner/v1/summoners?name=${encodeURIComponent(gameName)}&tagLine=${encodeURIComponent(tagLine)}`,
+    `/lol-summoner/v1/summoners?name=${encodeURIComponent(gameName)}`,
+  ]
+
+  for (const url of attempts) {
     try {
-      // Fallback: search by gameName alone
-      const res = await client.get(
-        `/lol-summoner/v1/summoners?name=${encodeURIComponent(gameName)}`
-      )
-      return Array.isArray(res.data) ? res.data[0] ?? null : res.data
-    } catch {
-      return null
+      const res = await client.get(url)
+      let result = Array.isArray(res.data) ? res.data[0] ?? null : res.data
+      console.warn(`[lcu] lookup ${url} →`, JSON.stringify(result))
+      if (!result) continue
+      if (!result.puuid && result.summonerId) {
+        const r2 = await client.get(`/lol-summoner/v1/summoners/${result.summonerId}`)
+        result = r2.data
+        console.warn(`[lcu] summonerId fallback →`, JSON.stringify(result))
+      }
+      if (result?.puuid) return result
+    } catch (err: any) {
+      console.warn(`[lcu] lookup ${url} failed: ${err?.response?.status ?? err?.message}`)
     }
   }
+
+  return null
 }
 
 export async function getGameDetails(gameId: number): Promise<LCUMatchHistoryGame | null> {

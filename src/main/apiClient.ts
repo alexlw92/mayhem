@@ -11,6 +11,9 @@ export const apiClient = {
   playerStats: (patches?: string[]) =>
     http.get('/api/players', { params: { patches: patches?.join(',') } }).then((r) => r.data),
 
+  playerOneStats: (puuid: string, patches?: string[]) =>
+    http.get(`/api/players/${puuid}/stats`, { params: { patches: patches?.join(',') } }).then((r) => r.data),
+
   championStats: (puuid?: string, patches?: string[]) =>
     http.get(puuid ? `/api/players/${puuid}/champions` : '/api/champions', {
       params: { patches: patches?.join(',') }

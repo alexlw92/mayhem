@@ -176,15 +176,19 @@ describe('insertMatch', () => {
 })
 
 describe('invalidateAllSyncTimes', () => {
-  it('re-enqueues all known participants', async () => {
+  it('zeroes syncedAt for all known players without re-enqueuing', async () => {
     await insertMatch(sampleMatch(9001))
-    await insertMatch(sampleMatch(9002))
-    // Drain the queue first
-    await claimNextJob('c'); await claimNextJob('c'); await claimNextJob('c'); await claimNextJob('c')
+    await claimNextJob('c'); await claimNextJob('c')
     await completeJob('puuid-alpha'); await completeJob('puuid-beta')
 
+    // Queue should now be empty, both players have sync times
+    expect((await getQueueStatus()).total).toBe(0)
+
     await invalidateAllSyncTimes()
-    // puuid-alpha and puuid-beta should be re-enqueued
-    expect((await getQueueStatus()).total).toBe(2)
+    // Queue stays empty — no auto-enqueue on full reload
+    expect((await getQueueStatus()).total).toBe(0)
+    // But players are now stale (syncedAt = 0)
+    const { isPlayerStale } = await import('../db')
+    expect(await isPlayerStale('puuid-alpha', 1)).toBe(true)
   })
 })

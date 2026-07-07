@@ -15,6 +15,7 @@ const api = {
   db: {
     patches: () => ipcRenderer.invoke('db:patches'),
     playerStats: (patches?: string[]) => ipcRenderer.invoke('db:playerStats', patches),
+    playerOneStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:playerOneStats', puuid, patches),
     championStats: (puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:championStats', puuid, patches),
     recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
       ipcRenderer.invoke('db:recentMatches', limit, puuid, patches),

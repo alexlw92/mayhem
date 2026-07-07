@@ -27,6 +27,8 @@ export default function App() {
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
   const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
+  const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null)
   const [dbReady, setDbReady] = useState(false)
   const [dbError, setDbError] = useState<string | null>(null)
   const [assetsReady, setAssetsReady] = useState(false)
@@ -192,11 +194,17 @@ export default function App() {
             <li key={item.id}>
               <button
                 className={`nav-item ${page === item.id ? 'active' : ''}`}
-                onClick={() => setPage(item.id)}
+                onClick={() => {
+                  setPage(item.id)
+                  if (item.id === 'players') { setSelectedPlayerPuuid(null); setSelectedPlayerName(null) }
+                }}
               >
                 <span className="nav-icon">{item.icon}</span>
                 {item.label}
               </button>
+              {item.id === 'players' && page === 'players' && selectedPlayerName && (
+                <div className="nav-subtab">↳ {selectedPlayerName.split('#')[0]}</div>
+              )}
             </li>
           ))}
         </ul>
@@ -271,7 +279,13 @@ export default function App() {
 
       <main className="content">
         <div style={{ display: page === 'players' ? 'block' : 'none' }}>
-          <Players players={players} onPlayersChange={refreshPlayers} selectedPatches={selectedPatches} />
+          <Players
+            onPlayersChange={refreshPlayers}
+            selectedPatches={selectedPatches}
+            selectedPuuid={selectedPlayerPuuid}
+            onPlayerSelect={(puuid, name) => { setSelectedPlayerPuuid(puuid); setSelectedPlayerName(name) }}
+            onPlayerDeselect={() => { setSelectedPlayerPuuid(null); setSelectedPlayerName(null) }}
+          />
         </div>
         <div style={{ display: page === 'champions' ? 'block' : 'none' }}>
           <Champions

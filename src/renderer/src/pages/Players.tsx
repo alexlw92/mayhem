@@ -89,6 +89,12 @@ function saveRecent(riotId: string, puuid: string): RecentEntry[] {
   return next
 }
 
+function removeRecent(puuid: string): RecentEntry[] {
+  const next = loadRecents().filter((r) => r.puuid !== puuid)
+  localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+  return next
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function kda(kills: number, deaths: number, assists: number): string {
@@ -152,11 +158,13 @@ function RecentPlayerCard({
   selectedPatches,
   onSelect,
   onPlayersChange,
+  onRemove,
 }: {
   entry: RecentEntry
   selectedPatches: string[] | null
   onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
+  onRemove: (puuid: string) => void
 }) {
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -195,11 +203,24 @@ function RecentPlayerCard({
 
   return (
     <div className="card recent-card" onClick={() => onSelect(entry.puuid, stats ?? placeholder)}>
-      <div className="recent-card-header">
-        <div style={{ minWidth: 0 }}>
+      <div className="recent-card-info">
+        <div className="recent-card-header">
           <div className="recent-card-name">{name}</div>
           {tag && <div className="recent-card-tag">#{tag}</div>}
         </div>
+        {stats ? (
+          <div className="recent-card-stats">
+            <span>{stats.games}G</span>
+            <span className={wr! >= 0.5 ? 'win' : 'loss'}>{((wr!) * 100).toFixed(0)}%WR</span>
+            <span>{kda(stats.kills, stats.deaths, stats.assists)} KDA</span>
+            <span style={{ color: 'var(--text-muted)' }}>{Math.round(stats.avgDpm)}/min</span>
+          </div>
+        ) : (
+          <div className="recent-card-empty">Loading…</div>
+        )}
+        {syncMsg && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2 }}>{syncMsg}</div>}
+      </div>
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
         <button
           className="lb-sync-btn"
           onClick={handleSync}
@@ -208,18 +229,14 @@ function RecentPlayerCard({
         >
           {syncing ? '…' : '↻'}
         </button>
+        <button
+          className="lb-remove-btn"
+          onClick={(e) => { e.stopPropagation(); onRemove(entry.puuid) }}
+          title="Remove from recents"
+        >
+          ×
+        </button>
       </div>
-      {stats ? (
-        <div className="recent-card-stats">
-          <span>{stats.games}G</span>
-          <span className={wr! >= 0.5 ? 'win' : 'loss'}>{((wr!) * 100).toFixed(0)}%WR</span>
-          <span>{kda(stats.kills, stats.deaths, stats.assists)} KDA</span>
-          <span style={{ color: 'var(--text-muted)' }}>{Math.round(stats.avgDpm)}/min</span>
-        </div>
-      ) : (
-        <div className="recent-card-empty">Loading…</div>
-      )}
-      {syncMsg && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4 }}>{syncMsg}</div>}
     </div>
   )
 }
@@ -242,6 +259,11 @@ function PlayerList({
   const [addLoading, setAddLoading] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   const [showRecents, setShowRecents] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filtered = searchQuery.trim()
+    ? recents.filter((r) => r.riotId.toLowerCase().includes(searchQuery.toLowerCase()))
+    : recents
 
   const handleAddPlayer = useCallback(async () => {
     const parts = addInput.trim().split('#')
@@ -285,6 +307,13 @@ function PlayerList({
   return (
     <div>
       <h1 className="page-title">Players</h1>
+
+      <input
+        className="player-search"
+        placeholder="Search players…"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
 
       <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Add a player by Riot ID</div>
@@ -331,32 +360,43 @@ function PlayerList({
           <div>No recent players</div>
           <p>Add a player above to get started</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <div>No players match "{searchQuery}"</div>
+        </div>
       ) : (
-        <div className="recent-cards-grid">
-          {recents.map((r) => (
+        <div className="recent-list">
+          {filtered.map((r) => (
             <RecentPlayerCard
               key={r.puuid}
               entry={r}
               selectedPatches={selectedPatches}
               onSelect={handleSelect}
               onPlayersChange={onPlayersChange}
+              onRemove={(puuid) => setRecents(removeRecent(puuid))}
             />
           ))}
         </div>
       )}
 
       <style>{`
-        .recent-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-        .recent-card { padding: 14px 16px; cursor: pointer; transition: border-color 0.15s; display: flex; flex-direction: column; gap: 8px; }
+        .player-search { width: 100%; box-sizing: border-box; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 8px 12px; font-size: 13px; outline: none; margin-bottom: 12px; }
+        .player-search:focus { border-color: var(--blue); }
+        .recent-list { display: flex; flex-direction: column; gap: 8px; }
+        .recent-card { padding: 12px 16px; cursor: pointer; transition: border-color 0.15s; display: flex; align-items: center; gap: 12px; }
         .recent-card:hover { border-color: var(--blue); }
-        .recent-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-        .recent-card-name { font-weight: 700; font-size: 15px; color: var(--blue-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .recent-card-tag { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+        .recent-card-info { flex: 1; min-width: 0; }
+        .recent-card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .recent-card-name { font-weight: 700; font-size: 14px; color: var(--blue-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recent-card-tag { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
         .recent-card-stats { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: var(--text-secondary); }
         .recent-card-empty { font-size: 12px; color: var(--text-muted); }
-        .lb-sync-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); font-size: 15px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .lb-sync-btn, .lb-remove-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); font-size: 15px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .lb-sync-btn { color: var(--text-secondary); }
         .lb-sync-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
         .lb-sync-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .lb-remove-btn { color: var(--text-muted); }
+        .lb-remove-btn:hover { border-color: var(--red); color: var(--red); }
         .recent-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; z-index: 100; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .recent-label { padding: 5px 10px 3px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .recent-item { padding: 7px 10px; font-size: 13px; color: var(--text-primary); cursor: pointer; }

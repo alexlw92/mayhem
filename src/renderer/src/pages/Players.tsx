@@ -262,25 +262,30 @@ function PlayerList({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ puuid: string; summonerName: string }[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchFired, setSearchFired] = useState(false)
 
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([])
+      setSearchFired(false)
       setShowSearchDropdown(false)
       return
     }
     const timer = setTimeout(() => {
-      api.db.searchPlayers(searchQuery).then((results: { puuid: string; summonerName: string }[]) => {
-        setSearchResults(results)
-        setShowSearchDropdown(results.length > 0)
-      }).catch(() => {})
+      api.db.searchPlayers(searchQuery)
+        .then((results: { puuid: string; summonerName: string }[]) => {
+          setSearchResults(results)
+          setSearchFired(true)
+          setShowSearchDropdown(true)
+        })
+        .catch((err: unknown) => {
+          console.error('[search]', err)
+          setSearchFired(true)
+          setShowSearchDropdown(true)
+        })
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
-
-  const filtered = searchQuery.trim()
-    ? recents.filter((r) => r.riotId.toLowerCase().includes(searchQuery.toLowerCase()))
-    : recents
 
   const handleAddPlayer = useCallback(async () => {
     const parts = addInput.trim().split('#')
@@ -335,27 +340,30 @@ function PlayerList({
           onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true) }}
           onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
         />
-        {showSearchDropdown && searchResults.length > 0 && (
+        {showSearchDropdown && (
           <div className="recent-dropdown">
-            {searchResults.map((r) => (
-              <div
-                key={r.puuid}
-                className="recent-item"
-                onMouseDown={() => {
-                  const placeholder: PlayerStats = {
-                    puuid: r.puuid, summonerName: r.summonerName,
-                    games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-                    avgDpm: 0, avgGold: 0, syncedFull: false,
-                  }
-                  setRecents(saveRecent(r.summonerName, r.puuid))
-                  setSearchQuery('')
-                  setShowSearchDropdown(false)
-                  onSelect(r.puuid, placeholder)
-                }}
-              >
-                {r.summonerName}
-              </div>
-            ))}
+            {searchResults.length > 0
+              ? searchResults.map((r) => (
+                  <div
+                    key={r.puuid}
+                    className="recent-item"
+                    onMouseDown={() => {
+                      const placeholder: PlayerStats = {
+                        puuid: r.puuid, summonerName: r.summonerName,
+                        games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+                        avgDpm: 0, avgGold: 0, syncedFull: false,
+                      }
+                      setRecents(saveRecent(r.summonerName, r.puuid))
+                      setSearchQuery('')
+                      setShowSearchDropdown(false)
+                      onSelect(r.puuid, placeholder)
+                    }}
+                  >
+                    {r.summonerName}
+                  </div>
+                ))
+              : <div className="recent-label" style={{ padding: '8px 10px' }}>No players found</div>
+            }
           </div>
         )}
       </div>
@@ -405,13 +413,9 @@ function PlayerList({
           <div>No recent players</div>
           <p>Add a player above to get started</p>
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state">
-          <div>No players match "{searchQuery}"</div>
-        </div>
       ) : (
         <div className="recent-list">
-          {filtered.map((r) => (
+          {recents.map((r) => (
             <RecentPlayerCard
               key={r.puuid}
               entry={r}

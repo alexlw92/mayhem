@@ -485,7 +485,7 @@ export async function getOnePlayerStats(puuid: string, patches?: string[]): Prom
 }
 
 export async function searchPlayers(query: string): Promise<{ puuid: string; summonerName: string }[]> {
-  return sql<{ puuid: string; summonerName: string }[]>`
+  return sql_<{ puuid: string; summonerName: string }[]>`
     SELECT DISTINCT ON (puuid) puuid, "summonerName"
     FROM participants
     WHERE "summonerName" ILIKE ${'%' + query + '%'}

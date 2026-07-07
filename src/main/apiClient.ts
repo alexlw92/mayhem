@@ -45,8 +45,8 @@ export const apiClient = {
   playerName: (puuid: string): Promise<string | null> =>
     http.get(`/api/players/${puuid}/name`).then((r) => r.data),
 
-  coplayerPuuids: (puuid: string): Promise<string[]> =>
-    http.get(`/api/players/${puuid}/coplayers`).then((r) => r.data),
+  coplayerStats: (puuid: string, patches?: string[]): Promise<{ puuid: string; summonerName: string; games: number; wins: number }[]> =>
+    http.get(`/api/players/${puuid}/coplayers`, { params: { patches: patches?.join(',') } }).then((r) => r.data),
 
   matchExists: (gameId: number): Promise<boolean> =>
     http.get(`/api/matches/${gameId}/exists`).then((r) => r.data),

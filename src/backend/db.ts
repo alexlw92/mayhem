@@ -366,14 +366,40 @@ export async function getPlayerName(puuid: string): Promise<string | null> {
   return rows.length > 0 ? rows[0].summonerName : null
 }
 
-export async function getCoplayerPuuids(puuid: string): Promise<string[]> {
-  const rows = await sql_`
-    SELECT DISTINCT p2.puuid
+export interface CoplayerStat {
+  puuid: string
+  summonerName: string
+  games: number
+  wins: number
+}
+
+export async function getCoplayerStats(puuid: string, patches?: string[]): Promise<CoplayerStat[]> {
+  const conditions: string[] = [`p1.puuid = $1`, `p2.puuid != $1`, `p2.puuid != ''`]
+  const params: any[] = [puuid]
+  if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
+  const where = `WHERE ${conditions.join(' AND ')}`
+
+  const rows = await sql_.unsafe(`
+    SELECT p2.puuid,
+      MIN(p2."summonerName") AS "summonerName",
+      COUNT(*)::int AS games,
+      SUM(p2.win::int)::int AS wins
     FROM participants p1
-    JOIN participants p2 ON p1."gameId" = p2."gameId"
-    WHERE p1.puuid = ${puuid} AND p2.puuid != ${puuid} AND p2.puuid != ''
-  `
-  return rows.map((r: any) => r.puuid)
+    JOIN participants p2 ON p1."gameId" = p2."gameId" AND p1."teamId" = p2."teamId"
+    JOIN matches m ON p1."gameId" = m."gameId"
+    ${where}
+    GROUP BY p2.puuid
+    HAVING COUNT(*) >= 2
+    ORDER BY games DESC
+    LIMIT 10
+  `, params)
+
+  return rows.map((r: any) => ({
+    puuid: r.puuid,
+    summonerName: r.summonerName ?? r.puuid.slice(0, 8) + '…',
+    games: r.games,
+    wins: r.wins,
+  }))
 }
 
 export async function getPatches(): Promise<string[]> {

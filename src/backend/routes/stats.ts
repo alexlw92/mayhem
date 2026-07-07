@@ -9,7 +9,7 @@ import {
   getAugmentChampionStats,
   getWinRateTrend,
   getPlayerName,
-  getCoplayerPuuids,
+  getCoplayerStats,
   getGroupSummary,
   searchPlayers,
   AugmentInfo
@@ -69,7 +69,7 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
   })
 
   router.get('/players/:puuid/coplayers', async (req, res) => {
-    res.json(await getCoplayerPuuids(req.params.puuid))
+    res.json(await getCoplayerStats(req.params.puuid, parsePatches(req.query.patches)))
   })
 
   router.get('/group', async (_req, res) => {

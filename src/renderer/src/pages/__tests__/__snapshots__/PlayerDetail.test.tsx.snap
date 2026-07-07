@@ -2053,3 +2053,357 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
   </div>
 </div>
 `;
+
+exports[`CoplayerTable > click Games twice — shows ▲ (ascending) 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Player
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Alice#NA1
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Carol#NA1
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Bob#NA1
+          </td>
+          <td>
+            5
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 80%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                80
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`CoplayerTable > click Win Rate — reorders by win rate descending 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Player
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+             ▼
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Bob#NA1
+          </td>
+          <td>
+            5
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 80%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                80
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Alice#NA1
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Carol#NA1
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`CoplayerTable > default render — sorted by games descending 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Player
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Alice#NA1
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Carol#NA1
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            Bob#NA1
+          </td>
+          <td>
+            5
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 80%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                80
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
-import { ChampionTable, AugmentTable, ChampionStat, AugmentStat, AugmentInfo } from '../Players'
+import { ChampionTable, AugmentTable, CoplayerTable, ChampionStat, AugmentStat, AugmentInfo, CoplayerStat } from '../Players'
 
 afterEach(() => cleanup())
 
@@ -95,6 +95,35 @@ describe('AugmentTable', () => {
     const btn = getByRole('button', { name: 'Silver' })
     fireEvent.click(btn)
     fireEvent.click(btn)
+    expect(container).toMatchSnapshot()
+  })
+})
+
+// ─── CoplayerTable ────────────────────────────────────────────────────────────
+
+const coplayers: CoplayerStat[] = [
+  { puuid: 'p1', summonerName: 'Alice#NA1', games: 12, wins: 8 },
+  { puuid: 'p2', summonerName: 'Bob#NA1',   games: 5,  wins: 4 },
+  { puuid: 'p3', summonerName: 'Carol#NA1', games: 9,  wins: 3 },
+]
+
+describe('CoplayerTable', () => {
+  it('default render — sorted by games descending', () => {
+    const { container } = render(<CoplayerTable data={coplayers} />)
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Win Rate — reorders by win rate descending', () => {
+    const { container, getByText } = render(<CoplayerTable data={coplayers} />)
+    fireEvent.click(getByText(/Win Rate/))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Games twice — shows ▲ (ascending)', () => {
+    const { container, getByText } = render(<CoplayerTable data={coplayers} />)
+    const header = getByText(/Games/)
+    fireEvent.click(header)
+    fireEvent.click(header)
     expect(container).toMatchSnapshot()
   })
 })

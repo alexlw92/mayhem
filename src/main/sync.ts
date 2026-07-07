@@ -50,7 +50,8 @@ export function mapGame(game: LCUMatchHistoryGame): Match {
 }
 
 export async function importGamesForPuuid(
-  puuid: string
+  puuid: string,
+  shouldStop?: () => boolean
 ): Promise<{ imported: number; fetchFailed: boolean }> {
   let imported = 0
   let fetchFailed = false
@@ -61,6 +62,7 @@ export async function importGamesForPuuid(
     fetchFailed = true
   } else {
     for (const game of games) {
+      if (shouldStop?.()) break
       if (await apiClient.matchExists(game.gameId)) continue
 
       const full = await getGameDetails(game.gameId)

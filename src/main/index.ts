@@ -179,7 +179,7 @@ async function syncWorker(): Promise<void> {
     mainWindow?.webContents.send('sync-progress', { playerName, totalImported: 0, playersSearched: 1 })
 
     try {
-      const { imported, fetchFailed } = await importGamesForPuuid(puuid)
+      const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
       if (fetchFailed) {
         console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
         await apiClient.completeJob(puuid)

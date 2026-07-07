@@ -103,6 +103,7 @@ export async function initDb(url?: string): Promise<void> {
 
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameId     ON participants("gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid      ON participants(puuid)`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid_id   ON participants(puuid, id DESC)`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_championId ON participants("championId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameVersion     ON matches("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation    ON matches("gameCreation")`
@@ -196,9 +197,9 @@ export async function enqueuePlayer(puuid: string): Promise<void> {
 
 export async function enqueueAll(puuids: string[]): Promise<void> {
   if (puuids.length === 0) return
-  const now = Date.now()
   await sql_`
-    INSERT INTO sync_queue ${sql_(puuids.map((p) => ({ puuid: p, queued_at: now })))}
+    INSERT INTO sync_queue (puuid, queued_at)
+    SELECT p, ${Date.now()} FROM unnest(${puuids}::text[]) p
     ON CONFLICT (puuid) DO NOTHING
   `
 }
@@ -260,9 +261,7 @@ export async function isPlayerStale(puuid: string, thresholdMs: number): Promise
 }
 
 export async function invalidateAllSyncTimes(): Promise<void> {
-  await sql_`DELETE FROM player_sync_times`
-  const rows = await sql_`SELECT DISTINCT puuid FROM participants WHERE puuid != ''`
-  await enqueueAll(rows.map((r: any) => r.puuid as string))
+  await sql_`UPDATE player_sync_times SET "syncedAt" = 0`
 }
 
 export async function matchExists(gameId: number): Promise<boolean> {
@@ -407,8 +406,10 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
           SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
           CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
           AVG(p."goldEarned") AS "avgGold",
-          EXISTS(SELECT 1 FROM player_sync_times s WHERE s.puuid = p.puuid) AS "syncedFull"
-        FROM participants p JOIN matches m ON p."gameId" = m."gameId"
+          true AS "syncedFull"
+        FROM participants p
+        JOIN matches m ON p."gameId" = m."gameId"
+        JOIN player_sync_times s ON s.puuid = p.puuid
         WHERE m."gameVersion" = ANY(${patches})
         GROUP BY p.puuid ORDER BY games DESC
       `
@@ -419,8 +420,10 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
           SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
           CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
           AVG(p."goldEarned") AS "avgGold",
-          EXISTS(SELECT 1 FROM player_sync_times s WHERE s.puuid = p.puuid) AS "syncedFull"
-        FROM participants p JOIN matches m ON p."gameId" = m."gameId"
+          true AS "syncedFull"
+        FROM participants p
+        JOIN matches m ON p."gameId" = m."gameId"
+        JOIN player_sync_times s ON s.puuid = p.puuid
         GROUP BY p.puuid ORDER BY games DESC
       `
   return rows.map((r: any) => ({
@@ -435,6 +438,50 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
     avgGold: parseFloat(r.avgGold),
     syncedFull: r.syncedFull
   }))
+}
+
+export async function getOnePlayerStats(puuid: string, patches?: string[]): Promise<PlayerStats | null> {
+  const rows = patches?.length
+    ? await sql_`
+        SELECT
+          ${puuid} AS puuid,
+          (SELECT "summonerName" FROM participants p2 WHERE p2.puuid = ${puuid} ORDER BY p2.id DESC LIMIT 1) AS "summonerName",
+          COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
+          SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
+          CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
+          AVG(p."goldEarned") AS "avgGold",
+          true AS "syncedFull"
+        FROM participants p
+        JOIN matches m ON p."gameId" = m."gameId"
+        WHERE p.puuid = ${puuid} AND m."gameVersion" = ANY(${patches})
+      `
+    : await sql_`
+        SELECT
+          ${puuid} AS puuid,
+          (SELECT "summonerName" FROM participants p2 WHERE p2.puuid = ${puuid} ORDER BY p2.id DESC LIMIT 1) AS "summonerName",
+          COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
+          SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
+          CASE WHEN SUM(m."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
+          AVG(p."goldEarned") AS "avgGold",
+          true AS "syncedFull"
+        FROM participants p
+        JOIN matches m ON p."gameId" = m."gameId"
+        WHERE p.puuid = ${puuid}
+      `
+  if (!rows.length || !rows[0].games) return null
+  const r = rows[0]
+  return {
+    puuid,
+    summonerName: r.summonerName ?? '',
+    games: r.games,
+    wins: r.wins,
+    kills: r.kills,
+    deaths: r.deaths,
+    assists: r.assists,
+    avgDpm: parseFloat(r.avgDpm),
+    avgGold: parseFloat(r.avgGold),
+    syncedFull: true,
+  }
 }
 
 export interface ChampionStats {

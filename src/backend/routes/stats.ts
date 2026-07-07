@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   getPatches,
   getPlayerStats,
+  getOnePlayerStats,
   getChampionStats,
   getRecentMatches,
   getAugmentStats,
@@ -30,6 +31,10 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players', async (req, res) => {
     res.json(await getPlayerStats(parsePatches(req.query.patches)))
+  })
+
+  router.get('/players/:puuid/stats', async (req, res) => {
+    res.json(await getOnePlayerStats(req.params.puuid, parsePatches(req.query.patches)))
   })
 
   router.get('/players/:puuid/champions', async (req, res) => {

@@ -37,6 +37,8 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null
 let pollInterval: ReturnType<typeof setInterval> | null = null
 let workerRunning = false
+let syncInProgress = false
+let syncAccum = { imported: 0, playerssynced: 0 }
 
 const CLIENT_ID = `electron-${os.hostname()}-${process.pid}`
 
@@ -145,31 +147,49 @@ async function repairIncompleteMatches(): Promise<number> {
 // ─── Sync worker ──────────────────────────────────────────────────────────────
 
 async function syncWorker(): Promise<void> {
-  if (!isClientRunning()) return
-  ensureChampionNames()
+  const draining = syncInProgress
 
-  const { puuid } = await apiClient.claimNextJob(CLIENT_ID)
-  if (!puuid) return
-
-  const playerName = await apiClient.playerName(puuid) ?? puuid.slice(0, 8) + '…'
-  mainWindow?.webContents.send('sync-progress', { playerName, totalImported: 0, playersSearched: 1 })
-
-  try {
-    const { imported, fetchFailed } = await importGamesForPuuid(puuid)
-    if (fetchFailed) {
-      console.warn(`[sync] fetch failed for ${playerName}, releasing job`)
-      await apiClient.failJob(puuid)
-    } else {
-      console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''}`)
-      await apiClient.completeJob(puuid)
-      if (imported > 0) {
-        mainWindow?.webContents.send('sync-progress', { playerName, totalImported: imported, playersSearched: 1 })
-        mainWindow?.webContents.send('matches-synced', { imported, playerssynced: 1 })
+  while (true) {
+    if (!isClientRunning()) {
+      if (draining && syncInProgress) {
+        syncInProgress = false
+        mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'client-offline' })
       }
+      return
     }
-  } catch (err) {
-    console.error(`[sync] error syncing ${playerName}:`, err)
-    await apiClient.failJob(puuid).catch(() => {})
+    ensureChampionNames()
+
+    const { puuid } = await apiClient.claimNextJob(CLIENT_ID)
+    if (!puuid) {
+      if (draining && syncInProgress) {
+        syncInProgress = false
+        mainWindow?.webContents.send('sync-complete', syncAccum)
+      }
+      return
+    }
+
+    const playerName = await apiClient.playerName(puuid) ?? puuid.slice(0, 8) + '…'
+    mainWindow?.webContents.send('sync-progress', { playerName, totalImported: 0, playersSearched: 1 })
+
+    try {
+      const { imported, fetchFailed } = await importGamesForPuuid(puuid)
+      if (fetchFailed) {
+        console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
+        await apiClient.completeJob(puuid)
+      } else {
+        console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''}`)
+        await apiClient.completeJob(puuid)
+        if (draining) syncAccum.playerssynced++
+        if (imported > 0) {
+          if (draining) syncAccum.imported += imported
+          mainWindow?.webContents.send('sync-progress', { playerName, totalImported: imported, playersSearched: 1 })
+          mainWindow?.webContents.send('matches-synced', { imported, playerssynced: 1 })
+        }
+      }
+    } catch (err) {
+      console.error(`[sync] error syncing ${playerName}:`, err)
+      await apiClient.failJob(puuid).catch(() => {})
+    }
   }
 }
 
@@ -280,6 +300,8 @@ ipcMain.handle('lcu:syncStatus', () => ({ syncing: workerRunning }))
 ipcMain.handle('lcu:sync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  syncInProgress = true
+  syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
   return { started: true }
@@ -288,6 +310,8 @@ ipcMain.handle('lcu:sync', async () => {
 ipcMain.handle('lcu:fullSync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  syncInProgress = true
+  syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.invalidateSyncTimes()
   mainWindow?.webContents.send('sync-started')
   return { started: true }
@@ -309,6 +333,7 @@ ipcMain.handle('lcu:lookupPlayer', async (_e, gameName: string, tagLine: string)
 
 ipcMain.handle('db:patches', () => apiClient.patches())
 ipcMain.handle('db:playerStats', (_e, patches?: string[]) => apiClient.playerStats(patches))
+ipcMain.handle('db:playerOneStats', (_e, puuid: string, patches?: string[]) => apiClient.playerOneStats(puuid, patches))
 ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => apiClient.championStats(puuid, patches))
 ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => apiClient.recentMatches(limit, puuid, patches))
 ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => apiClient.winRateTrend(puuid, days))

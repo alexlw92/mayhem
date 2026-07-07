@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Player } from '../App'
 import AugmentIcon from '../components/AugmentIcon'
 import './Dashboard.css'
 
@@ -41,7 +40,7 @@ interface MatchView {
   participants: MatchParticipant[]
 }
 
-interface ChampionStat {
+export interface ChampionStat {
   championId: number
   championName: string
   games: number
@@ -52,7 +51,7 @@ interface ChampionStat {
   avgDpm: number
 }
 
-interface AugmentStat {
+export interface AugmentStat {
   augmentId: number
   name: string
   rarity: number
@@ -61,14 +60,15 @@ interface AugmentStat {
   avgDpm: number
 }
 
-interface AugmentInfo {
+export interface AugmentInfo {
   name: string
   iconPath: string
   rarity: number
 }
 
-type Metric = 'wins' | 'winRate' | 'kda' | 'avgDpm' | 'avgGold'
 type Tab = 'matches' | 'champions' | 'augments'
+type ChampionSortKey = 'games' | 'winRate' | 'kda' | 'avgDpm'
+type AugmentSortKey = 'pickCount' | 'winRate' | 'avgDpm'
 
 const RECENT_KEY = 'mayhem-recent-players'
 const MAX_RECENT = 10
@@ -111,44 +111,18 @@ function timeAgo(ms: number): string {
   return 'Just now'
 }
 
-const METRICS: { key: Metric; label: string }[] = [
-  { key: 'winRate', label: 'Win Rate' },
-  { key: 'wins', label: 'Wins' },
-  { key: 'kda', label: 'KDA' },
-  { key: 'avgDpm', label: 'Avg DPM' },
-  { key: 'avgGold', label: 'Avg Gold' },
-]
-
-function getMetricValue(p: PlayerStats, metric: Metric): number {
-  if (metric === 'wins') return p.wins
-  if (metric === 'winRate') return p.wins / p.games
-  if (metric === 'kda') return p.deaths === 0 ? 999 : (p.kills + p.assists) / p.deaths
-  if (metric === 'avgDpm') return p.avgDpm
-  if (metric === 'avgGold') return p.avgGold
-  return 0
-}
-
-function formatMetric(p: PlayerStats, metric: Metric): string {
-  const v = getMetricValue(p, metric)
-  if (metric === 'winRate') return `${(v * 100).toFixed(1)}%`
-  if (metric === 'kda') return v === 999 ? 'Perfect' : v.toFixed(2)
-  if (metric === 'avgDpm') return `${Math.round(v)}/min`
-  if (metric === 'avgGold') return `${(v / 1000).toFixed(1)}k`
-  return String(v)
-}
-
-const MEDALS = ['🥇', '🥈', '🥉']
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
-  players: Player[]
   onPlayersChange: () => void
   selectedPatches: string[] | null
+  selectedPuuid: string | null
+  onPlayerSelect: (puuid: string, name: string) => void
+  onPlayerDeselect: () => void
 }
 
-export default function Players({ players, onPlayersChange, selectedPatches }: Props) {
-  const [selectedPuuid, setSelectedPuuid] = useState<string | null>(null)
+export default function Players({ onPlayersChange, selectedPatches, selectedPuuid, onPlayerSelect, onPlayerDeselect }: Props) {
   const [selectedPlayerData, setSelectedPlayerData] = useState<PlayerStats | null>(null)
 
   if (selectedPuuid && selectedPlayerData) {
@@ -157,74 +131,117 @@ export default function Players({ players, onPlayersChange, selectedPatches }: P
         puuid={selectedPuuid}
         player={selectedPlayerData}
         selectedPatches={selectedPatches}
-        onBack={() => { setSelectedPuuid(null); setSelectedPlayerData(null) }}
+        onBack={() => { setSelectedPlayerData(null); onPlayerDeselect() }}
       />
     )
   }
 
   return (
     <PlayerList
-      players={players}
-      onSelect={(puuid, player) => { setSelectedPuuid(puuid); setSelectedPlayerData(player) }}
+      onSelect={(puuid, player) => { setSelectedPlayerData(player); onPlayerSelect(puuid, player.summonerName) }}
       onPlayersChange={onPlayersChange}
       selectedPatches={selectedPatches}
     />
   )
 }
 
-// ─── Leaderboard view ─────────────────────────────────────────────────────────
+// ─── Recent player card ───────────────────────────────────────────────────────
+
+function RecentPlayerCard({
+  entry,
+  selectedPatches,
+  onSelect,
+  onPlayersChange,
+}: {
+  entry: RecentEntry
+  selectedPatches: string[] | null
+  onSelect: (puuid: string, player: PlayerStats) => void
+  onPlayersChange: () => void
+}) {
+  const [stats, setStats] = useState<PlayerStats | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+
+  useEffect(() => {
+    if (selectedPatches === null) return
+    api.db.playerOneStats(entry.puuid, selectedPatches).then(setStats).catch(() => {})
+  }, [entry.puuid, selectedPatches])
+
+  const handleSync = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const result = await api.lcu.syncPlayer(entry.puuid)
+      setSyncMsg(`${result.imported} new game${result.imported !== 1 ? 's' : ''}`)
+      const fresh = await api.db.playerOneStats(entry.puuid, selectedPatches ?? undefined)
+      setStats(fresh)
+      onPlayersChange()
+    } catch {
+      setSyncMsg('sync failed')
+    }
+    setSyncing(false)
+    setTimeout(() => setSyncMsg(''), 4000)
+  }, [entry.puuid, selectedPatches, onPlayersChange])
+
+  const [name, tag] = entry.riotId.split('#')
+  const wr = stats ? stats.wins / stats.games : null
+
+  const placeholder: PlayerStats = {
+    puuid: entry.puuid, summonerName: entry.riotId,
+    games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+    avgDpm: 0, avgGold: 0, syncedFull: false,
+  }
+
+  return (
+    <div className="card recent-card" onClick={() => onSelect(entry.puuid, stats ?? placeholder)}>
+      <div className="recent-card-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="recent-card-name">{name}</div>
+          {tag && <div className="recent-card-tag">#{tag}</div>}
+        </div>
+        <button
+          className="lb-sync-btn"
+          onClick={handleSync}
+          disabled={syncing}
+          title="Sync player"
+        >
+          {syncing ? '…' : '↻'}
+        </button>
+      </div>
+      {stats ? (
+        <div className="recent-card-stats">
+          <span>{stats.games}G</span>
+          <span className={wr! >= 0.5 ? 'win' : 'loss'}>{((wr!) * 100).toFixed(0)}%WR</span>
+          <span>{kda(stats.kills, stats.deaths, stats.assists)} KDA</span>
+          <span style={{ color: 'var(--text-muted)' }}>{Math.round(stats.avgDpm)}/min</span>
+        </div>
+      ) : (
+        <div className="recent-card-empty">Loading…</div>
+      )}
+      {syncMsg && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4 }}>{syncMsg}</div>}
+    </div>
+  )
+}
+
+// ─── Player list (recents-based) ──────────────────────────────────────────────
 
 function PlayerList({
-  players,
   onSelect,
   onPlayersChange,
   selectedPatches,
 }: {
-  players: Player[]
   onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
   selectedPatches: string[] | null
 }) {
-  const [data, setData] = useState<PlayerStats[]>([])
-  const [metric, setMetric] = useState<Metric>('winRate')
-  const [syncing, setSyncing] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
   const [addInput, setAddInput] = useState('')
   const [addError, setAddError] = useState('')
   const [addLoading, setAddLoading] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   const [showRecents, setShowRecents] = useState(false)
-  const PAGE_SIZE = 25
-
-  const refresh = useCallback(() => {
-    if (selectedPatches === null) return
-    setRefreshing(true)
-    api.db.playerStats(selectedPatches).then((d: PlayerStats[]) => {
-      setData(d)
-      setRefreshing(false)
-    }).catch(() => setRefreshing(false))
-  }, [selectedPatches])
-
-  useEffect(() => { refresh() }, [refresh])
-
-  const handleSyncPlayer = useCallback(async (e: React.MouseEvent, puuid: string, name: string) => {
-    e.stopPropagation()
-    setSyncing(puuid)
-    setSyncMsg('')
-    try {
-      const result = await api.lcu.syncPlayer(puuid)
-      setSyncMsg(`${name}: ${result.imported} new game${result.imported !== 1 ? 's' : ''} imported`)
-    } catch {
-      setSyncMsg(`${name}: sync failed`)
-    }
-    setSyncing(null)
-    setTimeout(() => setSyncMsg(''), 5000)
-    refresh()
-    onPlayersChange()
-  }, [refresh, onPlayersChange])
 
   const handleAddPlayer = useCallback(async () => {
     const parts = addInput.trim().split('#')
@@ -242,60 +259,32 @@ function PlayerList({
         setAddLoading(false)
         return
       }
-      setSyncing(summoner.puuid)
+      setSyncing(true)
       const result = await api.lcu.syncPlayer(summoner.puuid)
-      setSyncing(null)
+      setSyncing(false)
       setAddLoading(false)
+      const riotId = `${gameName}#${tagLine}`
+      const updated = saveRecent(riotId, summoner.puuid)
+      setRecents(updated)
       setAddInput('')
       setSyncMsg(`Added ${gameName}: ${result.imported} game${result.imported !== 1 ? 's' : ''} imported`)
       setTimeout(() => setSyncMsg(''), 5000)
-      const updatedData = await api.db.playerStats(selectedPatches) as PlayerStats[]
-      setData(updatedData)
       onPlayersChange()
     } catch {
       setAddError('An error occurred — check that the League client is open')
       setAddLoading(false)
-      setSyncing(null)
+      setSyncing(false)
     }
-  }, [addInput, selectedPatches, onPlayersChange])
+  }, [addInput, onPlayersChange])
 
   const handleSelect = useCallback((puuid: string, player: PlayerStats) => {
     setRecents(saveRecent(player.summonerName, puuid))
     onSelect(puuid, player)
   }, [onSelect])
 
-  const filtered = data.filter((p) =>
-    p.summonerName.toLowerCase().includes(search.toLowerCase())
-  )
-  const sorted = [...filtered].sort(
-    (a, b) => getMetricValue(b, metric) - getMetricValue(a, metric)
-  )
-  const maxVal = sorted.length > 0 ? getMetricValue(sorted[0], metric) : 1
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
-  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-        <h1 className="page-title" style={{ margin: 0 }}>Players</h1>
-        {refreshing && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Updating…</span>}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', padding: '12px 16px', flexWrap: 'wrap' }}>
-        <input
-          style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', padding: '5px 10px', fontSize: 12, outline: 'none', width: 160 }}
-          placeholder="Search player…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-        />
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>|</span>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Rank by</span>
-        {METRICS.map((m) => (
-          <button key={m.key} onClick={() => { setMetric(m.key); setPage(0) }} className={`lb-metric-btn ${metric === m.key ? 'active' : ''}`}>
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <h1 className="page-title">Players</h1>
 
       <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Add a player by Riot ID</div>
@@ -327,136 +316,51 @@ function PlayerList({
           </div>
           <button
             onClick={handleAddPlayer}
-            disabled={addLoading || !addInput.trim()}
-            style={{ padding: '6px 16px', background: 'var(--blue)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: addLoading ? 0.5 : 1, flexShrink: 0 }}
+            disabled={addLoading || syncing || !addInput.trim()}
+            style={{ padding: '6px 16px', background: 'var(--blue)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: (addLoading || syncing) ? 0.5 : 1, flexShrink: 0 }}
           >
-            {addLoading ? 'Looking up…' : 'Add & Sync'}
+            {addLoading ? 'Looking up…' : syncing ? 'Syncing…' : 'Add & Sync'}
           </button>
         </div>
         {addError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{addError}</div>}
         {syncMsg && <div style={{ color: 'var(--green)', fontSize: 12, marginTop: 6 }}>{syncMsg}</div>}
       </div>
 
-      {recents.length > 0 && (
-        <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 }}>Recent</div>
-          <div className="recent-grid">
-            {recents.map((r) => {
-              const match = data.find((p) => p.puuid === r.puuid)
-              const [name, tag] = r.riotId.split('#')
-              return (
-                <div
-                  key={r.puuid}
-                  className="recent-player-row"
-                  onClick={() => handleSelect(r.puuid, match ?? {
-                    puuid: r.puuid, summonerName: r.riotId,
-                    games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-                    avgDpm: 0, avgGold: 0, syncedFull: false
-                  })}
-                >
-                  <div className="recent-player-name">
-                    <span className="lb-name">{name}</span>
-                    {tag && <span className="lb-tag">#{tag}</span>}
-                  </div>
-                  {match && (
-                    <span className="recent-player-stats">
-                      {match.games}G · <span className={match.wins / match.games >= 0.5 ? 'win' : 'loss'}>{((match.wins / match.games) * 100).toFixed(0)}%WR</span>
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {sorted.length === 0 && !refreshing ? (
+      {recents.length === 0 ? (
         <div className="empty-state">
-          <div>No players yet</div>
-          <p>Sync games to populate the leaderboard</p>
+          <div>No recent players</div>
+          <p>Add a player above to get started</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {paginated.map((p, i) => {
-            const globalRank = page * PAGE_SIZE + i
-            const val = getMetricValue(p, metric)
-            const pct = maxVal > 0 ? (val / maxVal) * 100 : 0
-            const wr = p.wins / p.games
-            const isSyncing = syncing === p.puuid
-            return (
-              <div
-                key={p.puuid}
-                className="card lb-row"
-                onClick={() => handleSelect(p.puuid, p)}
-              >
-                <div className="lb-rank">
-                  {globalRank < 3 ? MEDALS[globalRank] : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>#{globalRank + 1}</span>}
-                </div>
-                <div className="lb-info">
-                  <div className="lb-name">{p.summonerName.split('#')[0]}</div>
-                  <div className="lb-tag">#{p.summonerName.split('#')[1] ?? ''}</div>
-                </div>
-                <div className="lb-games">
-                  {p.games}G · <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%WR</span>
-                  {p.syncedFull && <span className="synced-badge" title="Full history synced">✓</span>}
-                </div>
-                <div className="lb-bar-wrap">
-                  <div className="lb-bar"><div className="lb-bar-fill" style={{ width: `${pct}%` }} /></div>
-                  <div className="lb-val">{formatMetric(p, metric)}</div>
-                </div>
-                <button
-                  className="lb-sync-btn"
-                  onClick={(e) => handleSyncPlayer(e, p.puuid, p.summonerName)}
-                  disabled={isSyncing}
-                  title="Sync this player"
-                >
-                  {isSyncing ? '…' : '↻'}
-                </button>
-              </div>
-            )
-          })}
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '12px 0' }}>
-              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="lb-page-btn">← Prev</button>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Page {page + 1} of {totalPages} · {sorted.length} players</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="lb-page-btn">Next →</button>
-            </div>
-          )}
+        <div className="recent-cards-grid">
+          {recents.map((r) => (
+            <RecentPlayerCard
+              key={r.puuid}
+              entry={r}
+              selectedPatches={selectedPatches}
+              onSelect={handleSelect}
+              onPlayersChange={onPlayersChange}
+            />
+          ))}
         </div>
       )}
 
       <style>{`
-        .lb-metric-btn { padding: 4px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
-        .lb-metric-btn:hover { border-color: var(--blue); color: var(--text-primary); }
-        .lb-metric-btn.active { background: var(--accent); border-color: var(--accent); color: #0a0e1a; font-weight: 700; }
-        .lb-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; transition: border-color 0.15s; }
-        .lb-row:hover { border-color: var(--blue); }
-        .lb-rank { width: 32px; font-size: 18px; text-align: center; flex-shrink: 0; }
-        .lb-info { width: 150px; flex-shrink: 0; overflow: hidden; }
-        .lb-name { font-weight: 600; color: var(--blue-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-        .lb-tag { font-size: 11px; color: var(--text-muted); }
-        .lb-games { width: 110px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
-        .synced-badge { color: var(--green); font-size: 11px; font-weight: 700; margin-left: 2px; }
-        .lb-bar-wrap { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
-        .lb-bar { flex: 1; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden; }
-        .lb-bar-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--accent)); border-radius: 3px; transition: width 0.4s ease; }
-        .lb-val { width: 65px; text-align: right; font-weight: 700; color: var(--accent); font-size: 14px; flex-shrink: 0; }
-        .lb-sync-btn { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); font-size: 16px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .recent-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+        .recent-card { padding: 14px 16px; cursor: pointer; transition: border-color 0.15s; display: flex; flex-direction: column; gap: 8px; }
+        .recent-card:hover { border-color: var(--blue); }
+        .recent-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+        .recent-card-name { font-weight: 700; font-size: 15px; color: var(--blue-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recent-card-tag { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+        .recent-card-stats { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; color: var(--text-secondary); }
+        .recent-card-empty { font-size: 12px; color: var(--text-muted); }
+        .lb-sync-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-secondary); font-size: 15px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
         .lb-sync-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
         .lb-sync-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .lb-page-btn { padding: 5px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
-        .lb-page-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--text-primary); }
-        .lb-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .recent-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; z-index: 100; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .recent-label { padding: 5px 10px 3px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .recent-item { padding: 7px 10px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
         .recent-item:hover { background: var(--bg-primary); color: var(--blue-light); }
-        .recent-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 12px; }
-        .recent-player-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.1s; min-width: 0; }
-        .recent-player-row:hover { background: var(--bg-primary); }
-        .recent-player-name { display: flex; align-items: baseline; gap: 3px; min-width: 0; overflow: hidden; }
-        .recent-player-name .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .recent-player-stats { font-size: 12px; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
       `}</style>
     </div>
   )
@@ -464,7 +368,7 @@ function PlayerList({
 
 // ─── Individual player view ───────────────────────────────────────────────────
 
-function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: string; player: Player; onBack: () => void; selectedPatches: string[] | null }) {
+function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null }) {
   const [tab, setTab] = useState<Tab>('matches')
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [matches, setMatches] = useState<MatchView[]>([])
@@ -480,11 +384,11 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: strin
     setChampionStats([])
     setAugmentStats([])
     Promise.all([
-      api.db.playerStats(selectedPatches),
+      api.db.playerOneStats(puuid, selectedPatches),
       api.db.recentMatches(20, puuid, selectedPatches),
       api.db.augmentCache(),
-    ]).then(([allStats, m, cache]: [PlayerStats[], MatchView[], Record<number, AugmentInfo>]) => {
-      setStats(allStats.find((s) => s.puuid === puuid) ?? null)
+    ]).then(([s, m, cache]: [PlayerStats | null, MatchView[], Record<number, AugmentInfo>]) => {
+      setStats(s)
       setMatches(m)
       setAugmentCache(cache)
       setLoading(false)
@@ -614,22 +518,45 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: strin
 
 // ─── Champion sub-tab table ───────────────────────────────────────────────────
 
-function ChampionTable({ data }: { data: ChampionStat[] }) {
+export function ChampionTable({ data }: { data: ChampionStat[] }) {
+  const [sortKey, setSortKey] = useState<ChampionSortKey>('games')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const sorted = [...data].sort((a, b) => {
+    const aVal = sortKey === 'winRate' ? a.wins / a.games
+      : sortKey === 'kda' ? (a.kills + a.assists) / Math.max(1, a.deaths)
+      : sortKey === 'avgDpm' ? a.avgDpm
+      : a.games
+    const bVal = sortKey === 'winRate' ? b.wins / b.games
+      : sortKey === 'kda' ? (b.kills + b.assists) / Math.max(1, b.deaths)
+      : sortKey === 'avgDpm' ? b.avgDpm
+      : b.games
+    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
+  })
+
+  const onSort = (key: ChampionSortKey) => {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const arrow = (key: ChampionSortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
+  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
+
   return (
     <div className="card">
       <table>
         <thead>
           <tr>
             <th>Champion</th>
-            <th>Games</th>
-            <th>Win Rate</th>
-            <th>KDA</th>
+            <th style={thStyle} onClick={() => onSort('games')}>Games{arrow('games')}</th>
+            <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
+            <th style={thStyle} onClick={() => onSort('kda')}>KDA{arrow('kda')}</th>
             <th>K / D / A</th>
-            <th>Avg DPM</th>
+            <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((c) => {
+          {sorted.map((c) => {
             const wr = c.wins / c.games
             return (
               <tr key={c.championId}>
@@ -669,7 +596,28 @@ function ChampionTable({ data }: { data: ChampionStat[] }) {
 
 // ─── Augment sub-tab table ────────────────────────────────────────────────────
 
-function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo> }) {
+export function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo> }) {
+  const [sortKey, setSortKey] = useState<AugmentSortKey>('pickCount')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const sorted = [...data].sort((a, b) => {
+    const aVal = sortKey === 'winRate' ? (a.pickCount > 0 ? a.wins / a.pickCount : 0)
+      : sortKey === 'avgDpm' ? a.avgDpm
+      : a.pickCount
+    const bVal = sortKey === 'winRate' ? (b.pickCount > 0 ? b.wins / b.pickCount : 0)
+      : sortKey === 'avgDpm' ? b.avgDpm
+      : b.pickCount
+    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
+  })
+
+  const onSort = (key: AugmentSortKey) => {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const arrow = (key: AugmentSortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
+  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
+
   const RARITY = ['Silver', 'Gold', 'Prismatic']
   const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
   return (
@@ -679,13 +627,13 @@ function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augmentCach
           <tr>
             <th>Augment</th>
             <th>Rarity</th>
-            <th>Picks</th>
-            <th>Win Rate</th>
-            <th>Avg DPM</th>
+            <th style={thStyle} onClick={() => onSort('pickCount')}>Picks{arrow('pickCount')}</th>
+            <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
+            <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((a) => {
+          {sorted.map((a) => {
             const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
             return (
               <tr key={a.augmentId}>

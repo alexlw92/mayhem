@@ -5,6 +5,35 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
   <div
     class="card"
   >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn active"
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
     <table>
       <thead>
         <tr>
@@ -180,6 +209,582 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
           </td>
           <td>
             500
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn "
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn active"
+        style="border-color: rgb(240, 180, 41); color: rgb(240, 180, 41);"
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td
+            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
+          >
+            Gold
+          </td>
+          <td>
+            6
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn "
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn active"
+        style="border-color: rgb(180, 75, 225); color: rgb(180, 75, 225);"
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td
+            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
+          >
+            Prismatic
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            500
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentTable > click Silver twice — returns to All (all rows visible) 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn active"
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+        style=""
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td
+            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
+          >
+            Silver
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            700
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td
+            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
+          >
+            Prismatic
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            500
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td
+            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
+          >
+            Gold
+          </td>
+          <td>
+            6
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn "
+      >
+        All
+      </button>
+      <button
+        class="aug-btn active"
+        style="border-color: rgb(192, 192, 192); color: rgb(192, 192, 192);"
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td
+            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
+          >
+            Silver
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            700
             /min
           </td>
         </tr>
@@ -194,6 +799,35 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
   <div
     class="card"
   >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn active"
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
     <table>
       <thead>
         <tr>
@@ -378,11 +1012,40 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
 </div>
 `;
 
-exports[`AugmentTable > default render — sorted by picks descending 1`] = `
+exports[`AugmentTable > default render — sorted by picks descending, All rarity active 1`] = `
 <div>
   <div
     class="card"
   >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn active"
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
     <table>
       <thead>
         <tr>

@@ -51,7 +51,7 @@ describe('GET /api/patches', () => {
   })
 
   it('returns patches after a match is inserted', async () => {
-    await request(app).post('/api/matches').send(sampleMatch)
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/patches')
     expect(res.status).toBe(200)
     expect(res.body).toContain('15.12')
@@ -74,17 +74,18 @@ describe('GET /api/champions', () => {
   })
 })
 
-describe('POST /api/matches', () => {
-  it('inserts a match and returns ok', async () => {
-    const res = await request(app).post('/api/matches').send(sampleMatch)
+describe('POST /api/matches/bulk', () => {
+  it('inserts matches and returns inserted count', async () => {
+    const res = await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     expect(res.status).toBe(200)
-    expect(res.body.ok).toBe(true)
+    expect(res.body.inserted).toBe(1)
   })
 
-  it('is idempotent — duplicate insert does not 500', async () => {
-    await request(app).post('/api/matches').send(sampleMatch)
-    const res = await request(app).post('/api/matches').send(sampleMatch)
+  it('is idempotent — duplicate insert returns 0 inserted', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     expect(res.status).toBe(200)
+    expect(res.body.inserted).toBe(0)
   })
 })
 
@@ -96,7 +97,7 @@ describe('GET /api/matches/:gameId/exists', () => {
   })
 
   it('returns true after insert', async () => {
-    await request(app).post('/api/matches').send(sampleMatch)
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/matches/5001/exists')
     expect(res.status).toBe(200)
     expect(res.body).toBe(true)
@@ -134,7 +135,7 @@ describe('Sync queue endpoints', () => {
 
 describe('GET /api/augments', () => {
   it('returns fallback name and empty iconPath when no cache is injected', async () => {
-    await request(app).post('/api/matches').send(sampleMatch)
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -149,7 +150,7 @@ describe('GET /api/augments', () => {
         200: { name: 'Iron Will', rarity: 1, iconPath: 'mayhem-asset://augment-icons/200.png' }
       })
     })
-    await request(appWithCache).post('/api/matches').send(sampleMatch)
+    await request(appWithCache).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(appWithCache).get('/api/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -161,7 +162,7 @@ describe('GET /api/augments', () => {
 
 describe('GET /api/players/:puuid/augments', () => {
   it('returns fallback name and empty iconPath when no cache is injected', async () => {
-    await request(app).post('/api/matches').send(sampleMatch)
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/players/test-puuid-1/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -176,7 +177,7 @@ describe('GET /api/players/:puuid/augments', () => {
         200: { name: 'Iron Will', rarity: 1, iconPath: 'mayhem-asset://augment-icons/200.png' }
       })
     })
-    await request(appWithCache).post('/api/matches').send(sampleMatch)
+    await request(appWithCache).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(appWithCache).get('/api/players/test-puuid-1/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)

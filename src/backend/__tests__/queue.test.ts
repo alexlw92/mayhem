@@ -7,7 +7,7 @@ import {
   completeJob,
   failJob,
   getQueueStatus,
-  insertMatch,
+  insertMatches,
   invalidateAllSyncTimes,
   Match
 } from '../db'
@@ -161,23 +161,23 @@ describe('failJob', () => {
   })
 })
 
-describe('insertMatch', () => {
+describe('insertMatches', () => {
   it('enqueues all participant PUUIDs after insert', async () => {
-    await insertMatch(sampleMatch())
+    await insertMatches([sampleMatch()])
     const status = await getQueueStatus()
     expect(status.total).toBe(2) // puuid-alpha + puuid-beta
   })
 
   it('does not double-enqueue on duplicate insert', async () => {
-    await insertMatch(sampleMatch())
-    await insertMatch(sampleMatch()) // ON CONFLICT DO NOTHING
+    await insertMatches([sampleMatch()])
+    await insertMatches([sampleMatch()]) // ON CONFLICT DO NOTHING
     expect((await getQueueStatus()).total).toBe(2)
   })
 })
 
 describe('invalidateAllSyncTimes', () => {
   it('zeroes syncedAt for all known players without re-enqueuing', async () => {
-    await insertMatch(sampleMatch(9001))
+    await insertMatches([sampleMatch(9001)])
     await claimNextJob('c'); await claimNextJob('c')
     await completeJob('puuid-alpha'); await completeJob('puuid-beta')
 

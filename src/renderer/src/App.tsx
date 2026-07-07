@@ -21,6 +21,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('players')
   const [clientRunning, setClientRunning] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [lastSync, setLastSync] = useState<string>('')
   const [players, setPlayers] = useState<Player[]>([])
   const [syncProgress, setSyncProgress] = useState<{ playerName: string; totalImported: number; playersSearched: number } | null>(null)
@@ -59,6 +60,7 @@ export default function App() {
   }, [])
 
   const handleStopSync = useCallback(async () => {
+    setStopping(true)
     await api.lcu.stopSync()
   }, [])
 
@@ -110,6 +112,7 @@ export default function App() {
 
     const unsubComplete = api.on('sync-complete', (data: { imported: number; playerssynced: number; reason?: string }) => {
       setSyncing(false)
+      setStopping(false)
       setSyncProgress(null)
       if (data.reason === 'client-offline') {
         setLastSync('Client offline')
@@ -267,11 +270,11 @@ export default function App() {
             {clientRunning ? 'Client Online' : 'Client Offline'}
           </div>
           <button
-            className={`sync-btn${syncing ? ' sync-btn--stop' : ''}`}
-            onClick={syncing ? handleStopSync : handleSync}
-            disabled={!clientRunning && !syncing}
+            className={`sync-btn${syncing && !stopping ? ' sync-btn--stop' : ''}`}
+            onClick={syncing && !stopping ? handleStopSync : handleSync}
+            disabled={(!clientRunning && !syncing) || stopping}
           >
-            {syncing ? 'Stop Sync' : 'Sync Now'}
+            {stopping ? 'Stopping…' : syncing ? 'Stop Sync' : 'Sync Now'}
           </button>
           <button
             className="sync-btn sync-btn--full"

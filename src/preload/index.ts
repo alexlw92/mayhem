@@ -24,7 +24,8 @@ const api = {
     groupSummary: () => ipcRenderer.invoke('db:groupSummary'),
     championCache: () => ipcRenderer.invoke('db:championCache'),
     augmentCache: () => ipcRenderer.invoke('db:augmentCache'),
-    augmentStats: (puuid?: string, championId?: number, patches?: string[]) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches)
+    augmentStats: (puuid?: string, championId?: number, patches?: string[]) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches),
+    searchPlayers: (query: string) => ipcRenderer.invoke('db:searchPlayers', query)
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

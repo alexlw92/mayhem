@@ -10,6 +10,7 @@ import {
   getPlayerName,
   getCoplayerPuuids,
   getGroupSummary,
+  searchPlayers,
   AugmentInfo
 } from '../db'
 
@@ -31,6 +32,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players', async (req, res) => {
     res.json(await getPlayerStats(parsePatches(req.query.patches)))
+  })
+
+  router.get('/players/search', async (req, res) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
+    if (!q || q.length < 2) return res.json([])
+    res.json(await searchPlayers(q))
   })
 
   router.get('/players/:puuid/stats', async (req, res) => {

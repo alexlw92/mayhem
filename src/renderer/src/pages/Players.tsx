@@ -260,6 +260,23 @@ function PlayerList({
   const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   const [showRecents, setShowRecents] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ puuid: string; summonerName: string }[]>([])
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      setShowSearchDropdown(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      api.db.searchPlayers(searchQuery).then((results: { puuid: string; summonerName: string }[]) => {
+        setSearchResults(results)
+        setShowSearchDropdown(results.length > 0)
+      }).catch(() => {})
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const filtered = searchQuery.trim()
     ? recents.filter((r) => r.riotId.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -308,12 +325,40 @@ function PlayerList({
     <div>
       <h1 className="page-title">Players</h1>
 
-      <input
-        className="player-search"
-        placeholder="Search players…"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-      />
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <input
+          className="player-search"
+          style={{ marginBottom: 0 }}
+          placeholder="Search players…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true) }}
+          onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
+        />
+        {showSearchDropdown && searchResults.length > 0 && (
+          <div className="recent-dropdown">
+            {searchResults.map((r) => (
+              <div
+                key={r.puuid}
+                className="recent-item"
+                onMouseDown={() => {
+                  const placeholder: PlayerStats = {
+                    puuid: r.puuid, summonerName: r.summonerName,
+                    games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+                    avgDpm: 0, avgGold: 0, syncedFull: false,
+                  }
+                  setRecents(saveRecent(r.summonerName, r.puuid))
+                  setSearchQuery('')
+                  setShowSearchDropdown(false)
+                  onSelect(r.puuid, placeholder)
+                }}
+              >
+                {r.summonerName}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Add a player by Riot ID</div>

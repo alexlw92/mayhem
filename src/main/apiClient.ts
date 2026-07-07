@@ -78,4 +78,7 @@ export const apiClient = {
 
   augmentCache: (): Promise<Record<number, any>> =>
     http.get('/api/meta/augments').then((r) => r.data),
+
+  searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
+    http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),
 }

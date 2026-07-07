@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import Players from './pages/Players'
 import Champions from './pages/Champions'
 import Augments from './pages/Augments'
+import AugmentDetail from './pages/AugmentDetail'
 import './App.css'
 
-type Page = 'players' | 'champions' | 'augments'
+type Page = 'players' | 'champions' | 'augments' | 'augment-detail'
 
 export type PatchFilter = string[] | undefined
 
@@ -28,6 +29,9 @@ export default function App() {
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
   const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
+  const [selectedAugmentId, setSelectedAugmentId] = useState<number | undefined>(undefined)
+  const [augmentDetailOrigin, setAugmentDetailOrigin] = useState<'augments' | 'players'>('augments')
+  const [augmentDetailPuuid, setAugmentDetailPuuid] = useState<string | null>(null)
   const [patchExpanded, setPatchExpanded] = useState(false)
   const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
   const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null)
@@ -153,6 +157,13 @@ export default function App() {
       unsubAutoSync()
     }
   }, [dbReady, checkStatus, refreshPlayers])
+
+  const handleAugmentClick = useCallback((augmentId: number, origin: 'augments' | 'players') => {
+    setSelectedAugmentId(augmentId)
+    setAugmentDetailOrigin(origin)
+    setAugmentDetailPuuid(origin === 'players' ? selectedPlayerPuuid : null)
+    setPage('augment-detail')
+  }, [selectedPlayerPuuid])
 
   const navItems: { id: Page; label: string; icon: string }[] = [
     { id: 'players', label: 'Players', icon: '👤' },
@@ -303,6 +314,7 @@ export default function App() {
             selectedPuuid={selectedPlayerPuuid}
             onPlayerSelect={(puuid, name) => { setSelectedPlayerPuuid(puuid); setSelectedPlayerName(name) }}
             onPlayerDeselect={() => { setSelectedPlayerPuuid(null); setSelectedPlayerName(null) }}
+            onAugmentClick={(id) => handleAugmentClick(id, 'players')}
           />
         </div>
         <div style={{ display: page === 'champions' ? 'block' : 'none' }}>
@@ -318,7 +330,18 @@ export default function App() {
             selectedPatches={selectedPatches}
             initialChampionId={augmentChampionId}
             onMounted={() => setAugmentChampionId(undefined)}
+            onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
           />
+        </div>
+        <div style={{ display: page === 'augment-detail' ? 'block' : 'none' }}>
+          {selectedAugmentId !== undefined && (
+            <AugmentDetail
+              augmentId={selectedAugmentId}
+              puuid={augmentDetailPuuid ?? undefined}
+              selectedPatches={selectedPatches}
+              onBack={() => setPage(augmentDetailOrigin)}
+            />
+          )}
         </div>
       </main>
     </div>

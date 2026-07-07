@@ -353,6 +353,7 @@ ipcMain.handle('db:groupSummary', () => apiClient.groupSummary())
 ipcMain.handle('db:championCache', () => apiClient.championCache())
 ipcMain.handle('db:augmentCache', () => apiClient.augmentCache())
 ipcMain.handle('db:augmentStats', (_e, puuid?: string, championId?: number, patches?: string[]) => apiClient.augmentStats(puuid, championId, patches))
+ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[]) => apiClient.augmentChampionStats(augmentId, puuid, patches))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
 
 ipcMain.handle('db:currentSummoner', async () => {

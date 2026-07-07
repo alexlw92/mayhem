@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
 import { join, dirname } from 'path'
-import { pathToFileURL } from 'url'
 import fs from 'fs'
 import os from 'os'
 import axios from 'axios'
@@ -13,10 +12,7 @@ import {
   getChampionData,
   getAugmentData,
 } from './lcu'
-import {
-  initDb,
-  getIncompleteGameIds,
-} from '../backend/db'
+import { initDb } from '../backend/db'
 import {
   isMetaStale,
   saveMetaCache,
@@ -367,6 +363,7 @@ ipcMain.handle('db:augmentCache', () => apiClient.augmentCache())
 ipcMain.handle('db:augmentStats', (_e, puuid?: string, championId?: number, patches?: string[]) => apiClient.augmentStats(puuid, championId, patches))
 ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[]) => apiClient.augmentChampionStats(augmentId, puuid, patches))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
+ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[]) => apiClient.coplayerStats(puuid, patches))
 
 ipcMain.handle('db:currentSummoner', async () => {
   if (!isClientRunning()) return null

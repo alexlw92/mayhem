@@ -140,21 +140,11 @@ export default function App() {
       setTimeout(() => setLastSync(''), 8000)
     })
 
-    const unsubAutoSync = api.on('matches-synced', (data: { imported: number; playerssynced: number }) => {
-      const parts: string[] = []
-      if (data.imported > 0) parts.push(`${data.imported} new game${data.imported !== 1 ? 's' : ''}`)
-      if (data.playerssynced > 0) parts.push(`${data.playerssynced} player${data.playerssynced !== 1 ? 's' : ''}`)
-      setLastSync(`Auto-synced: ${parts.join(', ')}`)
-      refreshPlayers()
-      setTimeout(() => setLastSync(''), 5000)
-    })
-
     return () => {
       clearInterval(interval)
       unsubStarted()
       unsubProgress()
       unsubComplete()
-      unsubAutoSync()
     }
   }, [dbReady, checkStatus, refreshPlayers])
 

@@ -275,6 +275,7 @@ app.whenReady().then(async () => {
       mainWindow?.webContents.send('assets-ready')
     })
 
+    ensureChampionNames()
     repairIncompleteMatches().catch(() => {})
 
     pollInterval = setInterval(async () => {

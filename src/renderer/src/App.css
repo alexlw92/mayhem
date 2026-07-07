@@ -241,6 +241,20 @@
 
 .sidebar-patch-all:hover { color: var(--text-secondary); }
 
+.sidebar-patch-more {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  margin-top: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.sidebar-patch-more:hover { color: var(--text-secondary); }
+
 .sidebar-patch-empty {
   font-size: 11px;
   color: var(--text-muted);

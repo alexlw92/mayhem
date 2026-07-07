@@ -27,6 +27,7 @@ export default function App() {
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
   const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
+  const [patchExpanded, setPatchExpanded] = useState(false)
   const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
   const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null)
   const [dbReady, setDbReady] = useState(false)
@@ -225,7 +226,7 @@ export default function App() {
             <div className="sidebar-patch-empty">Sync to populate</div>
           ) : (
             <div className="sidebar-patch-list">
-              {patches.map((p) => {
+              {patches.slice(0, patchExpanded ? 8 : 4).map((p) => {
                 const checked = selectedPatches?.includes(p) ?? false
                 return (
                   <label key={p} className="sidebar-patch-item">
@@ -242,6 +243,14 @@ export default function App() {
                   </label>
                 )
               })}
+              {patches.length > 4 && (
+                <button
+                  className="sidebar-patch-more"
+                  onClick={() => setPatchExpanded((x) => !x)}
+                >
+                  {patchExpanded ? '− less' : `+ ${Math.min(patches.length - 4, 4)} more`}
+                </button>
+              )}
             </div>
           )}
         </div>

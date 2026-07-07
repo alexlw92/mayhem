@@ -688,8 +688,9 @@ export function ChampionTable({ data }: { data: ChampionStat[] }) {
 export function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo> }) {
   const [sortKey, setSortKey] = useState<AugmentSortKey>('pickCount')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [rarityFilter, setRarityFilter] = useState<number | null>(null)
 
-  const sorted = [...data].sort((a, b) => {
+  const sorted = [...data].filter((a) => rarityFilter === null || a.rarity === rarityFilter).sort((a, b) => {
     const aVal = sortKey === 'winRate' ? (a.pickCount > 0 ? a.wins / a.pickCount : 0)
       : sortKey === 'avgDpm' ? a.avgDpm
       : a.pickCount
@@ -711,6 +712,20 @@ export function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augm
   const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
   return (
     <div className="card">
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Rarity</span>
+        <button className={`aug-btn ${rarityFilter === null ? 'active' : ''}`} onClick={() => setRarityFilter(null)}>All</button>
+        {[0, 1, 2].map((r) => (
+          <button
+            key={r}
+            className={`aug-btn ${rarityFilter === r ? 'active' : ''}`}
+            style={rarityFilter === r ? { borderColor: RARITY_COLOR[r], color: RARITY_COLOR[r] } : {}}
+            onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
+          >
+            {RARITY[r]}
+          </button>
+        ))}
+      </div>
       <table>
         <thead>
           <tr>

@@ -269,36 +269,41 @@ export async function matchExists(gameId: number): Promise<boolean> {
   return rows.length > 0
 }
 
-export async function insertMatch(match: Match): Promise<void> {
+export async function insertMatches(matches: Match[]): Promise<number> {
+  if (matches.length === 0) return 0
+  let insertedCount = 0
   await sql_.begin(async (tx) => {
-    const inserted = await tx`
-      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-      VALUES (${match.gameId},${match.queueId},${match.gameCreation},${match.gameDuration},${match.gameVersion ?? null})
-      ON CONFLICT ("gameId") DO NOTHING
-      RETURNING "gameId"
-    `
-    if (inserted.length === 0) return
+    for (const match of matches) {
+      const inserted = await tx`
+        INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
+        VALUES (${match.gameId},${match.queueId},${match.gameCreation},${match.gameDuration},${match.gameVersion ?? null})
+        ON CONFLICT ("gameId") DO NOTHING RETURNING "gameId"
+      `
+      if (inserted.length === 0) continue
+      insertedCount++
 
-    for (const p of match.participants) {
-      const [row] = await tx`
+      const rows = await tx<{ id: number }[]>`
         INSERT INTO participants
           ("gameId",puuid,"summonerName","championId","championName","teamId",
            win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel")
-        VALUES
-          (${match.gameId},${p.puuid},${p.summonerName},${p.championId},${p.championName},
-           ${p.teamId},${p.win},${p.kills},${p.deaths},${p.assists},
-           ${p.damageDealt},${p.damageTaken},${p.goldEarned},${p.champLevel})
+        VALUES ${tx(match.participants.map(p => [
+          match.gameId, p.puuid, p.summonerName, p.championId, p.championName,
+          p.teamId, p.win, p.kills, p.deaths, p.assists,
+          p.damageDealt, p.damageTaken, p.goldEarned, p.champLevel
+        ]))}
         RETURNING id
       `
-      for (const augId of p.augments) {
-        if (!augId) continue
-        await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES (${row.id},${augId})`
+      const augmentPairs = match.participants.flatMap((p, i) =>
+        p.augments.filter(Boolean).map(augId => [rows[i].id, augId])
+      )
+      if (augmentPairs.length > 0) {
+        await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES ${tx(augmentPairs)}`
       }
     }
   })
-
-  const newPuuids = match.participants.map((p) => p.puuid).filter(Boolean)
-  await enqueueAll(newPuuids)
+  const puuids = [...new Set(matches.flatMap(m => m.participants.map(p => p.puuid).filter(Boolean)))]
+  await enqueueAll(puuids)
+  return insertedCount
 }
 
 export async function upsertMatch(match: Match): Promise<void> {

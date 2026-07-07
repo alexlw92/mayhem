@@ -55,7 +55,7 @@ describe('ChampionTable', () => {
 // ─── AugmentTable ─────────────────────────────────────────────────────────────
 
 describe('AugmentTable', () => {
-  it('default render — sorted by picks descending', () => {
+  it('default render — sorted by picks descending, All rarity active', () => {
     const { container } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
     expect(container).toMatchSnapshot()
   })
@@ -69,6 +69,32 @@ describe('AugmentTable', () => {
   it('click Avg DPM — reorders by DPM descending', () => {
     const { container, getByText } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
     fireEvent.click(getByText(/Avg DPM/))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Silver — shows only Silver augments', () => {
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    fireEvent.click(getByRole('button', { name: 'Silver' }))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Gold — shows only Gold augments', () => {
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    fireEvent.click(getByRole('button', { name: 'Gold' }))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Prismatic — shows only Prismatic augments', () => {
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    fireEvent.click(getByRole('button', { name: 'Prismatic' }))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Silver twice — returns to All (all rows visible)', () => {
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const btn = getByRole('button', { name: 'Silver' })
+    fireEvent.click(btn)
+    fireEvent.click(btn)
     expect(container).toMatchSnapshot()
   })
 })

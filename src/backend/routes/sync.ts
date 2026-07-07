@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import {
   matchExists,
-  insertMatch,
+  insertMatches,
   upsertMatch,
   getIncompleteGameIds,
   invalidateAllSyncTimes,
@@ -16,13 +16,14 @@ import {
 
 const router = Router()
 
-router.get('/matches/:gameId/exists', async (req, res) => {
-  res.json(await matchExists(parseInt(req.params.gameId)))
+router.post('/matches/bulk', async (req, res) => {
+  const { matches } = req.body as { matches: Match[] }
+  const inserted = await insertMatches(matches)
+  res.json({ inserted })
 })
 
-router.post('/matches', async (req, res) => {
-  await insertMatch(req.body as Match)
-  res.json({ ok: true })
+router.get('/matches/:gameId/exists', async (req, res) => {
+  res.json(await matchExists(parseInt(req.params.gameId)))
 })
 
 router.put('/matches/:gameId', async (req, res) => {

@@ -53,25 +53,21 @@ export async function importGamesForPuuid(
   puuid: string,
   shouldStop?: () => boolean
 ): Promise<{ imported: number; fetchFailed: boolean }> {
-  let imported = 0
-  let fetchFailed = false
-
   const { games, totalInWindow } = await getMatchHistory(puuid, 0, 49)
+  if (totalInWindow === 0) return { imported: 0, fetchFailed: true }
 
-  if (totalInWindow === 0) {
-    fetchFailed = true
-  } else {
-    for (const game of games) {
-      if (shouldStop?.()) break
-      if (await apiClient.matchExists(game.gameId)) continue
-
-      const full = await getGameDetails(game.gameId)
-      const data = full ?? game
-      await apiClient.insertMatch(mapGame(data))
-      imported++
+  const CONCURRENCY = 5
+  const toInsert: Match[] = []
+  for (let i = 0; i < games.length; i += CONCURRENCY) {
+    if (shouldStop?.()) break
+    const chunk = games.slice(i, i + CONCURRENCY)
+    const details = await Promise.all(chunk.map(g => getGameDetails(g.gameId)))
+    for (let j = 0; j < chunk.length; j++) {
+      toInsert.push(mapGame(details[j] ?? chunk[j]))
     }
-    if (imported > 0) console.log(`[sync]   ${imported} new from ${games.length} aram games`)
   }
 
-  return { imported, fetchFailed }
+  if (toInsert.length === 0) return { imported: 0, fetchFailed: false }
+  const { inserted } = await apiClient.insertMatches(toInsert)
+  return { imported: inserted, fetchFailed: false }
 }

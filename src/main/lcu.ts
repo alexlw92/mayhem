@@ -2,12 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import https from 'https'
 import axios from 'axios'
-import { LCU_MAX_RETRY_MS } from './config'
+import { LCU_MAX_RETRY_MS, LCU_RETRY_BASE_DELAY_MS } from './config'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function withRetry<T>(fn: () => Promise<T>, maxTotalWaitMs = LCU_MAX_RETRY_MS): Promise<T> {
-  let delay = 1000
+  let delay = LCU_RETRY_BASE_DELAY_MS
   let totalWaited = 0
   while (true) {
     try {

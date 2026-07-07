@@ -50,13 +50,17 @@ export default function App() {
   const handleSync = useCallback(async () => {
     const result = await api.lcu.sync()
     if (result.started === false) {
-      setLastSync('Sync already running…')
+      setLastSync(result.reason === 'no-summoner' ? 'Client not ready' : 'Sync already running…')
       setTimeout(() => setLastSync(''), 3000)
     }
   }, [])
 
   const handleFullSync = useCallback(async () => {
-    await api.lcu.fullSync()
+    const result = await api.lcu.fullSync()
+    if (result?.started === false && result?.reason === 'no-summoner') {
+      setLastSync('Client not ready')
+      setTimeout(() => setLastSync(''), 3000)
+    }
   }, [])
 
   useEffect(() => {

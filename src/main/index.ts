@@ -408,7 +408,11 @@ app.on('window-all-closed', () => {
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
-ipcMain.handle('lcu:status', () => ({ running: isClientRunning() }))
+ipcMain.handle('lcu:status', async () => {
+  if (!isClientRunning()) return { running: false }
+  const summoner = await getCurrentSummoner()
+  return { running: summoner !== null }
+})
 ipcMain.handle('lcu:syncStatus', () => ({ syncing: syncInProgress }))
 ipcMain.handle('lcu:sync', async (_e, startPuuid?: string) => {
   if (syncInProgress) return { started: false }

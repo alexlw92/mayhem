@@ -28,14 +28,13 @@ import {
 import { apiClient } from './apiClient'
 import { createExpressApp } from '../backend/server'
 import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
-import { AUTOSYNC_INTERVAL_MS, BACKEND_PORT } from './config'
+import { BACKEND_PORT } from './config'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'mayhem-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ])
 
 let mainWindow: BrowserWindow | null = null
-let pollInterval: ReturnType<typeof setInterval> | null = null
 let workerRunning = false
 let syncInProgress = false
 let syncCancelled = false
@@ -146,6 +145,12 @@ async function repairIncompleteMatches(): Promise<number> {
 }
 
 // ─── Sync worker ──────────────────────────────────────────────────────────────
+
+function startSyncWorker(): void {
+  if (workerRunning) return
+  workerRunning = true
+  syncWorker().finally(() => { workerRunning = false })
+}
 
 async function syncWorker(): Promise<void> {
   const draining = syncInProgress
@@ -277,12 +282,6 @@ app.whenReady().then(async () => {
 
     ensureChampionNames()
     repairIncompleteMatches().catch(() => {})
-
-    pollInterval = setInterval(async () => {
-      if (workerRunning) return
-      workerRunning = true
-      try { await syncWorker() } finally { workerRunning = false }
-    }, AUTOSYNC_INTERVAL_MS)
   })
 
   app.on('activate', () => {
@@ -291,7 +290,6 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (pollInterval) clearInterval(pollInterval)
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -308,22 +306,27 @@ ipcMain.handle('lcu:syncStatus', () => ({ syncing: workerRunning }))
 ipcMain.handle('lcu:sync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  if (workerRunning) return { started: false, reason: 'already-running' }
   syncCancelled = false
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
+  startSyncWorker()
   return { started: true }
 })
 
 ipcMain.handle('lcu:fullSync', async () => {
   const summoner = await getCurrentSummoner()
   if (!summoner) return { started: false, reason: 'no-summoner' }
+  if (workerRunning) return { started: false, reason: 'already-running' }
   syncCancelled = false
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.invalidateSyncTimes()
+  await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
+  startSyncWorker()
   return { started: true }
 })
 

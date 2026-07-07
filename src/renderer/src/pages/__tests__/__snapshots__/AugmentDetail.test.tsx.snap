@@ -1,5 +1,457 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`AugmentDetail > click Champion header — sorts ascending alphabetically 1`] = `
+<div>
+  <div>
+    <div
+      style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;"
+    >
+      <button
+        style="background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); padding: 6px 12px; font-size: 13px; cursor: pointer;"
+      >
+        ←
+      </button>
+      <div
+        style="width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+        title="Iron Will"
+      >
+        <img
+          alt="Iron Will"
+          src="mayhem-asset://augment-icons/200.png"
+          style="width: 100%; height: 100%; object-fit: cover;"
+        />
+      </div>
+      <div>
+        <div
+          style="font-size: 18px; font-weight: 700; color: var(--text-primary);"
+        >
+          Iron Will
+        </div>
+        <div
+          style="font-size: 12px; color: rgb(192, 192, 192); font-weight: 600; margin-top: 2px;"
+        >
+          Silver
+        </div>
+      </div>
+    </div>
+    <div
+      class="grid-4"
+      style="margin-bottom: 16px;"
+    >
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Total Picks
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          11
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Win Rate
+        </div>
+        <div
+          class="stat-value win"
+          style="font-size: 22px;"
+        >
+          54.5%
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Avg DPM
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          735/min
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Champions
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          2
+        </div>
+      </div>
+    </div>
+    <div
+      class="card"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Champion
+               ▲
+            </th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Games
+            </th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Win Rate
+            </th>
+            <th>
+              Avg DPM
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="font-weight: 500;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Kayle"
+                    src="mayhem-asset://champion-icons/10.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Kayle
+              </div>
+            </td>
+            <td>
+              8
+            </td>
+            <td>
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                >
+                  <div
+                    style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  />
+                </div>
+                <span
+                  class="win"
+                >
+                  63
+                  %
+                </span>
+              </div>
+            </td>
+            <td>
+              820
+              /min
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="font-weight: 500;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Teemo"
+                    src="mayhem-asset://champion-icons/20.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Teemo
+              </div>
+            </td>
+            <td>
+              3
+            </td>
+            <td>
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                >
+                  <div
+                    style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  />
+                </div>
+                <span
+                  class="loss"
+                >
+                  33
+                  %
+                </span>
+              </div>
+            </td>
+            <td>
+              510
+              /min
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`AugmentDetail > click Games header — toggles to ascending 1`] = `
+<div>
+  <div>
+    <div
+      style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;"
+    >
+      <button
+        style="background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); padding: 6px 12px; font-size: 13px; cursor: pointer;"
+      >
+        ←
+      </button>
+      <div
+        style="width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+        title="Iron Will"
+      >
+        <img
+          alt="Iron Will"
+          src="mayhem-asset://augment-icons/200.png"
+          style="width: 100%; height: 100%; object-fit: cover;"
+        />
+      </div>
+      <div>
+        <div
+          style="font-size: 18px; font-weight: 700; color: var(--text-primary);"
+        >
+          Iron Will
+        </div>
+        <div
+          style="font-size: 12px; color: rgb(192, 192, 192); font-weight: 600; margin-top: 2px;"
+        >
+          Silver
+        </div>
+      </div>
+    </div>
+    <div
+      class="grid-4"
+      style="margin-bottom: 16px;"
+    >
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Total Picks
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          11
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Win Rate
+        </div>
+        <div
+          class="stat-value win"
+          style="font-size: 22px;"
+        >
+          54.5%
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Avg DPM
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          735/min
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <div
+          class="stat-label"
+        >
+          Champions
+        </div>
+        <div
+          class="stat-value "
+          style="font-size: 22px;"
+        >
+          2
+        </div>
+      </div>
+    </div>
+    <div
+      class="card"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Champion
+            </th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Games
+               ▲
+            </th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
+              Win Rate
+            </th>
+            <th>
+              Avg DPM
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="font-weight: 500;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Teemo"
+                    src="mayhem-asset://champion-icons/20.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Teemo
+              </div>
+            </td>
+            <td>
+              3
+            </td>
+            <td>
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                >
+                  <div
+                    style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  />
+                </div>
+                <span
+                  class="loss"
+                >
+                  33
+                  %
+                </span>
+              </div>
+            </td>
+            <td>
+              510
+              /min
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="font-weight: 500;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Kayle"
+                    src="mayhem-asset://champion-icons/10.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Kayle
+              </div>
+            </td>
+            <td>
+              8
+            </td>
+            <td>
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                >
+                  <div
+                    style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  />
+                </div>
+                <span
+                  class="win"
+                >
+                  63
+                  %
+                </span>
+              </div>
+            </td>
+            <td>
+              820
+              /min
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
 exports[`AugmentDetail > renders champion table after data loads 1`] = `
 <div>
   <div>
@@ -105,13 +557,20 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
       <table>
         <thead>
           <tr>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Champion
             </th>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Games
+               ▼
             </th>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Win Rate
             </th>
             <th>
@@ -124,7 +583,20 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
             <td
               style="font-weight: 500;"
             >
-              Kayle
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Kayle"
+                    src="mayhem-asset://champion-icons/10.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Kayle
+              </div>
             </td>
             <td>
               8
@@ -157,7 +629,20 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
             <td
               style="font-weight: 500;"
             >
-              Teemo
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+                >
+                  <img
+                    alt="Teemo"
+                    src="mayhem-asset://champion-icons/20.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                Teemo
+              </div>
             </td>
             <td>
               3

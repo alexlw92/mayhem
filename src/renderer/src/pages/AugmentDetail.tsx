@@ -25,6 +25,8 @@ interface Props {
   onBack: () => void
 }
 
+type SortKey = 'championName' | 'games' | 'winRate'
+
 const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
 const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
 
@@ -32,6 +34,8 @@ export default function AugmentDetail({ augmentId, puuid, selectedPatches, onBac
   const [data, setData] = useState<AugmentChampionStat[]>([])
   const [augmentCache, setAugmentCache] = useState<Record<number, AugmentInfo>>({})
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<SortKey>('games')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
   useEffect(() => {
     api.db.augmentCache().then(setAugmentCache).catch(() => {})
@@ -48,6 +52,26 @@ export default function AugmentDetail({ augmentId, puuid, selectedPatches, onBac
   const augment = augmentCache[augmentId]
   const rarityColor = augment ? (RARITY_COLOR[augment.rarity] ?? RARITY_COLOR[0]) : RARITY_COLOR[0]
   const rarityLabel = augment ? (RARITY_LABEL[augment.rarity] ?? 'Silver') : ''
+
+  const onSort = (key: SortKey) => {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir(key === 'championName' ? 'asc' : 'desc') }
+  }
+  const arrow = (key: SortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
+  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
+
+  const sorted = [...data].sort((a, b) => {
+    const aVal = sortKey === 'championName' ? a.championName
+      : sortKey === 'winRate' ? (a.games > 0 ? a.wins / a.games : 0)
+      : a.games
+    const bVal = sortKey === 'championName' ? b.championName
+      : sortKey === 'winRate' ? (b.games > 0 ? b.wins / b.games : 0)
+      : b.games
+    if (typeof aVal === 'string') {
+      return sortDir === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal)
+    }
+    return sortDir === 'desc' ? (bVal as number) - (aVal as number) : (aVal as number) - (bVal as number)
+  })
 
   const totalGames = data.reduce((s, r) => s + r.games, 0)
   const totalWins = data.reduce((s, r) => s + r.wins, 0)
@@ -109,18 +133,30 @@ export default function AugmentDetail({ augmentId, puuid, selectedPatches, onBac
           <table>
             <thead>
               <tr>
-                <th>Champion</th>
-                <th>Games</th>
-                <th>Win Rate</th>
+                <th style={thStyle} onClick={() => onSort('championName')}>Champion{arrow('championName')}</th>
+                <th style={thStyle} onClick={() => onSort('games')}>Games{arrow('games')}</th>
+                <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
                 <th>Avg DPM</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => {
+              {sorted.map((r) => {
                 const wr = r.games > 0 ? r.wins / r.games : 0
                 return (
                   <tr key={r.championId}>
-                    <td style={{ fontWeight: 500 }}>{r.championName}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                          <img
+                            src={`mayhem-asset://champion-icons/${r.championId}.png`}
+                            alt={r.championName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        </div>
+                        {r.championName}
+                      </div>
+                    </td>
                     <td>{r.games}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

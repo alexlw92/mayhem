@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi, beforeAll } from 'vitest'
-import { render, cleanup, act } from '@testing-library/react'
+import { render, cleanup, act, fireEvent, getByRole } from '@testing-library/react'
 
 afterEach(() => cleanup())
 
@@ -53,6 +53,28 @@ describe('AugmentDetail', () => {
       const r = render(<AugmentDetail augmentId={200} selectedPatches={['15.12']} onBack={() => {}} />)
       container = r.container
     })
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Games header — toggles to ascending', async () => {
+    mockApi.db.augmentChampionStats.mockResolvedValue(mockChampionStats)
+    let container!: HTMLElement
+    await act(async () => {
+      const r = render(<AugmentDetail augmentId={200} selectedPatches={['15.12']} onBack={() => {}} />)
+      container = r.container
+    })
+    fireEvent.click(getByRole(container, 'columnheader', { name: /Games/ }))
+    expect(container).toMatchSnapshot()
+  })
+
+  it('click Champion header — sorts ascending alphabetically', async () => {
+    mockApi.db.augmentChampionStats.mockResolvedValue(mockChampionStats)
+    let container!: HTMLElement
+    await act(async () => {
+      const r = render(<AugmentDetail augmentId={200} selectedPatches={['15.12']} onBack={() => {}} />)
+      container = r.container
+    })
+    fireEvent.click(getByRole(container, 'columnheader', { name: /Champion/ }))
     expect(container).toMatchSnapshot()
   })
 })

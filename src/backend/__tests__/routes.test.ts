@@ -131,6 +131,15 @@ describe('Sync queue endpoints', () => {
     const res = await request(app).post('/api/sync/enqueue').send({})
     expect(res.status).toBe(400)
   })
+
+  it('DELETE /api/sync/queue clears all queue entries', async () => {
+    await request(app).post('/api/sync/enqueue').send({ puuid: 'test-puuid' })
+    expect((await request(app).get('/api/sync/queue')).body.total).toBe(1)
+    const res = await request(app).delete('/api/sync/queue')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    expect((await request(app).get('/api/sync/queue')).body.total).toBe(0)
+  })
 })
 
 describe('GET /api/augments', () => {

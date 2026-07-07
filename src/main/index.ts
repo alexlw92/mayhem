@@ -2,56 +2,43 @@ import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
 import { join, dirname } from 'path'
 import { pathToFileURL } from 'url'
 import fs from 'fs'
+import os from 'os'
 import axios from 'axios'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
   isClientRunning,
   getCurrentSummoner,
-  getMatchHistory,
   getGameDetails,
   lookupSummonerByRiotId,
   getChampionData,
   getAugmentData,
-  LCUMatchHistoryGame
 } from './lcu'
 import {
   initDb,
-  matchExists,
-  insertMatch,
-  upsertMatch,
   getIncompleteGameIds,
-  setPlayerSyncTime,
-  isPlayerStale,
-  invalidateAllSyncTimes,
-  getCoplayerPuuids,
-  getPlayerStats,
-  getChampionStats,
-  getAugmentStats,
-  getPatches,
-  getRecentMatches,
-  getWinRateTrend,
-  getGroupSummary,
+} from '../backend/db'
+import {
   isMetaStale,
   saveMetaCache,
   getChampionCache,
   getAugmentCache,
   clearMetaCache,
-  getPlayerName,
-  inferPatch,
   AugmentInfo
-} from './db'
-
-import { AUTOSYNC_INTERVAL_MS, SYNC_STALE_THRESHOLD_MS } from './config'
+} from './meta'
+import { apiClient } from './apiClient'
+import { createExpressApp } from '../backend/server'
+import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
+import { AUTOSYNC_INTERVAL_MS, BACKEND_PORT } from './config'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'mayhem-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ])
 
 let mainWindow: BrowserWindow | null = null
-let championNames: Record<number, string> = {}
 let pollInterval: ReturnType<typeof setInterval> | null = null
-let syncInProgress = false
-let syncGeneration = 0
+let workerRunning = false
+
+const CLIENT_ID = `electron-${os.hostname()}-${process.pid}`
 
 // Forward main-process logs to renderer DevTools console
 const _origLog = console.log.bind(console)
@@ -96,7 +83,6 @@ async function refreshMetadata(): Promise<void> {
   const augments: Record<number, AugmentInfo> = {}
   for (const a of augmentsRaw) {
     const iconRaw = a.augmentSmallIconPath ?? ''
-    // /lol-game-data/assets/ASSETS/... → {CDRAGON_PLUGIN}/assets/...
     const iconPath = iconRaw
       ? `${CDRAGON_PLUGIN}/${iconRaw.replace(/^\/lol-game-data\/assets\//i, '').toLowerCase()}`
       : ''
@@ -131,185 +117,60 @@ async function refreshMetadata(): Promise<void> {
   }))
 
   saveMetaCache(champions, augments)
-  championNames = champions
+  setChampionNames(champions)
   mainWindow?.webContents.send('meta-refreshed')
   mainWindow?.webContents.send('assets-ready')
 }
 
 function ensureChampionNames(): void {
-  if (Object.keys(championNames).length === 0) {
-    championNames = getChampionCache()
+  if (Object.keys(getChampionNames()).length === 0) {
+    setChampionNames(getChampionCache())
   }
 }
 
-// ─── Core import logic ───────────────────────────────────────────────────────
+// ─── Repair incomplete matches ────────────────────────────────────────────────
 
-
-function mapGame(game: LCUMatchHistoryGame) {
-  return {
-    gameId: game.gameId,
-    queueId: game.queueId,
-    gameCreation: game.gameCreation,
-    gameDuration: game.gameDuration,
-    gameVersion: inferPatch(game.gameCreation),
-    participants: game.participants.map((p) => {
-      const identity = game.participantIdentities.find(
-        (pi) => pi.participantId === p.participantId
-      )
-      const s = p.stats
-      return {
-        puuid: identity?.player.puuid ?? '',
-        summonerName: identity?.player.gameName
-          ? `${identity.player.gameName}#${identity.player.tagLine}`
-          : identity?.player.summonerName || 'Unknown',
-        championId: p.championId,
-        championName: championNames[p.championId] ?? `Champion ${p.championId}`,
-        teamId: p.teamId,
-        win: s.win,
-        kills: s.kills,
-        deaths: s.deaths,
-        assists: s.assists,
-        damageDealt: s.totalDamageDealtToChampions,
-        damageTaken: s.totalDamageTaken,
-        goldEarned: s.goldEarned,
-        champLevel: s.champLevel,
-        augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3,
-                   s.playerAugment4, s.playerAugment5, s.playerAugment6]
-                  .filter((a): a is number => !!a)
-      }
-    })
-  }
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-// LCU doesn't support pagination — always returns same 50 most recent games regardless of begIndex.
-// One call per player is sufficient.
-async function importGamesForPuuid(
-  puuid: string
-): Promise<{ imported: number; seenPuuids: Set<string>; fetchFailed: boolean }> {
-  let imported = 0
-  const seenPuuids = new Set<string>()
-  let fetchFailed = false
-
-  const { games, totalInWindow } = await getMatchHistory(puuid, 0, 49)
-
-  for (const p of await getCoplayerPuuids(puuid)) seenPuuids.add(p)
-
-  if (totalInWindow === 0) {
-    fetchFailed = true
-  } else {
-    for (const game of games) {
-      if (await matchExists(game.gameId)) continue
-
-      const full = await getGameDetails(game.gameId)
-      const data = full ?? game
-      for (const identity of data.participantIdentities) {
-        if (identity.player.puuid) seenPuuids.add(identity.player.puuid)
-      }
-      await insertMatch(mapGame(data))
-      imported++
-    }
-    if (imported > 0) console.log(`[sync]   ${imported} new from ${games.length} aram games`)
-  }
-
-  return { imported, seenPuuids, fetchFailed }
-}
-
-// Fix matches already in DB that only have 1 participant (imported before this fix)
 async function repairIncompleteMatches(): Promise<number> {
-  const ids = await getIncompleteGameIds()
+  const ids = await apiClient.incompleteGames()
   let fixed = 0
   for (const gameId of ids) {
     const full = await getGameDetails(gameId)
     if (!full || full.participants.length < 2) continue
-    await upsertMatch(mapGame(full))
+    await apiClient.upsertMatch(mapGame(full))
     fixed++
   }
   return fixed
 }
 
-// ─── Sync ────────────────────────────────────────────────────────────────────
+// ─── Sync worker ──────────────────────────────────────────────────────────────
 
-async function runSync(startPuuid: string, generation: number): Promise<{ imported: number; playerssynced: number; reason?: string }> {
-  if (!isClientRunning()) {
-    console.log('[sync] client not running')
-    return { imported: 0, playerssynced: 0, reason: 'client-offline' }
-  }
-
+async function syncWorker(): Promise<void> {
+  if (!isClientRunning()) return
   ensureChampionNames()
-  await repairIncompleteMatches()
 
-  const queue: string[] = [startPuuid]
-  const queued = new Set<string>([startPuuid])
-  const retries = new Map<string, number>()
+  const { puuid } = await apiClient.claimNextJob(CLIENT_ID)
+  if (!puuid) return
 
-  let totalImported = 0
-  let playerssynced = 0
-  let playersSearched = 0
+  const playerName = await apiClient.playerName(puuid) ?? puuid.slice(0, 8) + '…'
+  mainWindow?.webContents.send('sync-progress', { playerName, totalImported: 0, playersSearched: 1 })
 
-  console.log(`[sync] starting from ${startPuuid.slice(0, 8)}…`)
-
-  while (queue.length > 0) {
-    if (generation !== syncGeneration) {
-      console.log(`[sync] cancelled after ${playerssynced} players, ${totalImported} imported`)
-      return { imported: totalImported, playerssynced, reason: 'cancelled' }
-    }
-
-    const puuid = queue.shift()!
-    playersSearched++
-
-    const playerName = (await getPlayerName(puuid)) ?? puuid.slice(0, 8) + '…'
-    mainWindow?.webContents.send('sync-progress', { playerName, totalImported, playersSearched })
-
-    let imported = 0
-    let seenPuuids = new Set<string>()
-    let failed = false
-    try {
-      const result = await importGamesForPuuid(puuid)
-      imported = result.imported
-      seenPuuids = result.seenPuuids
-      if (result.fetchFailed) {
-        failed = true
-        console.warn(`[sync] fetch failed for ${playerName} (${puuid.slice(0, 8)}…)`)
-        await sleep(100)
-      } else {
-        console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${seenPuuids.size} players seen, queue: ${queue.length})`)
-      }
-    } catch (err) {
-      failed = true
-      console.error(`[sync] error syncing ${playerName} (${puuid.slice(0, 8)}…):`, err)
-    }
-
-    if (failed) {
-      const attempts = (retries.get(puuid) ?? 0) + 1
-      retries.set(puuid, attempts)
-      if (attempts <= 1) {
-        console.log(`[sync] re-queuing ${playerName} (attempt ${attempts + 1})`)
-        queue.push(puuid)
-      } else {
-        console.warn(`[sync] giving up on ${playerName} after ${attempts} attempts`)
-        await setPlayerSyncTime(puuid)
-        playerssynced++
-      }
+  try {
+    const { imported, fetchFailed } = await importGamesForPuuid(puuid)
+    if (fetchFailed) {
+      console.warn(`[sync] fetch failed for ${playerName}, releasing job`)
+      await apiClient.failJob(puuid)
     } else {
-      await setPlayerSyncTime(puuid)
-      totalImported += imported
-      playerssynced++
-
-      for (const p of seenPuuids) {
-        if (p && !queued.has(p) && await isPlayerStale(p, SYNC_STALE_THRESHOLD_MS)) {
-          queue.push(p)
-          queued.add(p)
-        }
+      console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''}`)
+      await apiClient.completeJob(puuid)
+      if (imported > 0) {
+        mainWindow?.webContents.send('sync-progress', { playerName, totalImported: imported, playersSearched: 1 })
+        mainWindow?.webContents.send('matches-synced', { imported, playerssynced: 1 })
       }
     }
-
-    mainWindow?.webContents.send('sync-progress', { playerName, totalImported, playersSearched })
+  } catch (err) {
+    console.error(`[sync] error syncing ${playerName}:`, err)
+    await apiClient.failJob(puuid).catch(() => {})
   }
-
-  console.log(`[sync] done — ${playerssynced} players, ${totalImported} new games`)
-  return { imported: totalImported, playerssynced }
 }
 
 // ─── Window ──────────────────────────────────────────────────────────────────
@@ -375,26 +236,26 @@ app.whenReady().then(async () => {
       mainWindow?.webContents.send('db-error', String(err))
       return
     }
+
+    createExpressApp({
+      getChampions: () => getChampionCache(),
+      getAugments: () => getAugmentCache()
+    }).listen(BACKEND_PORT, () => console.log(`[backend] :${BACKEND_PORT}`))
+
     mainWindow?.webContents.send('db-ready')
+
     refreshMetadata().catch(() => {
       mainWindow?.webContents.send('assets-ready')
     })
-  })
 
-  pollInterval = setInterval(async () => {
-    if (syncInProgress) return
-    const summoner = await getCurrentSummoner()
-    if (!summoner) return
-    const gen = ++syncGeneration
-    syncInProgress = true
-    await invalidateAllSyncTimes()
-    const result = await runSync(summoner.puuid, gen)
-    if (gen !== syncGeneration) return
-    syncInProgress = false
-    if (result.imported > 0 && mainWindow) {
-      mainWindow.webContents.send('matches-synced', result)
-    }
-  }, AUTOSYNC_INTERVAL_MS)
+    repairIncompleteMatches().catch(() => {})
+
+    pollInterval = setInterval(async () => {
+      if (workerRunning) return
+      workerRunning = true
+      try { await syncWorker() } finally { workerRunning = false }
+    }, AUTOSYNC_INTERVAL_MS)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -413,46 +274,22 @@ ipcMain.handle('lcu:status', async () => {
   const summoner = await getCurrentSummoner()
   return { running: summoner !== null }
 })
-ipcMain.handle('lcu:syncStatus', () => ({ syncing: syncInProgress }))
-ipcMain.handle('lcu:sync', async (_e, startPuuid?: string) => {
-  if (syncInProgress) return { started: false }
-  const puuid = startPuuid ?? (await getCurrentSummoner())?.puuid
-  if (!puuid) return { started: false, reason: 'no-summoner' }
-  const gen = ++syncGeneration
-  syncInProgress = true
+
+ipcMain.handle('lcu:syncStatus', () => ({ syncing: workerRunning }))
+
+ipcMain.handle('lcu:sync', async () => {
+  const summoner = await getCurrentSummoner()
+  if (!summoner) return { started: false, reason: 'no-summoner' }
+  await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
-  runSync(puuid, gen).then((result) => {
-    if (gen !== syncGeneration) return
-    syncInProgress = false
-    mainWindow?.webContents.send('sync-complete', result)
-  }).catch((err) => {
-    if (gen !== syncGeneration) return
-    console.error('[sync] error:', err)
-    syncInProgress = false
-    mainWindow?.webContents.send('sync-complete', { imported: 0, playerssynced: 0, reason: 'error' })
-  })
   return { started: true }
 })
 
-ipcMain.handle('lcu:fullSync', async (_e, startPuuid?: string) => {
-  const puuid = startPuuid ?? (await getCurrentSummoner())?.puuid
-  if (!puuid) return { started: false, reason: 'no-summoner' }
-  const gen = ++syncGeneration
-  syncInProgress = true
+ipcMain.handle('lcu:fullSync', async () => {
+  const summoner = await getCurrentSummoner()
+  if (!summoner) return { started: false, reason: 'no-summoner' }
+  await apiClient.invalidateSyncTimes()
   mainWindow?.webContents.send('sync-started')
-  ;(async () => {
-    await invalidateAllSyncTimes()
-    return runSync(puuid, gen)
-  })().then((result) => {
-    if (gen !== syncGeneration) return
-    syncInProgress = false
-    mainWindow?.webContents.send('sync-complete', result)
-  }).catch((err) => {
-    if (gen !== syncGeneration) return
-    console.error('[sync] error:', err)
-    syncInProgress = false
-    mainWindow?.webContents.send('sync-complete', { imported: 0, playerssynced: 0, reason: 'error' })
-  })
   return { started: true }
 })
 
@@ -461,7 +298,7 @@ ipcMain.handle('lcu:syncPlayer', async (_e, puuid: string) => {
   ensureChampionNames()
   const { imported, fetchFailed } = await importGamesForPuuid(puuid)
   if (fetchFailed) console.log('[sync] syncPlayer fetch failed for', puuid.slice(0, 8))
-  await setPlayerSyncTime(puuid)
+  await apiClient.completeJob(puuid).catch(() => {})
   return { imported }
 })
 
@@ -470,15 +307,15 @@ ipcMain.handle('lcu:lookupPlayer', async (_e, gameName: string, tagLine: string)
   return lookupSummonerByRiotId(gameName, tagLine)
 })
 
-ipcMain.handle('db:patches', () => getPatches())
-ipcMain.handle('db:playerStats', (_e, patches?: string[]) => getPlayerStats(patches))
-ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => getChampionStats(puuid, patches))
-ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => getRecentMatches(limit, puuid, patches))
-ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => getWinRateTrend(puuid, days))
-ipcMain.handle('db:groupSummary', () => getGroupSummary())
-ipcMain.handle('db:championCache', () => getChampionCache())
-ipcMain.handle('db:augmentCache', () => getAugmentCache())
-ipcMain.handle('db:augmentStats', (_e, puuid?: string, championId?: number, patches?: string[]) => getAugmentStats(puuid, championId, patches))
+ipcMain.handle('db:patches', () => apiClient.patches())
+ipcMain.handle('db:playerStats', (_e, patches?: string[]) => apiClient.playerStats(patches))
+ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => apiClient.championStats(puuid, patches))
+ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => apiClient.recentMatches(limit, puuid, patches))
+ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => apiClient.winRateTrend(puuid, days))
+ipcMain.handle('db:groupSummary', () => apiClient.groupSummary())
+ipcMain.handle('db:championCache', () => apiClient.championCache())
+ipcMain.handle('db:augmentCache', () => apiClient.augmentCache())
+ipcMain.handle('db:augmentStats', (_e, puuid?: string, championId?: number, patches?: string[]) => apiClient.augmentStats(puuid, championId, patches))
 
 ipcMain.handle('db:currentSummoner', async () => {
   if (!isClientRunning()) return null

@@ -1,12 +1,19 @@
-import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import dotenv from 'dotenv'
 dotenv.config({ path: path.resolve(__dirname, '../../.env') })
 import postgres from 'postgres'
 
+const SYNC_LEASE_MS = 5 * 60 * 1000
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface AugmentInfo {
+  id: number
+  name: string
+  desc: string
+  iconPath: string
+  rarity: number
+}
 
 export interface Participant {
   puuid: string
@@ -38,11 +45,11 @@ export interface Match {
 
 let sql_: ReturnType<typeof postgres>
 
-export async function initDb(): Promise<void> {
-  const url = process.env.DATABASE_URL
-  if (!url) throw new Error('DATABASE_URL is not set')
+export async function initDb(url?: string): Promise<void> {
+  const connectionUrl = url ?? process.env.DATABASE_URL
+  if (!connectionUrl) throw new Error('DATABASE_URL is not set')
 
-  sql_ = postgres(url, { onnotice: () => {} })
+  sql_ = postgres(connectionUrl, { onnotice: () => {} })
 
   await sql_`
     CREATE TABLE IF NOT EXISTS matches (
@@ -84,6 +91,15 @@ export async function initDb(): Promise<void> {
       "syncedAt" BIGINT NOT NULL
     )
   `
+  await sql_`
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      puuid            TEXT PRIMARY KEY,
+      queued_at        BIGINT NOT NULL,
+      claimed_at       BIGINT,
+      claimed_by       TEXT,
+      lease_expires_at BIGINT
+    )
+  `
 
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameId     ON participants("gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid      ON participants(puuid)`
@@ -91,13 +107,11 @@ export async function initDb(): Promise<void> {
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameVersion     ON matches("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation    ON matches("gameCreation")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId  ON participant_augments("participantId")`
-
+  await sql_`CREATE INDEX IF NOT EXISTS idx_sync_queue_queued_at    ON sync_queue(queued_at)`
 }
 
 // ─── Patch inference ──────────────────────────────────────────────────────────
 
-// Patch date table: { patch, startMs } sorted ascending.
-// For a game, find the last entry where startMs <= gameCreation.
 const PATCH_DATES: { patch: string; startMs: number }[] = [
   { patch: '14.1',  startMs: new Date('2024-01-10T12:00:00Z').getTime() },
   { patch: '14.2',  startMs: new Date('2024-01-24T12:00:00Z').getTime() },
@@ -171,6 +185,65 @@ export function inferPatch(gameCreation: number): string | undefined {
   return result
 }
 
+// ─── Sync queue ───────────────────────────────────────────────────────────────
+
+export async function enqueuePlayer(puuid: string): Promise<void> {
+  await sql_`
+    INSERT INTO sync_queue (puuid, queued_at) VALUES (${puuid}, ${Date.now()})
+    ON CONFLICT (puuid) DO NOTHING
+  `
+}
+
+export async function enqueueAll(puuids: string[]): Promise<void> {
+  if (puuids.length === 0) return
+  const now = Date.now()
+  await sql_`
+    INSERT INTO sync_queue ${sql_(puuids.map((p) => ({ puuid: p, queued_at: now })))}
+    ON CONFLICT (puuid) DO NOTHING
+  `
+}
+
+export async function claimNextJob(clientId: string): Promise<string | null> {
+  const now = Date.now()
+  const leaseExpires = now + SYNC_LEASE_MS
+  const rows = await sql_`
+    UPDATE sync_queue SET
+      claimed_at       = ${now},
+      claimed_by       = ${clientId},
+      lease_expires_at = ${leaseExpires}
+    WHERE puuid = (
+      SELECT puuid FROM sync_queue
+      WHERE lease_expires_at IS NULL OR lease_expires_at < ${now}
+      ORDER BY queued_at ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING puuid
+  `
+  return rows.length > 0 ? (rows[0].puuid as string) : null
+}
+
+export async function completeJob(puuid: string): Promise<void> {
+  await sql_`DELETE FROM sync_queue WHERE puuid = ${puuid}`
+}
+
+export async function failJob(puuid: string): Promise<void> {
+  await sql_`
+    UPDATE sync_queue SET claimed_at = NULL, claimed_by = NULL, lease_expires_at = NULL
+    WHERE puuid = ${puuid}
+  `
+}
+
+export async function getQueueStatus(): Promise<{ total: number; claimed: number }> {
+  const rows = await sql_`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE lease_expires_at IS NOT NULL AND lease_expires_at > ${Date.now()})::int AS claimed
+    FROM sync_queue
+  `
+  return { total: rows[0].total, claimed: rows[0].claimed }
+}
+
 // ─── Write ops ───────────────────────────────────────────────────────────────
 
 export async function setPlayerSyncTime(puuid: string): Promise<void> {
@@ -188,6 +261,8 @@ export async function isPlayerStale(puuid: string, thresholdMs: number): Promise
 
 export async function invalidateAllSyncTimes(): Promise<void> {
   await sql_`DELETE FROM player_sync_times`
+  const rows = await sql_`SELECT DISTINCT puuid FROM participants WHERE puuid != ''`
+  await enqueueAll(rows.map((r: any) => r.puuid as string))
 }
 
 export async function matchExists(gameId: number): Promise<boolean> {
@@ -222,6 +297,9 @@ export async function insertMatch(match: Match): Promise<void> {
       }
     }
   })
+
+  const newPuuids = match.participants.map((p) => p.puuid).filter(Boolean)
+  await enqueueAll(newPuuids)
 }
 
 export async function upsertMatch(match: Match): Promise<void> {
@@ -235,7 +313,6 @@ export async function upsertMatch(match: Match): Promise<void> {
         "gameDuration" = EXCLUDED."gameDuration",
         "gameVersion"  = EXCLUDED."gameVersion"
     `
-    // Remove old participants and re-insert (simplest upsert for nested data)
     const oldParts = await tx`SELECT id FROM participants WHERE "gameId" = ${match.gameId}`
     if (oldParts.length > 0) {
       const ids = oldParts.map((r: any) => r.id)
@@ -297,7 +374,6 @@ export async function getPatches(): Promise<string[]> {
     WHERE "gameVersion" IS NOT NULL
     ORDER BY "gameVersion" DESC
   `
-  // Sort by major.minor numerically
   return rows
     .map((r: any) => r.gameVersion as string)
     .sort((a, b) => {
@@ -411,9 +487,9 @@ export interface AugmentStats {
   avgDpm: number
 }
 
-export async function getAugmentStats(puuid?: string, championId?: number, patches?: string[]): Promise<AugmentStats[]> {
+export async function getAugmentStats(puuid?: string, championId?: number, patches?: string[], augmentCache: Record<number, { name: string; rarity: number; iconPath: string }> = {}): Promise<AugmentStats[]> {
   const conditions: string[] = []
-  const params: unknown[] = []
+  const params: any[] = []
   if (puuid)        { params.push(puuid);      conditions.push(`p.puuid = $${params.length}`) }
   if (championId)   { params.push(championId); conditions.push(`p."championId" = $${params.length}`) }
   if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
@@ -432,9 +508,8 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
     ORDER BY "pickCount" DESC
   `, params)
 
-  const cache = getAugmentCache()
   return rows.map((r: any) => {
-    const meta = cache[r.augmentId]
+    const meta = augmentCache[r.augmentId]
     return {
       augmentId: r.augmentId,
       name: meta?.name ?? `Augment ${r.augmentId}`,
@@ -456,7 +531,7 @@ export interface MatchView {
 
 export async function getRecentMatches(limit = 20, puuid?: string, patches?: string[]): Promise<MatchView[]> {
   const conditions: string[] = []
-  const params: unknown[] = []
+  const params: any[] = []
   if (puuid)        { params.push(puuid);      conditions.push(`EXISTS (SELECT 1 FROM participants pp WHERE pp."gameId" = m."gameId" AND pp.puuid = $${params.length})`) }
   if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -571,69 +646,4 @@ export async function getGroupSummary(): Promise<GroupSummary> {
     avgKda: parseFloat(r.avgKda ?? '0'),
     avgDpm: parseFloat(r.avgDpm ?? '0')
   }
-}
-
-// ─── Metadata cache (champions + augments) ───────────────────────────────────
-
-export interface AugmentInfo {
-  id: number
-  name: string
-  desc: string
-  iconPath: string
-  rarity: number
-}
-
-const META_VERSION = 2
-
-interface MetaCache {
-  champions: Record<number, string>
-  augments: Record<number, AugmentInfo>
-  fetchedAt: number
-  version?: number
-}
-
-let metaCache: MetaCache | null = null
-
-function metaPath(): string {
-  return path.join(app.getPath('userData'), 'mayhem-meta.json')
-}
-
-function loadMeta(): MetaCache {
-  if (metaCache) return metaCache
-  try {
-    metaCache = JSON.parse(fs.readFileSync(metaPath(), 'utf-8'))
-  } catch {
-    metaCache = { champions: {}, augments: {}, fetchedAt: 0 }
-  }
-  return metaCache!
-}
-
-function saveMeta(): void {
-  fs.writeFileSync(metaPath(), JSON.stringify(metaCache), 'utf-8')
-}
-
-export function isMetaStale(maxAgeHours = 24): boolean {
-  const m = loadMeta()
-  if ((m.version ?? 0) < META_VERSION) return true
-  return Date.now() - m.fetchedAt > maxAgeHours * 3_600_000
-}
-
-export function clearMetaCache(): void {
-  metaCache = null
-}
-
-export function saveMetaCache(
-  champions: Record<number, string>,
-  augments: Record<number, AugmentInfo>
-): void {
-  metaCache = { champions, augments, fetchedAt: Date.now(), version: META_VERSION }
-  saveMeta()
-}
-
-export function getChampionCache(): Record<number, string> {
-  return loadMeta().champions
-}
-
-export function getAugmentCache(): Record<number, AugmentInfo> {
-  return loadMeta().augments
 }

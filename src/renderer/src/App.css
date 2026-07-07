@@ -348,6 +348,14 @@
   color: #0a0e1a;
 }
 
+.sync-btn--stop {
+  background: var(--red);
+  color: #fff;
+}
+.sync-btn--stop:hover {
+  opacity: 0.85;
+}
+
 .sync-msg {
   font-size: 11px;
   color: var(--green);

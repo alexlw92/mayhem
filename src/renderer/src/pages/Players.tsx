@@ -126,9 +126,10 @@ interface Props {
   selectedPuuid: string | null
   onPlayerSelect: (puuid: string, name: string) => void
   onPlayerDeselect: () => void
+  onAugmentClick?: (augmentId: number) => void
 }
 
-export default function Players({ onPlayersChange, selectedPatches, selectedPuuid, onPlayerSelect, onPlayerDeselect }: Props) {
+export default function Players({ onPlayersChange, selectedPatches, selectedPuuid, onPlayerSelect, onPlayerDeselect, onAugmentClick }: Props) {
   const [selectedPlayerData, setSelectedPlayerData] = useState<PlayerStats | null>(null)
 
   if (selectedPuuid && selectedPlayerData) {
@@ -138,6 +139,7 @@ export default function Players({ onPlayersChange, selectedPatches, selectedPuui
         player={selectedPlayerData}
         selectedPatches={selectedPatches}
         onBack={() => { setSelectedPlayerData(null); onPlayerDeselect() }}
+        onAugmentClick={onAugmentClick}
       />
     )
   }
@@ -457,7 +459,7 @@ function PlayerList({
 
 // ─── Individual player view ───────────────────────────────────────────────────
 
-function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null }) {
+function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; onAugmentClick?: (augmentId: number) => void }) {
   const [tab, setTab] = useState<Tab>('matches')
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [matches, setMatches] = useState<MatchView[]>([])
@@ -598,7 +600,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches }: { puuid: strin
         augmentStats.length === 0 ? (
           <div className="card"><div className="empty-state"><div>No augment data</div></div></div>
         ) : (
-          <AugmentTable data={augmentStats} augmentCache={augmentCache} />
+          <AugmentTable data={augmentStats} augmentCache={augmentCache} onAugmentClick={onAugmentClick} />
         )
       )}
     </div>
@@ -685,7 +687,7 @@ export function ChampionTable({ data }: { data: ChampionStat[] }) {
 
 // ─── Augment sub-tab table ────────────────────────────────────────────────────
 
-export function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo> }) {
+export function AugmentTable({ data, augmentCache, onAugmentClick }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo>; onAugmentClick?: (augmentId: number) => void }) {
   const [sortKey, setSortKey] = useState<AugmentSortKey>('pickCount')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
@@ -740,7 +742,11 @@ export function AugmentTable({ data, augmentCache }: { data: AugmentStat[]; augm
           {sorted.map((a) => {
             const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
             return (
-              <tr key={a.augmentId}>
+              <tr
+                key={a.augmentId}
+                style={{ cursor: onAugmentClick ? 'pointer' : undefined }}
+                onClick={() => onAugmentClick?.(a.augmentId)}
+              >
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <AugmentIcon id={a.augmentId} augments={augmentCache} size={24} />

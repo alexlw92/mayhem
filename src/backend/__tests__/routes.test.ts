@@ -186,6 +186,49 @@ describe('GET /api/players/:puuid/augments', () => {
   })
 })
 
+describe('GET /api/augments/:augmentId/champions', () => {
+  it('returns empty array when no data', async () => {
+    const res = await request(app).get('/api/augments/200/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns champion breakdown for a known augment', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    const row = res.body[0]
+    expect(row.championId).toBe(10)
+    expect(row.championName).toBe('Kayle')
+    expect(row.games).toBe(1)
+    expect(row.wins).toBe(1)
+    expect(row.avgDpm).toBeGreaterThan(0)
+  })
+
+  it('returns empty array for an augment not in any game', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/999/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters to a specific puuid — returns empty when that player has no picks', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions?puuid=test-puuid-2')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters to a specific puuid — returns data when that player has picks', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions?puuid=test-puuid-1')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    expect(res.body[0].championName).toBe('Kayle')
+  })
+})
+
 describe('Meta endpoints', () => {
   it('GET /api/meta/champions returns an object', async () => {
     const res = await request(app).get('/api/meta/champions')

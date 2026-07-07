@@ -38,9 +38,10 @@ interface Props {
   selectedPatches: string[] | null
   initialChampionId?: number
   onMounted?: () => void
+  onAugmentClick?: (augmentId: number) => void
 }
 
-export default function Augments({ players, selectedPatches, initialChampionId, onMounted }: Props) {
+export default function Augments({ players, selectedPatches, initialChampionId, onMounted, onAugmentClick }: Props) {
   const [selectedPuuid, setSelectedPuuid] = useState<string | undefined>(undefined)
   const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(initialChampionId)
   const [champions, setChampions] = useState<ChampionOption[]>([])
@@ -190,7 +191,11 @@ export default function Augments({ players, selectedPatches, initialChampionId, 
                 const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
                 const rarityColor = RARITY_COLOR[a.rarity] ?? RARITY_COLOR[0]
                 return (
-                  <tr key={a.augmentId}>
+                  <tr
+                    key={a.augmentId}
+                    style={{ cursor: onAugmentClick ? 'pointer' : undefined }}
+                    onClick={() => onAugmentClick?.(a.augmentId)}
+                  >
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{

@@ -588,6 +588,45 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
   })
 }
 
+export interface AugmentChampionStat {
+  championId: number
+  championName: string
+  games: number
+  wins: number
+  avgDpm: number
+}
+
+export async function getAugmentChampionStats(augmentId: number, puuid?: string, patches?: string[]): Promise<AugmentChampionStat[]> {
+  const conditions: string[] = [`pa."augmentId" = $1`]
+  const params: any[] = [augmentId]
+  if (puuid)           { params.push(puuid);   conditions.push(`p.puuid = $${params.length}`) }
+  if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
+  const where = `WHERE ${conditions.join(' AND ')}`
+
+  const rows = await sql_.unsafe(`
+    SELECT p."championId", MIN(p."championName") AS "championName",
+      COUNT(*)::int AS games,
+      SUM(p.win::int)::int AS wins,
+      CASE WHEN SUM(m."gameDuration") > 0
+        THEN SUM(p."damageDealt")::float / (SUM(m."gameDuration") / 60.0)
+        ELSE 0 END AS "avgDpm"
+    FROM participant_augments pa
+    JOIN participants p ON pa."participantId" = p.id
+    JOIN matches m ON p."gameId" = m."gameId"
+    ${where}
+    GROUP BY p."championId"
+    ORDER BY games DESC
+  `, params)
+
+  return rows.map((r: any) => ({
+    championId: r.championId,
+    championName: r.championName ?? `Champion ${r.championId}`,
+    games: r.games,
+    wins: r.wins,
+    avgDpm: parseFloat(r.avgDpm),
+  }))
+}
+
 export interface MatchView {
   gameId: number
   gameCreation: number

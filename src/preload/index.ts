@@ -26,6 +26,7 @@ const api = {
     championCache: () => ipcRenderer.invoke('db:championCache'),
     augmentCache: () => ipcRenderer.invoke('db:augmentCache'),
     augmentStats: (puuid?: string, championId?: number, patches?: string[]) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches),
+    augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:augmentChampionStats', augmentId, puuid, patches),
     searchPlayers: (query: string) => ipcRenderer.invoke('db:searchPlayers', query)
   },
   meta: {

@@ -6,6 +6,7 @@ import {
   getChampionStats,
   getRecentMatches,
   getAugmentStats,
+  getAugmentChampionStats,
   getWinRateTrend,
   getPlayerName,
   getCoplayerPuuids,
@@ -83,6 +84,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const cache = opts.getAugments?.() ?? {}
     const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
     res.json(await getAugmentStats(undefined, championId, parsePatches(req.query.patches), cache))
+  })
+
+  router.get('/augments/:augmentId/champions', async (req, res) => {
+    const augmentId = parseInt(req.params.augmentId)
+    const puuid = typeof req.query.puuid === 'string' ? req.query.puuid : undefined
+    res.json(await getAugmentChampionStats(augmentId, puuid, parsePatches(req.query.patches)))
   })
 
   return router

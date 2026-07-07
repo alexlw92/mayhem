@@ -29,6 +29,11 @@ export const apiClient = {
       params: { championId, patches: patches?.join(',') }
     }).then((r) => r.data),
 
+  augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[]) =>
+    http.get(`/api/augments/${augmentId}/champions`, {
+      params: { puuid, patches: patches?.join(',') }
+    }).then((r) => r.data),
+
   winRateTrend: (puuid?: string, days?: number) =>
     http.get(puuid ? `/api/players/${puuid}/trend` : '/api/trend', {
       params: { days }

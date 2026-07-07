@@ -47,10 +47,10 @@ export const apiClient = {
     http.get(`/api/matches/${gameId}/exists`).then((r) => r.data),
 
   insertMatch: (match: Match) =>
-    http.post('/api/matches', match),
+    http.post('/api/matches', match, { timeout: 30_000 }),
 
   upsertMatch: (match: Match) =>
-    http.put(`/api/matches/${match.gameId}`, match),
+    http.put(`/api/matches/${match.gameId}`, match, { timeout: 30_000 }),
 
   incompleteGames: (): Promise<number[]> =>
     http.get('/api/incomplete-games').then((r) => r.data),

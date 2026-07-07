@@ -7,6 +7,7 @@ import {
   completeJob,
   failJob,
   getQueueStatus,
+  clearQueue,
   insertMatches,
   invalidateAllSyncTimes,
   Match
@@ -158,6 +159,21 @@ describe('failJob', () => {
     await claimNextJob('client-1')
     await failJob('puuid-fail')
     expect((await getQueueStatus()).total).toBe(1)
+  })
+})
+
+describe('clearQueue', () => {
+  it('removes all entries from the queue', async () => {
+    await enqueuePlayer('puuid-a')
+    await enqueuePlayer('puuid-b')
+    expect((await getQueueStatus()).total).toBe(2)
+    await clearQueue()
+    expect((await getQueueStatus()).total).toBe(0)
+  })
+
+  it('is a no-op on an empty queue', async () => {
+    await clearQueue()
+    expect((await getQueueStatus()).total).toBe(0)
   })
 })
 

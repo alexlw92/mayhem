@@ -25,7 +25,7 @@ export default function App() {
   const [stopping, setStopping] = useState(false)
   const [lastSync, setLastSync] = useState<string>('')
   const [players, setPlayers] = useState<Player[]>([])
-  const [syncProgress, setSyncProgress] = useState<{ playerName: string; totalImported: number; playersSearched: number } | null>(null)
+  const [syncProgress, setSyncProgress] = useState<{ playerName: string; gamesAdded: number; playersChecked: number; queueRemaining: number } | null>(null)
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
   const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
@@ -110,7 +110,7 @@ export default function App() {
       setLastSync('')
     })
 
-    const unsubProgress = api.on('sync-progress', (data: { playerName: string; totalImported: number; playersSearched: number }) => {
+    const unsubProgress = api.on('sync-progress', (data: { playerName: string; gamesAdded: number; playersChecked: number; queueRemaining: number }) => {
       setSyncProgress(data)
     })
 
@@ -298,7 +298,7 @@ export default function App() {
             <div className="sync-progress">
               <div className="sync-progress-player">↳ {syncProgress.playerName}</div>
               <div className="sync-progress-stats">
-                {syncProgress.totalImported} new · {syncProgress.playersSearched} players
+                {syncProgress.gamesAdded} new · {syncProgress.queueRemaining} in queue
               </div>
             </div>
           )}

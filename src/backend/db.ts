@@ -245,6 +245,10 @@ export async function getQueueStatus(): Promise<{ total: number; claimed: number
   return { total: rows[0].total, claimed: rows[0].claimed }
 }
 
+export async function clearQueue(): Promise<void> {
+  await sql_`DELETE FROM sync_queue`
+}
+
 // ─── Write ops ───────────────────────────────────────────────────────────────
 
 export async function setPlayerSyncTime(puuid: string): Promise<void> {

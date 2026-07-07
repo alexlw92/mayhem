@@ -181,7 +181,6 @@ async function syncWorker(): Promise<void> {
     }
 
     const playerName = await apiClient.playerName(puuid) ?? puuid.slice(0, 8) + '…'
-    mainWindow?.webContents.send('sync-progress', { playerName, totalImported: 0, playersSearched: 1 })
 
     try {
       const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
@@ -189,14 +188,19 @@ async function syncWorker(): Promise<void> {
         console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
         await apiClient.completeJob(puuid)
       } else {
-        console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''}`)
         await apiClient.completeJob(puuid)
-        if (draining) syncAccum.playerssynced++
-        if (imported > 0) {
-          if (draining) syncAccum.imported += imported
-          mainWindow?.webContents.send('sync-progress', { playerName, totalImported: imported, playersSearched: 1 })
-          mainWindow?.webContents.send('matches-synced', { imported, playerssynced: 1 })
+        if (draining) {
+          syncAccum.playerssynced++
+          if (imported > 0) syncAccum.imported += imported
         }
+        const { total: queueRemaining } = await apiClient.queueStatus()
+        console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${queueRemaining} remaining in queue)`)
+        mainWindow?.webContents.send('sync-progress', {
+          playerName,
+          gamesAdded: syncAccum.imported,
+          playersChecked: syncAccum.playerssynced,
+          queueRemaining,
+        })
       }
     } catch (err) {
       console.error(`[sync] error syncing ${playerName}:`, err)
@@ -312,6 +316,8 @@ ipcMain.handle('lcu:sync', async () => {
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
+  const { total } = await apiClient.queueStatus()
+  console.log(`[sync] started — ${total} player${total !== 1 ? 's' : ''} in queue`)
   startSyncWorker()
   return { started: true }
 })
@@ -323,9 +329,12 @@ ipcMain.handle('lcu:fullSync', async () => {
   syncCancelled = false
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
+  await apiClient.clearQueue()
   await apiClient.invalidateSyncTimes()
   await apiClient.enqueuePlayer(summoner.puuid)
   mainWindow?.webContents.send('sync-started')
+  const { total } = await apiClient.queueStatus()
+  console.log(`[sync] full reload — ${total} player${total !== 1 ? 's' : ''} in queue`)
   startSyncWorker()
   return { started: true }
 })

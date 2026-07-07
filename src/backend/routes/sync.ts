@@ -10,6 +10,7 @@ import {
   failJob,
   enqueuePlayer,
   getQueueStatus,
+  clearQueue,
   setPlayerSyncTime,
   Match
 } from '../db'
@@ -68,6 +69,11 @@ router.post('/sync/enqueue', async (req, res) => {
 
 router.get('/sync/queue', async (_req, res) => {
   res.json(await getQueueStatus())
+})
+
+router.delete('/sync/queue', async (_req, res) => {
+  await clearQueue()
+  res.json({ ok: true })
 })
 
 export default router

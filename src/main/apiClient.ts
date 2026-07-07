@@ -78,6 +78,9 @@ export const apiClient = {
   queueStatus: (): Promise<{ total: number; claimed: number }> =>
     http.get('/api/sync/queue').then((r) => r.data),
 
+  clearQueue: () =>
+    http.delete('/api/sync/queue'),
+
   championCache: (): Promise<Record<number, string>> =>
     http.get('/api/meta/champions').then((r) => r.data),
 

@@ -71,14 +71,20 @@ type Metric = 'wins' | 'winRate' | 'kda' | 'avgDpm' | 'avgGold'
 type Tab = 'matches' | 'champions' | 'augments'
 
 const RECENT_KEY = 'mayhem-recent-players'
-const MAX_RECENT = 5
+const MAX_RECENT = 10
 
-function loadRecents(): string[] {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
+interface RecentEntry { riotId: string; puuid: string }
+
+function loadRecents(): RecentEntry[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+    if (!Array.isArray(raw) || typeof raw[0] === 'string') return []
+    return raw as RecentEntry[]
+  } catch { return [] }
 }
 
-function saveRecent(riotId: string): string[] {
-  const next = [riotId, ...loadRecents().filter((r) => r.toLowerCase() !== riotId.toLowerCase())].slice(0, MAX_RECENT)
+function saveRecent(riotId: string, puuid: string): RecentEntry[] {
+  const next = [{ riotId, puuid }, ...loadRecents().filter((r) => r.puuid !== puuid)].slice(0, MAX_RECENT)
   localStorage.setItem(RECENT_KEY, JSON.stringify(next))
   return next
 }
@@ -189,7 +195,7 @@ function PlayerList({
   const [addInput, setAddInput] = useState('')
   const [addError, setAddError] = useState('')
   const [addLoading, setAddLoading] = useState(false)
-  const [recents, setRecents] = useState<string[]>(loadRecents)
+  const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   const [showRecents, setShowRecents] = useState(false)
   const PAGE_SIZE = 25
 
@@ -240,18 +246,23 @@ function PlayerList({
       const result = await api.lcu.syncPlayer(summoner.puuid)
       setSyncing(null)
       setAddLoading(false)
-      setRecents(saveRecent(addInput.trim()))
       setAddInput('')
       setSyncMsg(`Added ${gameName}: ${result.imported} game${result.imported !== 1 ? 's' : ''} imported`)
       setTimeout(() => setSyncMsg(''), 5000)
-      refresh()
+      const updatedData = await api.db.playerStats(selectedPatches) as PlayerStats[]
+      setData(updatedData)
       onPlayersChange()
     } catch {
       setAddError('An error occurred — check that the League client is open')
       setAddLoading(false)
       setSyncing(null)
     }
-  }, [addInput, refresh, onPlayersChange])
+  }, [addInput, selectedPatches, onPlayersChange])
+
+  const handleSelect = useCallback((puuid: string, player: PlayerStats) => {
+    setRecents(saveRecent(player.summonerName, puuid))
+    onSelect(puuid, player)
+  }, [onSelect])
 
   const filtered = data.filter((p) =>
     p.summonerName.toLowerCase().includes(search.toLowerCase())
@@ -304,11 +315,11 @@ function PlayerList({
                 <div className="recent-label">Recent</div>
                 {recents.map((r) => (
                   <div
-                    key={r}
+                    key={r.puuid}
                     className="recent-item"
-                    onMouseDown={() => { setAddInput(r); setShowRecents(false) }}
+                    onMouseDown={() => { setAddInput(r.riotId); setShowRecents(false) }}
                   >
-                    {r}
+                    {r.riotId}
                   </div>
                 ))}
               </div>
@@ -325,6 +336,39 @@ function PlayerList({
         {addError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{addError}</div>}
         {syncMsg && <div style={{ color: 'var(--green)', fontSize: 12, marginTop: 6 }}>{syncMsg}</div>}
       </div>
+
+      {recents.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 }}>Recent</div>
+          <div className="recent-grid">
+            {recents.map((r) => {
+              const match = data.find((p) => p.puuid === r.puuid)
+              const [name, tag] = r.riotId.split('#')
+              return (
+                <div
+                  key={r.puuid}
+                  className="recent-player-row"
+                  onClick={() => handleSelect(r.puuid, match ?? {
+                    puuid: r.puuid, summonerName: r.riotId,
+                    games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+                    avgDpm: 0, avgGold: 0, syncedFull: false
+                  })}
+                >
+                  <div className="recent-player-name">
+                    <span className="lb-name">{name}</span>
+                    {tag && <span className="lb-tag">#{tag}</span>}
+                  </div>
+                  {match && (
+                    <span className="recent-player-stats">
+                      {match.games}G · <span className={match.wins / match.games >= 0.5 ? 'win' : 'loss'}>{((match.wins / match.games) * 100).toFixed(0)}%WR</span>
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {sorted.length === 0 && !refreshing ? (
         <div className="empty-state">
@@ -343,7 +387,7 @@ function PlayerList({
               <div
                 key={p.puuid}
                 className="card lb-row"
-                onClick={() => onSelect(p.puuid, p)}
+                onClick={() => handleSelect(p.puuid, p)}
               >
                 <div className="lb-rank">
                   {globalRank < 3 ? MEDALS[globalRank] : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>#{globalRank + 1}</span>}
@@ -407,6 +451,12 @@ function PlayerList({
         .recent-label { padding: 5px 10px 3px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .recent-item { padding: 7px 10px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
         .recent-item:hover { background: var(--bg-primary); color: var(--blue-light); }
+        .recent-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 12px; }
+        .recent-player-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.1s; min-width: 0; }
+        .recent-player-row:hover { background: var(--bg-primary); }
+        .recent-player-name { display: flex; align-items: baseline; gap: 3px; min-width: 0; overflow: hidden; }
+        .recent-player-name .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .recent-player-stats { font-size: 12px; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
       `}</style>
     </div>
   )

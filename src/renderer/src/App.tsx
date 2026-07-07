@@ -85,7 +85,7 @@ export default function App() {
     refreshPlayers()
     api.db.patches().then((p: string[]) => {
       setPatches(p)
-      setSelectedPatches(p.slice(0, 2))
+      setSelectedPatches(p.slice(0, 1))
     }).catch(() => {})
     api.lcu.syncStatus().then((s: { syncing: boolean }) => setSyncing(s.syncing)).catch(() => {})
 
@@ -119,7 +119,7 @@ export default function App() {
       refreshPlayers()
       api.db.patches().then((p: string[]) => {
         setPatches(p)
-        setSelectedPatches((cur) => (cur ?? []).length ? cur : p.slice(0, 2))
+        setSelectedPatches((cur) => (cur ?? []).length ? cur : p.slice(0, 1))
       }).catch(() => {})
       setTimeout(() => setLastSync(''), 8000)
     })

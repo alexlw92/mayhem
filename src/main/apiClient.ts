@@ -12,7 +12,7 @@ export const apiClient = {
     http.get('/api/players', { params: { patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
 
   playerOneStats: (puuid: string, patches?: string[]) =>
-    http.get(`/api/players/${puuid}/stats`, { params: { patches: patches?.join(',') } }).then((r) => r.data),
+    http.get(`/api/players/${puuid}/stats`, { params: { patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
 
   playerBulkStats: (puuids: string[], patches?: string[]) =>
     http.post('/api/players/bulk-stats', { puuids }, { params: { patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
@@ -89,9 +89,6 @@ export const apiClient = {
 
   championCache: (): Promise<Record<number, string>> =>
     http.get('/api/meta/champions').then((r) => r.data),
-
-  augmentCache: (): Promise<Record<number, any>> =>
-    http.get('/api/meta/augments').then((r) => r.data),
 
   searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
     http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),

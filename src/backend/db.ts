@@ -115,15 +115,15 @@ export async function initDb(url?: string): Promise<void> {
   await sql_`ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 0`
   await sql_`ALTER TABLE participants ADD COLUMN IF NOT EXISTS "gameVersion" text`
   await sql_`ALTER TABLE participants ADD COLUMN IF NOT EXISTS "gameDuration" integer`
-  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion ON participants("gameVersion")`
-  await sql_`
+  sql_`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_participants_gameVersion ON participants("gameVersion")`.catch(() => {})
+  sql_`
     UPDATE participants p
     SET "gameVersion" = m."gameVersion",
         "gameDuration" = m."gameDuration"
     FROM matches m
     WHERE m."gameId" = p."gameId"
       AND p."gameVersion" IS NULL
-  `
+  `.catch(() => {})
 }
 
 // ─── Patch inference ──────────────────────────────────────────────────────────

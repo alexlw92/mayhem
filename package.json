@@ -11,6 +11,8 @@
     "test": "vitest run",
     "server:build": "tsc --project tsconfig.server.json",
     "server:start": "node dist-server/server-entry.js",
+    "worker:build": "tsc --project tsconfig.worker.json",
+    "worker:start": "node dist-worker/src/worker/index.js",
     "dist": "npm run build && electron-builder"
   },
   "build": {

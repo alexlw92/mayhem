@@ -76,7 +76,9 @@ export async function initDb(url?: string): Promise<void> {
       "damageDealt"  INTEGER NOT NULL,
       "damageTaken"  INTEGER NOT NULL,
       "goldEarned"   INTEGER NOT NULL,
-      "champLevel"   INTEGER NOT NULL
+      "champLevel"   INTEGER NOT NULL,
+      "gameVersion"  TEXT,
+      "gameDuration" INTEGER
     )
   `
   await sql_`
@@ -97,7 +99,8 @@ export async function initDb(url?: string): Promise<void> {
       queued_at        BIGINT NOT NULL,
       claimed_at       BIGINT,
       claimed_by       TEXT,
-      lease_expires_at BIGINT
+      lease_expires_at BIGINT,
+      priority         INT NOT NULL DEFAULT 0
     )
   `
 
@@ -107,23 +110,13 @@ export async function initDb(url?: string): Promise<void> {
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_championId   ON participants("championId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid_gameid ON participants(puuid, "gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid_champ  ON participants(puuid, "championId", "gameId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid_gameVersion ON participants(puuid, "gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameVersion       ON matches("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation      ON matches("gameCreation")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId    ON participant_augments("participantId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_champid_gameid ON participants("championId", "gameId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion   ON participants("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_sync_queue_queued_at      ON sync_queue(queued_at)`
-  await sql_`ALTER TABLE sync_queue ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 0`
-  await sql_`ALTER TABLE participants ADD COLUMN IF NOT EXISTS "gameVersion" text`
-  await sql_`ALTER TABLE participants ADD COLUMN IF NOT EXISTS "gameDuration" integer`
-  sql_`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_participants_gameVersion ON participants("gameVersion")`.catch(() => {})
-  sql_`
-    UPDATE participants p
-    SET "gameVersion" = m."gameVersion",
-        "gameDuration" = m."gameDuration"
-    FROM matches m
-    WHERE m."gameId" = p."gameId"
-      AND p."gameVersion" IS NULL
-  `.catch(() => {})
 
   await sql_`
     CREATE TABLE IF NOT EXISTS meta_champions (

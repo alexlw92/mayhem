@@ -6,3 +6,5 @@ dist-server/
 *.backup
 .idea/
 *.iml
+mayhem.pem
+release.ps1

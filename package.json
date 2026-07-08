@@ -1,6 +1,6 @@
 {
   "name": "mayhem",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "ARAM Mayhem stats tracker",
   "main": "out/main/index.js",
   "scripts": {

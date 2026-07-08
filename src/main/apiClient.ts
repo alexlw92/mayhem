@@ -2,7 +2,11 @@ import axios from 'axios'
 import { BACKEND_URL } from './config'
 import type { Match } from '../backend/db'
 
-const http = axios.create({ baseURL: BACKEND_URL, timeout: 10_000 })
+const http = axios.create({
+  baseURL: BACKEND_URL,
+  timeout: 10_000,
+  headers: process.env.API_KEY ? { 'x-api-key': process.env.API_KEY } : {}
+})
 
 export const apiClient = {
   patches: (): Promise<string[]> =>

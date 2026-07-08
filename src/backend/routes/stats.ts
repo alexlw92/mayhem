@@ -3,6 +3,7 @@ import {
   getPatches,
   getPlayerStats,
   getOnePlayerStats,
+  getBulkPlayerStats,
   getChampionStats,
   getRecentMatches,
   getAugmentStats,
@@ -43,6 +44,11 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players/:puuid/stats', async (req, res) => {
     res.json(await getOnePlayerStats(req.params.puuid, parsePatches(req.query.patches)))
+  })
+
+  router.post('/players/bulk-stats', async (req, res) => {
+    const puuids = Array.isArray(req.body.puuids) ? (req.body.puuids as string[]) : []
+    res.json(await getBulkPlayerStats(puuids, parsePatches(req.query.patches)))
   })
 
   router.get('/players/:puuid/champions', async (req, res) => {

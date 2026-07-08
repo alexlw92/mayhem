@@ -4,7 +4,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    define: {
+      'process.env.BACKEND_URL': JSON.stringify(process.env.BACKEND_URL ?? 'http://localhost:3847')
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()]

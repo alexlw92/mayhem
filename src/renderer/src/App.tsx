@@ -3,9 +3,10 @@ import Players from './pages/Players'
 import Champions from './pages/Champions'
 import Augments from './pages/Augments'
 import AugmentDetail from './pages/AugmentDetail'
+import CurrentGame from './pages/CurrentGame'
 import './App.css'
 
-type Page = 'players' | 'champions' | 'augments' | 'augment-detail'
+type Page = 'players' | 'champions' | 'augments' | 'augment-detail' | 'current-game'
 
 export type PatchFilter = string[] | undefined
 
@@ -156,6 +157,7 @@ export default function App() {
   }, [selectedPlayerPuuid])
 
   const navItems: { id: Page; label: string; icon: string }[] = [
+    { id: 'current-game', label: 'Live', icon: '⚔' },
     { id: 'players', label: 'Players', icon: '👤' },
     { id: 'champions', label: 'Champions', icon: '🛡' },
     { id: 'augments', label: 'Augments', icon: '✦' },
@@ -309,14 +311,12 @@ export default function App() {
         </div>
         <div style={{ display: page === 'champions' ? 'block' : 'none' }}>
           <Champions
-            players={players}
             selectedPatches={selectedPatches}
             onChampionClick={(championId) => { setAugmentChampionId(championId); setPage('augments') }}
           />
         </div>
         <div style={{ display: page === 'augments' ? 'block' : 'none' }}>
           <Augments
-            players={players}
             selectedPatches={selectedPatches}
             initialChampionId={augmentChampionId}
             onMounted={() => setAugmentChampionId(undefined)}
@@ -332,6 +332,9 @@ export default function App() {
               onBack={() => setPage(augmentDetailOrigin)}
             />
           )}
+        </div>
+        <div style={{ display: page === 'current-game' ? 'block' : 'none' }}>
+          <CurrentGame selectedPatches={selectedPatches} />
         </div>
       </main>
     </div>

@@ -340,3 +340,31 @@ describe('GET /api/players/:puuid/coplayers', () => {
     expect(res.body).toEqual([])
   })
 })
+
+describe('POST /api/sync/enqueue-priority', () => {
+  it('enqueues puuids with priority 1', async () => {
+    await request(app).post('/api/sync/enqueue-priority').send({ puuids: ['p-high'] })
+    const res = await request(app).get('/api/sync/queue')
+    expect(res.body.total).toBe(1)
+  })
+
+  it('priority item is claimed before normal item', async () => {
+    await request(app).post('/api/sync/enqueue').send({ puuid: 'p-normal' })
+    await request(app).post('/api/sync/enqueue-priority').send({ puuids: ['p-high'] })
+    const res = await request(app).get('/api/sync/next?clientId=test')
+    expect(res.body.puuid).toBe('p-high')
+  })
+
+  it('upgrades priority on an already-queued item and resets its claim', async () => {
+    await request(app).post('/api/sync/enqueue').send({ puuid: 'p-existing' })
+    await request(app).get('/api/sync/next?clientId=test')
+    await request(app).post('/api/sync/enqueue-priority').send({ puuids: ['p-existing'] })
+    const res = await request(app).get('/api/sync/next?clientId=test2')
+    expect(res.body.puuid).toBe('p-existing')
+  })
+
+  it('rejects missing puuids', async () => {
+    const res = await request(app).post('/api/sync/enqueue-priority').send({})
+    expect(res.status).toBe(400)
+  })
+})

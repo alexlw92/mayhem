@@ -11,8 +11,9 @@ import {
   lookupSummonerByRiotId,
   getChampionData,
   getAugmentData,
+  getGameflowSession,
+  getChampSelectSession,
 } from './lcu'
-import { initDb } from '../backend/db'
 import {
   isMetaStale,
   saveMetaCache,
@@ -22,9 +23,8 @@ import {
   AugmentInfo
 } from './meta'
 import { apiClient } from './apiClient'
-import { createExpressApp } from '../backend/server'
 import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
-import { BACKEND_PORT } from './config'
+import { autoUpdater } from 'electron-updater'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'mayhem-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }
@@ -259,27 +259,13 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+  if (!is.dev) autoUpdater.checkForUpdatesAndNotify()
 
-  mainWindow!.webContents.once('did-finish-load', async () => {
-    try {
-      await initDb()
-    } catch (err) {
-      console.error('[db] init failed:', err)
-      mainWindow?.webContents.send('db-error', String(err))
-      return
-    }
-
-    createExpressApp({
-      getChampions: () => getChampionCache(),
-      getAugments: () => getAugmentCache()
-    }).listen(BACKEND_PORT, () => console.log(`[backend] :${BACKEND_PORT}`))
-
+  mainWindow!.webContents.once('did-finish-load', () => {
     mainWindow?.webContents.send('db-ready')
-
     refreshMetadata().catch(() => {
       mainWindow?.webContents.send('assets-ready')
     })
-
     ensureChampionNames()
     repairIncompleteMatches().catch(() => {})
   })
@@ -354,6 +340,7 @@ ipcMain.handle('lcu:lookupPlayer', async (_e, gameName: string, tagLine: string)
 ipcMain.handle('db:patches', () => apiClient.patches())
 ipcMain.handle('db:playerStats', (_e, patches?: string[]) => apiClient.playerStats(patches))
 ipcMain.handle('db:playerOneStats', (_e, puuid: string, patches?: string[]) => apiClient.playerOneStats(puuid, patches))
+ipcMain.handle('db:playerBulkStats', (_e, puuids: string[], patches?: string[]) => apiClient.playerBulkStats(puuids, patches))
 ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => apiClient.championStats(puuid, patches))
 ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => apiClient.recentMatches(limit, puuid, patches))
 ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => apiClient.winRateTrend(puuid, days))
@@ -364,6 +351,58 @@ ipcMain.handle('db:augmentStats', (_e, puuid?: string, championId?: number, patc
 ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[]) => apiClient.augmentChampionStats(augmentId, puuid, patches))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
 ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[]) => apiClient.coplayerStats(puuid, patches))
+
+ipcMain.handle('lcu:currentGame', async () => {
+  if (!isClientRunning()) return null
+  const session = await getGameflowSession()
+  if (!session) return null
+  const { phase, gameData } = session as any
+
+  if (phase === 'ChampSelect') {
+    const cs = await getChampSelectSession()
+    if (!cs) return { phase }
+    const mapCS = (p: any) => ({
+      puuid: p.puuid,
+      championId: p.championId,
+      summonerName: p.gameName ? `${p.gameName}#${p.tagLine}` : '',
+    })
+    return {
+      phase,
+      myTeam: (cs as any).myTeam.map(mapCS),
+      theirTeam: (cs as any).theirTeam.map(mapCS),
+    }
+  }
+
+  if ((phase === 'InProgress' || phase === 'EndOfGame') && gameData) {
+    const mapP = (p: any) => ({
+      puuid: p.puuid,
+      championId: p.championId,
+      summonerName: p.summonerName || p.riotId || '',
+      augments: [p.playerAugment1, p.playerAugment2, p.playerAugment3,
+                 p.playerAugment4, p.playerAugment5, p.playerAugment6]
+                 .filter((a): a is number => !!a),
+    })
+    const summoner = await getCurrentSummoner()
+    const myPuuid = summoner?.puuid
+    const teamOne = (gameData.teamOne ?? []).map(mapP)
+    const teamTwo = (gameData.teamTwo ?? []).map(mapP)
+    const onTeamOne = myPuuid ? teamOne.some((p) => p.puuid === myPuuid) : true
+    return {
+      phase,
+      myTeam: onTeamOne ? teamOne : teamTwo,
+      theirTeam: onTeamOne ? teamTwo : teamOne,
+    }
+  }
+
+  return { phase }
+})
+
+ipcMain.handle('lcu:syncCurrentGame', async (_e, puuids: string[]) => {
+  if (!Array.isArray(puuids) || puuids.length === 0) return { ok: false }
+  await apiClient.enqueuePriority(puuids)
+  startSyncWorker()
+  return { ok: true }
+})
 
 ipcMain.handle('db:currentSummoner', async () => {
   if (!isClientRunning()) return null

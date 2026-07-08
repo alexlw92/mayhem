@@ -11,12 +11,15 @@ const api = {
     syncPlayer: (puuid: string) => ipcRenderer.invoke('lcu:syncPlayer', puuid),
     stopSync: () => ipcRenderer.invoke('lcu:stopSync'),
     lookupPlayer: (gameName: string, tagLine: string) =>
-      ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine)
+      ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine),
+    currentGame: () => ipcRenderer.invoke('lcu:currentGame'),
+    syncCurrentGame: (puuids: string[]) => ipcRenderer.invoke('lcu:syncCurrentGame', puuids)
   },
   db: {
     patches: () => ipcRenderer.invoke('db:patches'),
     playerStats: (patches?: string[]) => ipcRenderer.invoke('db:playerStats', patches),
     playerOneStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:playerOneStats', puuid, patches),
+    playerBulkStats: (puuids: string[], patches?: string[]) => ipcRenderer.invoke('db:playerBulkStats', puuids, patches),
     championStats: (puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:championStats', puuid, patches),
     recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
       ipcRenderer.invoke('db:recentMatches', limit, puuid, patches),

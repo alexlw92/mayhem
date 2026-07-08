@@ -105,6 +105,7 @@ export default function CurrentGame({ selectedPatches }: Props) {
   const allPuuidsRef = useRef<string[]>([])
   const nameCacheRef = useRef<Record<string, string>>({})
   const hasSyncedChampSelectRef = useRef(false)
+  const hasSyncedGameStartRef = useRef(false)
   const fetchedPuuidsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -135,6 +136,14 @@ export default function CurrentGame({ selectedPatches }: Props) {
         }
         if (prevPhase === 'ChampSelect' && currentPhase !== 'ChampSelect') {
           hasSyncedChampSelectRef.current = false
+        }
+
+        if (currentPhase === 'InProgress' && !hasSyncedGameStartRef.current && puuids.length > 0) {
+          hasSyncedGameStartRef.current = true
+          api.lcu.syncCurrentGame(puuids).catch(() => {})
+        }
+        if (!currentPhase || currentPhase === 'None' || currentPhase === 'Lobby' || currentPhase === 'Matchmaking') {
+          hasSyncedGameStartRef.current = false
         }
 
         for (const p of participants) {
@@ -198,6 +207,30 @@ export default function CurrentGame({ selectedPatches }: Props) {
     setChampAugStats(null)
     setSearch('')
     fetchedPuuidsRef.current = new Set()
+  }, [selectedPatches])
+
+  useEffect(() => {
+    const unsub = api.on('sync-progress', ({ puuid }: { puuid: string }) => {
+      if (!puuid || !fetchedPuuidsRef.current.has(puuid)) return
+
+      api.db.playerBulkStats([puuid], selectedPatches ?? undefined)
+        .then((map: Record<string, PlayerStats>) => {
+          const s = map[puuid] ?? null
+          setPlayerStats((prev) => ({ ...prev, [puuid]: s }))
+          if (s?.summonerName) nameCacheRef.current[puuid] = s.summonerName
+        })
+        .catch(() => {})
+
+      api.db.championStats(puuid, selectedPatches ?? undefined)
+        .then((rows: ChampionStat[]) => setChampionStats((prev) => ({ ...prev, [puuid]: rows })))
+        .catch(() => {})
+
+      setMyPuuid((cur) => {
+        if (puuid === cur) setChampAugStats(null)
+        return cur
+      })
+    })
+    return unsub
   }, [selectedPatches])
 
   useEffect(() => {
@@ -277,7 +310,7 @@ export default function CurrentGame({ selectedPatches }: Props) {
                 globalChampRow={myTeam[i].championId ? globalChampStats[myTeam[i].championId] : undefined}
                 resolvedName={nameCacheRef.current[myTeam[i].puuid] || myTeam[i].summonerName || ''}
               />
-            ) : <div />}
+            ) : phase === 'InProgress' && i < 5 ? <HiddenPlayerCard /> : <div />}
             {theirTeam[i] ? (
               <ParticipantCard
                 participant={theirTeam[i]}
@@ -286,7 +319,7 @@ export default function CurrentGame({ selectedPatches }: Props) {
                 globalChampRow={theirTeam[i].championId ? globalChampStats[theirTeam[i].championId] : undefined}
                 resolvedName={nameCacheRef.current[theirTeam[i].puuid] || theirTeam[i].summonerName || ''}
               />
-            ) : <div />}
+            ) : phase === 'InProgress' && i < 5 ? <HiddenPlayerCard /> : <div />}
           </Fragment>
         ))}
       </div>
@@ -403,6 +436,17 @@ export default function CurrentGame({ selectedPatches }: Props) {
         .aug-btn:hover { border-color: var(--blue); color: var(--text-primary); }
         .aug-btn.active { border-color: var(--accent); color: var(--accent); }
       `}</style>
+    </div>
+  )
+}
+
+function HiddenPlayerCard() {
+  return (
+    <div className="card" style={{ padding: '10px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', flexShrink: 0 }} />
+        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Hidden Player</div>
+      </div>
     </div>
   )
 }

@@ -192,6 +192,7 @@ async function syncWorker(): Promise<void> {
         const { total: queueRemaining } = await apiClient.queueStatus()
         console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${queueRemaining} remaining in queue)`)
         mainWindow?.webContents.send('sync-progress', {
+          puuid,
           playerName,
           gamesAdded: syncAccum.imported,
           playersChecked: syncAccum.playerssynced,

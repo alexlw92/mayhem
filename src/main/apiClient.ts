@@ -9,14 +9,17 @@ export const apiClient = {
     http.get('/api/patches').then((r) => r.data),
 
   playerStats: (patches?: string[]) =>
-    http.get('/api/players', { params: { patches: patches?.join(',') } }).then((r) => r.data),
+    http.get('/api/players', { params: { patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
 
   playerOneStats: (puuid: string, patches?: string[]) =>
     http.get(`/api/players/${puuid}/stats`, { params: { patches: patches?.join(',') } }).then((r) => r.data),
 
+  playerBulkStats: (puuids: string[], patches?: string[]) =>
+    http.post('/api/players/bulk-stats', { puuids }, { params: { patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
+
   championStats: (puuid?: string, patches?: string[]) =>
     http.get(puuid ? `/api/players/${puuid}/champions` : '/api/champions', {
-      params: { patches: patches?.join(',') }
+      params: { patches: patches?.join(',') }, timeout: 30_000
     }).then((r) => r.data),
 
   recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
@@ -26,7 +29,7 @@ export const apiClient = {
 
   augmentStats: (puuid?: string, championId?: number, patches?: string[]) =>
     http.get(puuid ? `/api/players/${puuid}/augments` : '/api/augments', {
-      params: { championId, patches: patches?.join(',') }
+      params: { championId, patches: patches?.join(',') }, timeout: 30_000
     }).then((r) => r.data),
 
   augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[]) =>
@@ -74,6 +77,9 @@ export const apiClient = {
 
   enqueuePlayer: (puuid: string) =>
     http.post('/api/sync/enqueue', { puuid }),
+
+  enqueuePriority: (puuids: string[]) =>
+    http.post('/api/sync/enqueue-priority', { puuids }).then((r) => r.data),
 
   queueStatus: (): Promise<{ total: number; claimed: number }> =>
     http.get('/api/sync/queue').then((r) => r.data),

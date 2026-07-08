@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Player } from '../App'
 
 const api = (window as any).api
 
@@ -34,15 +33,13 @@ const SELECT_STYLE = {
 }
 
 interface Props {
-  players: Player[]
   selectedPatches: string[] | null
   initialChampionId?: number
   onMounted?: () => void
   onAugmentClick?: (augmentId: number) => void
 }
 
-export default function Augments({ players, selectedPatches, initialChampionId, onMounted, onAugmentClick }: Props) {
-  const [selectedPuuid, setSelectedPuuid] = useState<string | undefined>(undefined)
+export default function Augments({ selectedPatches, initialChampionId, onMounted, onAugmentClick }: Props) {
   const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(initialChampionId)
   const [champions, setChampions] = useState<ChampionOption[]>([])
   const [data, setData] = useState<AugmentStat[]>([])
@@ -59,7 +56,7 @@ export default function Augments({ players, selectedPatches, initialChampionId, 
 
   useEffect(() => {
     if (selectedPatches === null) return
-    api.db.championStats(selectedPuuid, selectedPatches).then((stats: { championId: number; championName: string }[]) => {
+    api.db.championStats(undefined, selectedPatches).then((stats: { championId: number; championName: string }[]) => {
       setChampions(
         stats
           .map((s) => ({ championId: s.championId, championName: s.championName }))
@@ -67,16 +64,16 @@ export default function Augments({ players, selectedPatches, initialChampionId, 
       )
       setSelectedChampionId(undefined)
     }).catch(() => {})
-  }, [selectedPuuid, selectedPatches])
+  }, [selectedPatches])
 
   useEffect(() => {
     if (selectedPatches === null) return
     setLoading(true)
-    api.db.augmentStats(selectedPuuid, selectedChampionId, selectedPatches).then((d: AugmentStat[]) => {
+    api.db.augmentStats(undefined, selectedChampionId, selectedPatches).then((d: AugmentStat[]) => {
       setData(d)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [selectedPuuid, selectedChampionId, selectedPatches])
+  }, [selectedChampionId, selectedPatches])
 
   const filtered = data
     .filter((a) => {
@@ -102,17 +99,6 @@ export default function Augments({ players, selectedPatches, initialChampionId, 
       <div className="card" style={{ marginBottom: 16, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Row 1: data filters */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            value={selectedPuuid ?? ''}
-            onChange={(e) => setSelectedPuuid(e.target.value || undefined)}
-            style={SELECT_STYLE}
-          >
-            <option value="">All Players</option>
-            {players.map((p) => (
-              <option key={p.puuid} value={p.puuid}>{p.summonerName}</option>
-            ))}
-          </select>
-
           <select
             value={selectedChampionId ?? ''}
             onChange={(e) => setSelectedChampionId(e.target.value ? Number(e.target.value) : undefined)}

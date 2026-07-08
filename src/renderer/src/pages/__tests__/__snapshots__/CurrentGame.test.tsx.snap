@@ -1,0 +1,729 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CurrentGame > renders champ select state with team data 1`] = `
+<div>
+  <div>
+    <div
+      style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;"
+    >
+      <h2
+        style="margin: 0px;"
+      >
+        Live Game
+      </h2>
+      <span
+        style="font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--bg-secondary); color: var(--text-secondary); text-transform: capitalize;"
+      >
+        ChampSelect
+      </span>
+    </div>
+    <div
+      style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px;"
+    >
+      <div
+        style="font-size: 12px; font-weight: 700; color: var(--blue-light); text-transform: uppercase; letter-spacing: 1px;"
+      >
+        Your Team
+      </div>
+      <div
+        style="font-size: 12px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 1px;"
+      >
+        Enemy Team
+      </div>
+    </div>
+    <div
+      style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px;"
+    >
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+          >
+            <img
+              alt=""
+              src="mayhem-asset://champion-icons/10.png"
+              style="width: 100%; height: 100%; object-fit: cover;"
+            />
+          </div>
+          <div
+            style="flex: 1 1 0%; min-width: 0px;"
+          >
+            <div
+              style="font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              p1…
+            </div>
+            <div
+              style="font-size: 11px; color: var(--text-secondary);"
+            >
+              10
+              g · 
+              <span
+                class="win"
+              >
+                60
+                % WR
+              </span>
+               · 
+              800
+              /min
+            </div>
+            <div
+              style="font-size: 11px; margin-top: 2px;"
+            >
+              <span
+                style="color: var(--text-muted);"
+              >
+                Champ: 
+              </span>
+              <span
+                style="color: var(--text-secondary);"
+              >
+                5
+                g · 
+              </span>
+              <span
+                class="win"
+              >
+                80
+                % WR
+              </span>
+              <span
+                style="color: var(--text-muted);"
+              >
+                 (all)
+              </span>
+            </div>
+            <div
+              style="font-size: 11px; margin-top: 2px;"
+            >
+              <span
+                style="color: var(--text-muted);"
+              >
+                You: 
+              </span>
+              <span
+                style="color: var(--text-secondary);"
+              >
+                5
+                g · 
+              </span>
+              <span
+                class="win"
+              >
+                80
+                % WR
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+          >
+            <img
+              alt=""
+              src="mayhem-asset://champion-icons/20.png"
+              style="width: 100%; height: 100%; object-fit: cover;"
+            />
+          </div>
+          <div
+            style="flex: 1 1 0%; min-width: 0px;"
+          >
+            <div
+              style="font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              p3…
+            </div>
+            <div
+              style="font-size: 11px; color: var(--text-secondary);"
+            >
+              10
+              g · 
+              <span
+                class="win"
+              >
+                60
+                % WR
+              </span>
+               · 
+              800
+              /min
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+          >
+            <div
+              style="width: 100%; height: 100%; background: var(--bg-secondary);"
+            />
+          </div>
+          <div
+            style="flex: 1 1 0%; min-width: 0px;"
+          >
+            <div
+              style="font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              p2…
+            </div>
+            <div
+              style="font-size: 11px; color: var(--text-secondary);"
+            >
+              10
+              g · 
+              <span
+                class="win"
+              >
+                60
+                % WR
+              </span>
+               · 
+              800
+              /min
+            </div>
+            0
+          </div>
+        </div>
+      </div>
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+    </div>
+    <div>
+      <div
+        class="card"
+        style="margin-bottom: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;"
+      >
+        <div
+          style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px;"
+        >
+          Kayle
+           — Augments
+        </div>
+        <div
+          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;"
+        >
+          <input
+            placeholder="Search augment…"
+            style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 6px 12px; font-size: 12px; outline: none; width: 180px;"
+            value=""
+          />
+        </div>
+        <div
+          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;"
+        >
+          <span
+            style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+          >
+            Rarity
+          </span>
+          <button
+            class="aug-btn active"
+          >
+            All
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Silver
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Gold
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Prismatic
+          </button>
+          <div
+            style="width: 1px; height: 16px; background: var(--border); margin: 0px 6px;"
+          />
+          <span
+            style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+          >
+            Sort
+          </span>
+          <button
+            class="aug-btn active"
+          >
+            Picks
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Win Rate
+          </button>
+          <button
+            class="aug-btn "
+          >
+            DPM
+          </button>
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Augment
+              </th>
+              <th>
+                Rarity
+              </th>
+              <th>
+                Picks
+              </th>
+              <th>
+                Win Rate
+              </th>
+              <th>
+                Avg DPM
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div
+                  style="display: flex; align-items: center; gap: 8px;"
+                >
+                  <div
+                    style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary);"
+                  />
+                  Iron Will
+                </div>
+              </td>
+              <td>
+                <span
+                  style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+                >
+                  Silver
+                </span>
+              </td>
+              <td>
+                5
+              </td>
+              <td>
+                <div
+                  style="display: flex; align-items: center; gap: 8px;"
+                >
+                  <div
+                    style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  >
+                    <div
+                      style="width: 60%; height: 100%; background: var(--green); border-radius: 3px;"
+                    />
+                  </div>
+                  <span
+                    class="win"
+                  >
+                    60
+                    %
+                  </span>
+                </div>
+              </td>
+              <td>
+                800
+                /min
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <style>
+      
+        .aug-btn { padding: 4px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+        .aug-btn:hover { border-color: var(--blue); color: var(--text-primary); }
+        .aug-btn.active { border-color: var(--accent); color: var(--accent); }
+      
+    </style>
+  </div>
+</div>
+`;
+
+exports[`CurrentGame > shows in-progress state 1`] = `
+<div>
+  <div>
+    <div
+      style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;"
+    >
+      <h2
+        style="margin: 0px;"
+      >
+        Live Game
+      </h2>
+      <span
+        style="font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--bg-secondary); color: var(--text-secondary); text-transform: capitalize;"
+      >
+        In Game
+      </span>
+    </div>
+    <div
+      style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px;"
+    >
+      <div
+        style="font-size: 12px; font-weight: 700; color: var(--blue-light); text-transform: uppercase; letter-spacing: 1px;"
+      >
+        Your Team
+      </div>
+      <div
+        style="font-size: 12px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 1px;"
+      >
+        Enemy Team
+      </div>
+    </div>
+    <div
+      style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px;"
+    >
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+          >
+            <img
+              alt=""
+              src="mayhem-asset://champion-icons/10.png"
+              style="width: 100%; height: 100%; object-fit: cover;"
+            />
+          </div>
+          <div
+            style="flex: 1 1 0%; min-width: 0px;"
+          >
+            <div
+              style="font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              Foo#NA1
+            </div>
+            <div
+              style="font-size: 11px; color: var(--text-secondary);"
+            >
+              10
+              g · 
+              <span
+                class="win"
+              >
+                60
+                % WR
+              </span>
+               · 
+              800
+              /min
+            </div>
+            <div
+              style="font-size: 11px; margin-top: 2px;"
+            >
+              <span
+                style="color: var(--text-muted);"
+              >
+                Champ: 
+              </span>
+              <span
+                style="color: var(--text-secondary);"
+              >
+                5
+                g · 
+              </span>
+              <span
+                class="win"
+              >
+                80
+                % WR
+              </span>
+              <span
+                style="color: var(--text-muted);"
+              >
+                 (all)
+              </span>
+            </div>
+            <div
+              style="font-size: 11px; margin-top: 2px;"
+            >
+              <span
+                style="color: var(--text-muted);"
+              >
+                You: 
+              </span>
+              <span
+                style="color: var(--text-secondary);"
+              >
+                5
+                g · 
+              </span>
+              <span
+                class="win"
+              >
+                80
+                % WR
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
+          >
+            <img
+              alt=""
+              src="mayhem-asset://champion-icons/20.png"
+              style="width: 100%; height: 100%; object-fit: cover;"
+            />
+          </div>
+          <div
+            style="flex: 1 1 0%; min-width: 0px;"
+          >
+            <div
+              style="font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              Bar#EUW
+            </div>
+            <div
+              style="font-size: 11px; color: var(--text-secondary);"
+            >
+              10
+              g · 
+              <span
+                class="win"
+              >
+                60
+                % WR
+              </span>
+               · 
+              800
+              /min
+            </div>
+          </div>
+        </div>
+      </div>
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+      <div />
+    </div>
+    <div>
+      <div
+        class="card"
+        style="margin-bottom: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;"
+      >
+        <div
+          style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px;"
+        >
+          Kayle
+           — Augments
+        </div>
+        <div
+          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;"
+        >
+          <input
+            placeholder="Search augment…"
+            style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 6px 12px; font-size: 12px; outline: none; width: 180px;"
+            value=""
+          />
+        </div>
+        <div
+          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;"
+        >
+          <span
+            style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+          >
+            Rarity
+          </span>
+          <button
+            class="aug-btn active"
+          >
+            All
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Silver
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Gold
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Prismatic
+          </button>
+          <div
+            style="width: 1px; height: 16px; background: var(--border); margin: 0px 6px;"
+          />
+          <span
+            style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+          >
+            Sort
+          </span>
+          <button
+            class="aug-btn active"
+          >
+            Picks
+          </button>
+          <button
+            class="aug-btn "
+          >
+            Win Rate
+          </button>
+          <button
+            class="aug-btn "
+          >
+            DPM
+          </button>
+        </div>
+      </div>
+      <div
+        class="card"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Augment
+              </th>
+              <th>
+                Rarity
+              </th>
+              <th>
+                Picks
+              </th>
+              <th>
+                Win Rate
+              </th>
+              <th>
+                Avg DPM
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div
+                  style="display: flex; align-items: center; gap: 8px;"
+                >
+                  <div
+                    style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary);"
+                  />
+                  Iron Will
+                </div>
+              </td>
+              <td>
+                <span
+                  style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+                >
+                  Silver
+                </span>
+              </td>
+              <td>
+                5
+              </td>
+              <td>
+                <div
+                  style="display: flex; align-items: center; gap: 8px;"
+                >
+                  <div
+                    style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  >
+                    <div
+                      style="width: 60%; height: 100%; background: var(--green); border-radius: 3px;"
+                    />
+                  </div>
+                  <span
+                    class="win"
+                  >
+                    60
+                    %
+                  </span>
+                </div>
+              </td>
+              <td>
+                800
+                /min
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <style>
+      
+        .aug-btn { padding: 4px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+        .aug-btn:hover { border-color: var(--blue); color: var(--text-primary); }
+        .aug-btn.active { border-color: var(--accent); color: var(--accent); }
+      
+    </style>
+  </div>
+</div>
+`;
+
+exports[`CurrentGame > shows no-game state when currentGame returns null 1`] = `
+<div>
+  <div>
+    <h2
+      style="margin-bottom: 16px;"
+    >
+      Live Game
+    </h2>
+    <div
+      class="card"
+    >
+      <div
+        class="empty-state"
+      >
+        <div>
+          No active game
+        </div>
+        <p>
+          Start a game to see live player stats here
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+`;

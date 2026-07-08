@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+dist-server/
 .env
 *.backup
 .idea/

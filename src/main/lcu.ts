@@ -293,6 +293,36 @@ export interface AugmentRaw {
   rarity?: string  // "kSilver" | "kGold" | "kPrismatic"
 }
 
+export interface GameflowParticipant {
+  puuid: string
+  championId: number
+  summonerName: string
+}
+
+export async function getGameflowSession(): Promise<{
+  phase: string
+  gameData?: { teamOne: GameflowParticipant[]; teamTwo: GameflowParticipant[] }
+} | null> {
+  const client = getAxios()
+  if (!client) return null
+  try {
+    const res = await client.get('/lol-gameflow/v1/session')
+    return res.data
+  } catch { return null }
+}
+
+export async function getChampSelectSession(): Promise<{
+  myTeam: { puuid: string; championId: number; cellId: number }[]
+  theirTeam: { puuid: string; championId: number; cellId: number }[]
+} | null> {
+  const client = getAxios()
+  if (!client) return null
+  try {
+    const res = await client.get('/lol-champ-select/v1/session')
+    return res.data
+  } catch { return null }
+}
+
 export async function getAugmentData(): Promise<AugmentRaw[]> {
   try {
     const res = await axios.get(

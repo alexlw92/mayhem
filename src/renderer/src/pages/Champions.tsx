@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Player } from '../App'
 
 const api = (window as any).api
 
@@ -24,13 +23,11 @@ function kda(kills: number, deaths: number, assists: number): string {
 }
 
 interface Props {
-  players: Player[]
   selectedPatches: string[] | null
   onChampionClick?: (championId: number) => void
 }
 
-export default function Champions({ players, selectedPatches, onChampionClick }: Props) {
-  const [selectedPuuid, setSelectedPuuid] = useState<string | undefined>(undefined)
+export default function Champions({ selectedPatches, onChampionClick }: Props) {
   const [data, setData] = useState<ChampionStat[]>([])
   const [sort, setSort] = useState<SortKey>('games')
   const [search, setSearch] = useState('')
@@ -39,11 +36,11 @@ export default function Champions({ players, selectedPatches, onChampionClick }:
   useEffect(() => {
     if (selectedPatches === null) return
     setLoading(true)
-    api.db.championStats(selectedPuuid, selectedPatches).then((d: ChampionStat[]) => {
+    api.db.championStats(undefined, selectedPatches).then((d: ChampionStat[]) => {
       setData(d)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [selectedPuuid, selectedPatches])
+  }, [selectedPatches])
 
   const filtered = data
     .filter((c) => c.championName.toLowerCase().includes(search.toLowerCase()))
@@ -64,16 +61,6 @@ export default function Champions({ players, selectedPatches, onChampionClick }:
       <h1 className="page-title">Champions</h1>
 
       <div className="filters card" style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', flexWrap: 'wrap' }}>
-        <select
-          value={selectedPuuid ?? ''}
-          onChange={(e) => setSelectedPuuid(e.target.value || undefined)}
-          style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', padding: '6px 10px', fontSize: 12, outline: 'none' }}
-        >
-          <option value="">All Players</option>
-          {players.map((p) => (
-            <option key={p.puuid} value={p.puuid}>{p.summonerName}</option>
-          ))}
-        </select>
         <input
           className="search-input"
           placeholder="Search champion…"

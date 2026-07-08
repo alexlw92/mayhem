@@ -9,6 +9,7 @@ import {
   completeJob,
   failJob,
   enqueuePlayer,
+  enqueuePriority,
   getQueueStatus,
   clearQueue,
   setPlayerSyncTime,
@@ -64,6 +65,13 @@ router.post('/sync/enqueue', async (req, res) => {
   const { puuid } = req.body as { puuid: string }
   if (!puuid) { res.status(400).json({ error: 'puuid required' }); return }
   await enqueuePlayer(puuid)
+  res.json({ ok: true })
+})
+
+router.post('/sync/enqueue-priority', async (req, res) => {
+  const puuids: string[] = req.body.puuids ?? []
+  if (!Array.isArray(puuids) || puuids.length === 0) { res.status(400).json({ error: 'puuids required' }); return }
+  await enqueuePriority(puuids)
   res.json({ ok: true })
 })
 

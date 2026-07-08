@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist-server"
+  },
+  "include": ["src/backend/**/*"],
+  "exclude": ["src/backend/__tests__/**/*", "node_modules"]
+}

@@ -124,6 +124,59 @@ export async function initDb(url?: string): Promise<void> {
     WHERE m."gameId" = p."gameId"
       AND p."gameVersion" IS NULL
   `.catch(() => {})
+
+  await sql_`
+    CREATE TABLE IF NOT EXISTS meta_champions (
+      id    INTEGER PRIMARY KEY,
+      name  TEXT NOT NULL
+    )
+  `
+  await sql_`
+    CREATE TABLE IF NOT EXISTS meta_augments (
+      id         INTEGER PRIMARY KEY,
+      name       TEXT NOT NULL,
+      rarity     INTEGER NOT NULL DEFAULT 0,
+      icon_path  TEXT NOT NULL DEFAULT ''
+    )
+  `
+}
+
+// ─── Metadata ─────────────────────────────────────────────────────────────────
+
+export async function upsertChampions(map: Record<number, string>): Promise<void> {
+  const rows = Object.entries(map).map(([id, name]) => [parseInt(id), name])
+  if (rows.length === 0) return
+  await sql_`
+    INSERT INTO meta_champions (id, name)
+    VALUES ${sql_(rows as any)}
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+  `
+}
+
+export async function upsertAugments(map: Record<number, AugmentInfo>): Promise<void> {
+  const rows = Object.values(map).map(a => [a.id, a.name, a.rarity, a.iconPath])
+  if (rows.length === 0) return
+  await sql_`
+    INSERT INTO meta_augments (id, name, rarity, icon_path)
+    VALUES ${sql_(rows as any)}
+    ON CONFLICT (id) DO UPDATE
+      SET name = EXCLUDED.name, rarity = EXCLUDED.rarity, icon_path = EXCLUDED.icon_path
+  `
+}
+
+export async function getChampionsFromDb(): Promise<Record<number, string>> {
+  const rows = await sql_<{ id: number; name: string }[]>`SELECT id, name FROM meta_champions`
+  return Object.fromEntries(rows.map(r => [r.id, r.name]))
+}
+
+export async function getAugmentsFromDb(): Promise<Record<number, AugmentInfo>> {
+  const rows = await sql_<{ id: number; name: string; rarity: number; icon_path: string }[]>`
+    SELECT id, name, rarity, icon_path FROM meta_augments
+  `
+  return Object.fromEntries(rows.map(r => [
+    r.id,
+    { id: r.id, name: r.name, desc: '', iconPath: r.icon_path, rarity: r.rarity }
+  ]))
 }
 
 // ─── Patch inference ──────────────────────────────────────────────────────────

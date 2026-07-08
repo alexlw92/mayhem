@@ -1,10 +1,15 @@
 import 'dotenv/config'
 import axios from 'axios'
-import { initDb } from './db'
+import {
+  initDb,
+  upsertChampions, upsertAugments,
+  getChampionsFromDb, getAugmentsFromDb,
+} from './db'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
 
 const PORT = parseInt(process.env.PORT ?? '3847')
+const REFRESH_INTERVAL_MS = 60 * 60 * 1000
 
 async function fetchChampionNames(): Promise<Record<number, string>> {
   const { data: versions } = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json', { timeout: 10000 })
@@ -25,10 +30,35 @@ async function fetchAugments(): Promise<Record<number, AugmentInfo>> {
   return map
 }
 
+async function refreshMetadata(
+  champRef: { value: Record<number, string> },
+  augRef: { value: Record<number, AugmentInfo> }
+): Promise<void> {
+  try {
+    const [champions, augments] = await Promise.all([fetchChampionNames(), fetchAugments()])
+    await Promise.all([upsertChampions(champions), upsertAugments(augments)])
+    champRef.value = champions
+    augRef.value = augments
+    console.log(`[meta] refreshed — ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments`)
+  } catch (err) {
+    console.warn('[meta] refresh failed (using cached DB data):', (err as Error).message)
+  }
+}
+
 async function main() {
   await initDb()
-  const [champions, augments] = await Promise.all([fetchChampionNames(), fetchAugments()])
-  createExpressApp({ getChampions: () => champions, getAugments: () => augments })
-    .listen(PORT, () => console.log(`[server] :${PORT}`))
+
+  const champRef = { value: await getChampionsFromDb() }
+  const augRef   = { value: await getAugmentsFromDb() }
+  console.log(`[meta] loaded from DB — ${Object.keys(champRef.value).length} champions, ${Object.keys(augRef.value).length} augments`)
+
+  refreshMetadata(champRef, augRef)
+  setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
+
+  createExpressApp({
+    getChampions: () => champRef.value,
+    getAugments:  () => augRef.value,
+  }).listen(PORT, () => console.log(`[server] :${PORT}`))
 }
+
 main().catch((err) => { console.error(err); process.exit(1) })

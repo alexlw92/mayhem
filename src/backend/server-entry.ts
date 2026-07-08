@@ -15,11 +15,11 @@ async function fetchChampionNames(): Promise<Record<number, string>> {
 }
 
 async function fetchAugments(): Promise<Record<number, AugmentInfo>> {
-  const CDRAGON = 'https://raw.communitydragon.org/latest/cdragon/arena/en_us.json'
+  const CDRAGON = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/cherry-augments.json'
   const RARITY_MAP: Record<string, number> = { kSilver: 0, kGold: 1, kPrismatic: 2 }
   const { data } = await axios.get(CDRAGON, { timeout: 15000 })
   const map: Record<number, AugmentInfo> = {}
-  for (const a of data.augments ?? []) {
+  for (const a of (Array.isArray(data) ? data : [])) {
     map[a.id] = { id: a.id, name: a.nameTRA ?? `Augment ${a.id}`, desc: '', iconPath: '', rarity: RARITY_MAP[a.rarity ?? ''] ?? 0 }
   }
   return map

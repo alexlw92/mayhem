@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
 import { join, dirname } from 'path'
 import fs from 'fs'

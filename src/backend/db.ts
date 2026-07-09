@@ -350,39 +350,52 @@ export async function matchExists(gameId: number): Promise<boolean> {
 
 export async function insertMatches(matches: Match[]): Promise<number> {
   if (matches.length === 0) return 0
-  let insertedCount = 0
-  await sql_.begin(async (tx) => {
-    for (const match of matches) {
-      const inserted = await tx`
-        INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-        VALUES (${match.gameId},${match.queueId},${match.gameCreation},${match.gameDuration},${match.gameVersion ?? null})
-        ON CONFLICT ("gameId") DO NOTHING RETURNING "gameId"
-      `
-      if (inserted.length === 0) continue
-      insertedCount++
 
-      const rows = await tx<{ id: number }[]>`
-        INSERT INTO participants
-          ("gameId",puuid,"summonerName","championId","championName","teamId",
-           win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel",
-           "gameVersion","gameDuration")
-        VALUES ${tx(match.participants.map(p => [
-          match.gameId, p.puuid, p.summonerName, p.championId, p.championName,
-          p.teamId, p.win, p.kills, p.deaths, p.assists,
-          p.damageDealt, p.damageTaken, p.goldEarned, p.champLevel,
-          match.gameVersion ?? null, match.gameDuration
-        // postgres types don't include boolean | null in EscapableArray but handle them fine at runtime
-        ]) as any)}
-        RETURNING id
-      `
-      const augmentPairs = match.participants.flatMap((p, i) =>
-        p.augments.filter(Boolean).map(augId => [rows[i].id, augId])
+  const insertedCount = await sql_.begin(async (tx) => {
+    // Batch insert all matches at once
+    const newMatchRows = await tx<{ gameId: number }[]>`
+      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
+      VALUES ${tx(matches.map(m => [m.gameId, m.queueId, m.gameCreation, m.gameDuration, m.gameVersion ?? null]))}
+      ON CONFLICT ("gameId") DO NOTHING
+      RETURNING "gameId"
+    `
+    const newGameIds = new Set(newMatchRows.map(r => r.gameId))
+    const newMatches = matches.filter(m => newGameIds.has(m.gameId))
+    if (newMatches.length === 0) return 0
+
+    // Batch insert all participants for new matches
+    // postgres types don't include boolean | null in EscapableArray but handle them fine at runtime
+    const partValues = newMatches.flatMap(m =>
+      m.participants.map(p => [
+        m.gameId, p.puuid, p.summonerName, p.championId, p.championName,
+        p.teamId, p.win, p.kills, p.deaths, p.assists,
+        p.damageDealt, p.damageTaken, p.goldEarned, p.champLevel,
+        m.gameVersion ?? null, m.gameDuration
+      ])
+    )
+    const partRows = await tx<{ id: number; gameId: number; puuid: string }[]>`
+      INSERT INTO participants
+        ("gameId",puuid,"summonerName","championId","championName","teamId",
+         win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel",
+         "gameVersion","gameDuration")
+      VALUES ${tx(partValues as any)}
+      RETURNING id, "gameId", puuid
+    `
+
+    // Batch insert all augment pairs using gameId:puuid as stable lookup key
+    const partIdMap = new Map(partRows.map(r => [`${r.gameId}:${r.puuid}`, r.id]))
+    const augPairs = newMatches.flatMap(m =>
+      m.participants.flatMap(p =>
+        p.augments.filter(Boolean).map(augId => [partIdMap.get(`${m.gameId}:${p.puuid}`), augId])
       )
-      if (augmentPairs.length > 0) {
-        await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES ${tx(augmentPairs)}`
-      }
+    ).filter((pair): pair is [number, number] => pair[0] != null)
+
+    if (augPairs.length > 0) {
+      await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES ${tx(augPairs)}`
     }
+    return newMatches.length
   })
+
   const puuids = [...new Set(matches.flatMap(m => m.participants.map(p => p.puuid).filter(Boolean)))]
   await enqueueAll(puuids)
   return insertedCount

@@ -2,9 +2,13 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import { initDb, Match } from '../db'
 import { createExpressApp } from '../server'
+import { getCached, setCached, clearCache } from '../queryCache'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
+
+// db.ts loads .env via dotenv.config which may set API_KEY; clear it so test requests don't need auth
+delete process.env.API_KEY
 
 const app = createExpressApp()
 
@@ -21,6 +25,7 @@ async function truncate() {
 
 beforeEach(async () => {
   await truncate()
+  clearCache()
 })
 
 const sampleMatch: Match = {
@@ -366,5 +371,369 @@ describe('POST /api/sync/enqueue-priority', () => {
   it('rejects missing puuids', async () => {
     const res = await request(app).post('/api/sync/enqueue-priority').send({})
     expect(res.status).toBe(400)
+  })
+})
+
+// ─── Cache unit tests ──────────────────────────────────────────────────────────
+
+describe('queryCache', () => {
+  it('returns null on a miss', () => {
+    expect(getCached('no-such-key')).toBeNull()
+  })
+
+  it('returns stored data on a hit', () => {
+    setCached('cache-test', { foo: 'bar' })
+    expect(getCached('cache-test')).toEqual({ foo: 'bar' })
+  })
+
+  it('returns null after clearCache', () => {
+    setCached('cache-test2', [1, 2, 3])
+    clearCache()
+    expect(getCached('cache-test2')).toBeNull()
+  })
+})
+
+// ─── Cache population via routes ───────────────────────────────────────────────
+
+describe('GET /api/players — cache', () => {
+  it('populates players:all after first request', async () => {
+    await request(app).get('/api/players')
+    expect(getCached('players:all')).not.toBeNull()
+  })
+
+  it('serves stale data injected into players:all without hitting DB', async () => {
+    setCached('players:all', [{ puuid: 'cached-player' }])
+    const res = await request(app).get('/api/players')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([{ puuid: 'cached-player' }])
+  })
+
+  it('populates players:<patch> after patch-filtered request', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await request(app).get('/api/players?patches=15.12')
+    expect(getCached('players:15.12')).not.toBeNull()
+  })
+})
+
+describe('GET /api/champions — cache', () => {
+  it('populates champions:all after first request', async () => {
+    await request(app).get('/api/champions')
+    expect(getCached('champions:all')).not.toBeNull()
+  })
+
+  it('serves injected data from champions:all without hitting DB', async () => {
+    setCached('champions:all', [{ championId: 99, championName: 'Syndra' }])
+    const res = await request(app).get('/api/champions')
+    expect(res.body).toEqual([{ championId: 99, championName: 'Syndra' }])
+  })
+})
+
+describe('GET /api/augments — cache', () => {
+  it('populates augments:all after first request', async () => {
+    await request(app).get('/api/augments')
+    expect(getCached('augments:all')).not.toBeNull()
+  })
+
+  it('serves injected data from augments:all without hitting DB', async () => {
+    setCached('augments:all', [{ augmentId: 42, name: 'Test Aug' }])
+    const res = await request(app).get('/api/augments')
+    expect(res.body).toEqual([{ augmentId: 42, name: 'Test Aug' }])
+  })
+
+  it('does not cache when championId filter is present', async () => {
+    await request(app).get('/api/augments?championId=10')
+    expect(getCached('augments:all')).toBeNull()
+  })
+})
+
+// ─── Player endpoints ──────────────────────────────────────────────────────────
+
+describe('GET /api/players/search', () => {
+  it('returns empty array for missing query', async () => {
+    const res = await request(app).get('/api/players/search')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns empty array for query shorter than 2 chars', async () => {
+    const res = await request(app).get('/api/players/search?q=F')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns matching players by summonerName', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/search?q=Foo')
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    expect(res.body[0].summonerName).toBe('Foo#NA1')
+    expect(res.body[0].puuid).toBe('test-puuid-1')
+  })
+
+  it('returns empty array when no names match', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/search?q=zzz')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+})
+
+describe('GET /api/players/:puuid/stats', () => {
+  it('returns null for unknown puuid', async () => {
+    const res = await request(app).get('/api/players/unknown-puuid/stats')
+    expect(res.status).toBe(200)
+    expect(res.body).toBeNull()
+  })
+
+  it('returns aggregate stats for a known player', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    const res = await request(app).get('/api/players/test-puuid-1/stats')
+    expect(res.status).toBe(200)
+    expect(res.body.puuid).toBe('test-puuid-1')
+    expect(res.body.summonerName).toBe('Foo#NA1')
+    expect(res.body.games).toBe(3)
+    expect(res.body.wins).toBe(2)
+    expect(res.body.avgDpm).toBeGreaterThan(0)
+  })
+
+  it('returns null when patch filter matches no games', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/stats?patches=99.99')
+    expect(res.status).toBe(200)
+    expect(res.body).toBeNull()
+  })
+})
+
+describe('POST /api/players/bulk-stats', () => {
+  it('returns empty object for empty puuids array', async () => {
+    const res = await request(app).post('/api/players/bulk-stats').send({ puuids: [] })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({})
+  })
+
+  it('returns stats keyed by puuid', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
+    const res = await request(app).post('/api/players/bulk-stats').send({ puuids: ['test-puuid-1', 'test-puuid-2'] })
+    expect(res.status).toBe(200)
+    expect(res.body['test-puuid-1'].games).toBe(2)
+    expect(res.body['test-puuid-1'].wins).toBe(2)
+    expect(res.body['test-puuid-2'].games).toBe(1)
+    expect(res.body['test-puuid-2'].wins).toBe(0)
+  })
+
+  it('omits puuids with no matching games', async () => {
+    const res = await request(app).post('/api/players/bulk-stats').send({ puuids: ['ghost-puuid'] })
+    expect(res.status).toBe(200)
+    expect(res.body['ghost-puuid']).toBeUndefined()
+  })
+
+  it('respects patch filter', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).post('/api/players/bulk-stats?patches=99.99').send({ puuids: ['test-puuid-1'] })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({})
+  })
+})
+
+describe('GET /api/players/:puuid/champions', () => {
+  it('returns empty array when no data', async () => {
+    const res = await request(app).get('/api/players/test-puuid-1/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns per-champion stats for the player', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    const res = await request(app).get('/api/players/test-puuid-1/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    const row = res.body[0]
+    expect(row.championId).toBe(10)
+    expect(row.championName).toBe('Kayle')
+    expect(row.games).toBe(3)
+    expect(row.wins).toBe(2)
+  })
+
+  it('respects patch filter', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/champions?patches=99.99')
+    expect(res.body).toEqual([])
+  })
+})
+
+describe('GET /api/players/:puuid/matches', () => {
+  it('returns empty array when no matches', async () => {
+    const res = await request(app).get('/api/players/test-puuid-1/matches')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns only matches containing the requested player', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
+    const res = await request(app).get('/api/players/test-puuid-2/matches')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    expect(res.body[0].gameId).toBe(5001)
+  })
+
+  it('respects limit param', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    const res = await request(app).get('/api/players/test-puuid-1/matches?limit=2')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(2)
+  })
+
+  it('match shape includes participants and augments', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/matches')
+    const match = res.body[0]
+    expect(match.gameId).toBe(5001)
+    expect(Array.isArray(match.participants)).toBe(true)
+    expect(match.participants).toHaveLength(2)
+    const player = match.participants.find((p: any) => p.puuid === 'test-puuid-1')
+    expect(player.augments).toContain(200)
+  })
+})
+
+describe('GET /api/players/:puuid/trend', () => {
+  it('returns empty array when no data', async () => {
+    const res = await request(app).get('/api/players/test-puuid-1/trend')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns daily win rate entries when days covers match dates', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    // Sample matches are from 2025-06-15..17; use days=400 to reach them from the test run date
+    const res = await request(app).get('/api/players/test-puuid-1/trend?days=400')
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    const entry = res.body[0]
+    expect(entry).toHaveProperty('date')
+    expect(entry).toHaveProperty('winRate')
+    expect(entry).toHaveProperty('games')
+  })
+})
+
+describe('GET /api/players/:puuid/name', () => {
+  it('returns null for unknown puuid', async () => {
+    const res = await request(app).get('/api/players/unknown-puuid/name')
+    expect(res.status).toBe(200)
+    expect(res.body).toBeNull()
+  })
+
+  it('returns the most recent summonerName for a known puuid', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/name')
+    expect(res.status).toBe(200)
+    expect(res.body).toBe('Foo#NA1')
+  })
+})
+
+// ─── Group summary ─────────────────────────────────────────────────────────────
+
+describe('GET /api/group', () => {
+  it('returns zero stats when no data', async () => {
+    const res = await request(app).get('/api/group')
+    expect(res.status).toBe(200)
+    expect(res.body.totalMatches).toBe(0)
+    expect(res.body.avgWinRate).toBe(0)
+    expect(res.body.avgDpm).toBe(0)
+  })
+
+  it('returns aggregate stats across all players after insert', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
+    const res = await request(app).get('/api/group')
+    expect(res.status).toBe(200)
+    expect(res.body.totalMatches).toBe(2)
+    expect(res.body.avgDpm).toBeGreaterThan(0)
+    expect(typeof res.body.avgWinRate).toBe('number')
+    expect(typeof res.body.avgKda).toBe('number')
+  })
+})
+
+// ─── Upsert / incomplete games / synctimes ─────────────────────────────────────
+
+describe('PUT /api/matches/:gameId', () => {
+  it('creates a match via upsert', async () => {
+    const res = await request(app).put('/api/matches/5001').send(sampleMatch)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+    const exists = await request(app).get('/api/matches/5001/exists')
+    expect(exists.body).toBe(true)
+  })
+
+  it('overwrites participants on an existing match', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const updated = { ...sampleMatch, gameDuration: 9999 }
+    await request(app).put('/api/matches/5001').send(updated)
+    const matches = await request(app).get('/api/players/test-puuid-1/matches')
+    expect(matches.body[0].gameDuration).toBe(9999)
+  })
+})
+
+describe('GET /api/incomplete-games', () => {
+  it('returns empty array when no matches', async () => {
+    const res = await request(app).get('/api/incomplete-games')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns gameIds where participant count is below 10', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/incomplete-games')
+    expect(res.body).toContain(5001)
+  })
+
+  it('excludes matches that have exactly 10 participants', async () => {
+    const fullMatch: Match = {
+      ...sampleMatch,
+      gameId: 6001,
+      participants: Array.from({ length: 10 }, (_, i) => ({
+        puuid: `puuid-full-${i}`, summonerName: `Player${i}`, championId: i + 1, championName: `Champ${i}`,
+        teamId: i < 5 ? 100 : 200, win: i < 5,
+        kills: 1, deaths: 1, assists: 1, damageDealt: 10000, damageTaken: 10000,
+        goldEarned: 5000, champLevel: 10, augments: []
+      }))
+    }
+    await request(app).post('/api/matches/bulk').send({ matches: [fullMatch] })
+    const res = await request(app).get('/api/incomplete-games')
+    expect(res.body).not.toContain(6001)
+  })
+})
+
+describe('DELETE /api/synctimes', () => {
+  it('returns ok', async () => {
+    const res = await request(app).delete('/api/synctimes')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+  })
+
+  it('resets existing sync times without removing them', async () => {
+    // Set a sync time then invalidate — player should still appear in /api/players (JOIN still finds row)
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await request(app).post('/api/sync/done/test-puuid-1')
+    await request(app).post('/api/sync/done/test-puuid-2')
+    await request(app).delete('/api/synctimes')
+    const res = await request(app).get('/api/players')
+    expect(Array.isArray(res.body)).toBe(true)
+    // Players still appear (syncedAt=0 but the row exists)
+    expect(res.body.some((p: any) => p.puuid === 'test-puuid-1')).toBe(true)
+  })
+})
+
+// ─── Sync fail ────────────────────────────────────────────────────────────────
+
+describe('POST /api/sync/fail/:puuid', () => {
+  it('releases claim so the job can be reclaimed by another worker', async () => {
+    await request(app).post('/api/sync/enqueue').send({ puuid: 'fail-test' })
+    await request(app).get('/api/sync/next?clientId=worker-1')
+    // Job is now claimed — worker-2 can't take it
+    const before = await request(app).get('/api/sync/next?clientId=worker-2')
+    expect(before.body.puuid).toBeNull()
+    // Fail it — lease released
+    await request(app).post('/api/sync/fail/fail-test')
+    const after = await request(app).get('/api/sync/next?clientId=worker-2')
+    expect(after.body.puuid).toBe('fail-test')
   })
 })

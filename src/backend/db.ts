@@ -115,8 +115,12 @@ export async function initDb(url?: string): Promise<void> {
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation      ON matches("gameCreation")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId    ON participant_augments("participantId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_champid_gameid ON participants("championId", "gameId")`
-  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion   ON participants("gameVersion")`
-  await sql_`CREATE INDEX IF NOT EXISTS idx_sync_queue_queued_at      ON sync_queue(queued_at)`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion        ON participants("gameVersion")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion_champ  ON participants("gameVersion", "championId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion_puuid  ON participants("gameVersion", puuid)`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_sync_queue_queued_at            ON sync_queue(queued_at)`
+  await sql_`CREATE EXTENSION IF NOT EXISTS pg_trgm`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participants_summonerName_trgm ON participants USING gin ("summonerName" gin_trgm_ops)`
 
   await sql_`
     CREATE TABLE IF NOT EXISTS meta_champions (
@@ -355,11 +359,11 @@ export async function insertMatches(matches: Match[]): Promise<number> {
     // Batch insert all matches at once
     const newMatchRows = await tx<{ gameId: number }[]>`
       INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-      VALUES ${tx(matches.map(m => [m.gameId, m.queueId, m.gameCreation, m.gameDuration, m.gameVersion ?? null]))}
+      VALUES ${tx(matches.map(m => [m.gameId, m.queueId, m.gameCreation, m.gameDuration, m.gameVersion ?? null]) as any)}
       ON CONFLICT ("gameId") DO NOTHING
       RETURNING "gameId"
     `
-    const newGameIds = new Set(newMatchRows.map(r => r.gameId))
+    const newGameIds = new Set(newMatchRows.map(r => Number(r.gameId)))
     const newMatches = matches.filter(m => newGameIds.has(m.gameId))
     if (newMatches.length === 0) return 0
 
@@ -445,7 +449,7 @@ export async function getIncompleteGameIds(): Promise<number[]> {
     FROM matches m
     WHERE (SELECT COUNT(*) FROM participants p WHERE p."gameId" = m."gameId") < 10
   `
-  return rows.map((r: any) => r.gameId)
+  return rows.map((r: any) => Number(r.gameId))
 }
 
 // ─── Read ops ─────────────────────────────────────────────────────────────────
@@ -812,7 +816,7 @@ export async function getRecentMatches(limit = 20, puuid?: string, patches?: str
   `, params)
   if (matchRows.length === 0) return []
 
-  const gameIds = matchRows.map((r: any) => r.gameId)
+  const gameIds = matchRows.map((r: any) => Number(r.gameId))
   const partRows = await sql_`
     SELECT p.*, ARRAY_AGG(pa."augmentId") FILTER (WHERE pa."augmentId" IS NOT NULL) AS augments
     FROM participants p
@@ -828,8 +832,8 @@ export async function getRecentMatches(limit = 20, puuid?: string, patches?: str
   }
 
   return matchRows.map((m: any) => ({
-    gameId: m.gameId,
-    gameCreation: m.gameCreation,
+    gameId: Number(m.gameId),
+    gameCreation: Number(m.gameCreation),
     gameDuration: m.gameDuration,
     participants: (partsByGame.get(m.gameId) ?? []).map((p: any) => ({
       puuid: p.puuid,

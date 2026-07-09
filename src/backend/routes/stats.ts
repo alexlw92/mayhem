@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { getCached, setCached } from '../queryCache'
 import {
   getPatches,
   getPlayerStats,
@@ -33,7 +34,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
   })
 
   router.get('/players', async (req, res) => {
-    res.json(await getPlayerStats(parsePatches(req.query.patches)))
+    const patches = parsePatches(req.query.patches)
+    const key = !patches?.length ? 'players:all' : patches.length === 1 ? `players:${patches[0]}` : null
+    if (key) { const hit = getCached(key); if (hit) return res.json(hit) }
+    const result = await getPlayerStats(patches)
+    if (key) setCached(key, result)
+    res.json(result)
   })
 
   router.get('/players/search', async (req, res) => {
@@ -83,13 +89,25 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
   })
 
   router.get('/champions', async (req, res) => {
-    res.json(await getChampionStats(undefined, parsePatches(req.query.patches)))
+    const patches = parsePatches(req.query.patches)
+    const key = !patches?.length ? 'champions:all' : patches.length === 1 ? `champions:${patches[0]}` : null
+    if (key) { const hit = getCached(key); if (hit) return res.json(hit) }
+    const result = await getChampionStats(undefined, patches)
+    if (key) setCached(key, result)
+    res.json(result)
   })
 
   router.get('/augments', async (req, res) => {
-    const cache = opts.getAugments?.() ?? {}
+    const augCache = opts.getAugments?.() ?? {}
+    const patches = parsePatches(req.query.patches)
     const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
-    res.json(await getAugmentStats(undefined, championId, parsePatches(req.query.patches), cache))
+    const key = !championId
+      ? (!patches?.length ? 'augments:all' : patches.length === 1 ? `augments:${patches[0]}` : null)
+      : null
+    if (key) { const hit = getCached(key); if (hit) return res.json(hit) }
+    const result = await getAugmentStats(undefined, championId, patches, augCache)
+    if (key) setCached(key, result)
+    res.json(result)
   })
 
   router.get('/augments/:augmentId/champions', async (req, res) => {

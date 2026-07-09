@@ -536,14 +536,142 @@ exports[`CurrentGame > shows in-progress state 1`] = `
           </div>
         </div>
       </div>
-      <div />
-      <div />
-      <div />
-      <div />
-      <div />
-      <div />
-      <div />
-      <div />
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
+      <div
+        class="card"
+        style="padding: 10px 14px;"
+      >
+        <div
+          style="display: flex; align-items: center; gap: 10px;"
+        >
+          <div
+            style="width: 36px; height: 36px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); flex-shrink: 0;"
+          />
+          <div
+            style="font-size: 13px; color: var(--text-muted);"
+          >
+            Hidden Player
+          </div>
+        </div>
+      </div>
     </div>
     <div>
       <div

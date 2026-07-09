@@ -83,6 +83,20 @@ Deployment targets the EC2 backend. The Electron app is distributed separately a
 
 After that, every push to `master` redeploys automatically.
 
+## Running tests
+
+```
+npm test
+```
+
+Backend integration tests require a separate PostgreSQL database that gets wiped before each run. Set `TEST_DATABASE_URL` in your `.env`:
+
+```
+TEST_DATABASE_URL=postgres://user:password@localhost:5432/mayhem_test
+```
+
+The test suite covers all API routes, cache behavior, and sync queue logic.
+
 ## Creating a new release
 
 Releases are Windows portable executables distributed via GitHub Releases. The app uses `electron-updater` to auto-detect new versions.

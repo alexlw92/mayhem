@@ -5,6 +5,7 @@ import { render, cleanup, act } from '@testing-library/react'
 afterEach(() => cleanup())
 
 const mockApi = {
+  on: vi.fn().mockReturnValue(vi.fn()),
   lcu: {
     currentGame: vi.fn().mockResolvedValue(null),
     syncCurrentGame: vi.fn().mockResolvedValue({ ok: true }),

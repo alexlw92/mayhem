@@ -4,7 +4,9 @@ import {
   initDb,
   upsertChampions, upsertAugments,
   getChampionsFromDb, getAugmentsFromDb,
+  getPatches, getChampionStats, getAugmentStats, getPlayerStats,
 } from './db'
+import { setCached } from './queryCache'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
 
@@ -45,6 +47,30 @@ async function refreshMetadata(
   }
 }
 
+async function warmCache(augRef: { value: Record<number, AugmentInfo> }): Promise<void> {
+  const patches = await getPatches()
+  const patch = patches[0] ?? null
+
+  // Warm all-patches variants sequentially to avoid hammering the DB
+  setCached('champions:all', await getChampionStats(undefined, undefined))
+  console.log('[cache] champions:all done')
+  setCached('players:all', await getPlayerStats(undefined))
+  console.log('[cache] players:all done')
+  setCached('augments:all', await getAugmentStats(undefined, undefined, undefined, augRef.value))
+  console.log('[cache] augments:all done')
+
+  if (patch) {
+    setCached(`champions:${patch}`, await getChampionStats(undefined, [patch]))
+    console.log(`[cache] champions:${patch} done`)
+    setCached(`players:${patch}`, await getPlayerStats([patch]))
+    console.log(`[cache] players:${patch} done`)
+    setCached(`augments:${patch}`, await getAugmentStats(undefined, undefined, [patch], augRef.value))
+    console.log(`[cache] augments:${patch} done`)
+  }
+
+  console.log('[cache] warm complete')
+}
+
 async function main() {
   await initDb()
 
@@ -58,7 +84,11 @@ async function main() {
   createExpressApp({
     getChampions: () => champRef.value,
     getAugments:  () => augRef.value,
-  }).listen(PORT, () => console.log(`[server] :${PORT}`))
+    warmCache: () => warmCache(augRef),
+  }).listen(PORT, () => {
+    console.log(`[server] :${PORT}`)
+    warmCache(augRef).catch(err => console.warn('[cache] warm failed:', (err as Error).message))
+  })
 }
 
 main().catch((err) => { console.error(err); process.exit(1) })

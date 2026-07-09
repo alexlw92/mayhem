@@ -5,7 +5,11 @@ import type { Match } from '../backend/db'
 const http = axios.create({
   baseURL: BACKEND_URL,
   timeout: 10_000,
-  headers: process.env.API_KEY ? { 'x-api-key': process.env.API_KEY } : {}
+})
+
+http.interceptors.request.use((config) => {
+  if (process.env.API_KEY) config.headers['x-api-key'] = process.env.API_KEY
+  return config
 })
 
 export const apiClient = {

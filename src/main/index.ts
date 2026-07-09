@@ -1,6 +1,10 @@
-import 'dotenv/config'
-import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
+import dotenv from 'dotenv'
 import { join, dirname } from 'path'
+// Load .env: next to exe (production), one level up (dist-electron → project root), then cwd (dev terminal)
+dotenv.config({ path: join(dirname(process.execPath), '.env') })
+dotenv.config({ path: join(dirname(process.execPath), '..', '.env') })
+dotenv.config()
+import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import axios from 'axios'

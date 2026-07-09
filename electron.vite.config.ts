@@ -7,6 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     define: {
       'process.env.BACKEND_URL': JSON.stringify(process.env.BACKEND_URL ?? 'http://localhost:3847'),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY ?? ''),
     }
   },
   preload: {

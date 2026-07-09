@@ -1,10 +1,10 @@
 import express from 'express'
 import cors from 'cors'
 import { createStatsRouter, StatsOptions } from './routes/stats'
-import syncRouter from './routes/sync'
+import { createSyncRouter } from './routes/sync'
 import { createMetaRouter, MetaOptions } from './routes/meta'
 
-export type AppOptions = MetaOptions & StatsOptions
+export type AppOptions = MetaOptions & StatsOptions & { warmCache?: () => Promise<void> }
 
 export function createExpressApp(opts: AppOptions = {}) {
   const app = express()
@@ -20,7 +20,7 @@ export function createExpressApp(opts: AppOptions = {}) {
     })
   }
   app.use('/api', createStatsRouter(opts))
-  app.use('/api', syncRouter)
+  app.use('/api', createSyncRouter({ warmCache: opts.warmCache }))
   app.use('/api', createMetaRouter(opts))
   return app
 }

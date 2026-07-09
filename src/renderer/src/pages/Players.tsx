@@ -83,7 +83,8 @@ const MAX_RECENT = 10
 
 interface RecentEntry { riotId: string; puuid: string }
 
-function loadRecents(): RecentEntry[] {
+async function loadRecents(): Promise<RecentEntry[]> {
+  if (api?.recents) return (await api.recents.load()) ?? []
   try {
     const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
     if (!Array.isArray(raw) || typeof raw[0] === 'string') return []
@@ -91,16 +92,9 @@ function loadRecents(): RecentEntry[] {
   } catch { return [] }
 }
 
-function saveRecent(riotId: string, puuid: string): RecentEntry[] {
-  const next = [{ riotId, puuid }, ...loadRecents().filter((r) => r.puuid !== puuid)].slice(0, MAX_RECENT)
-  localStorage.setItem(RECENT_KEY, JSON.stringify(next))
-  return next
-}
-
-function removeRecent(puuid: string): RecentEntry[] {
-  const next = loadRecents().filter((r) => r.puuid !== puuid)
-  localStorage.setItem(RECENT_KEY, JSON.stringify(next))
-  return next
+function persistRecents(entries: RecentEntry[]): void {
+  if (api?.recents) { api.recents.save(entries); return }
+  localStorage.setItem(RECENT_KEY, JSON.stringify(entries))
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -267,12 +261,14 @@ function PlayerList({
   const [addInput, setAddInput] = useState('')
   const [addError, setAddError] = useState('')
   const [addLoading, setAddLoading] = useState(false)
-  const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
+  const [recents, setRecents] = useState<RecentEntry[]>([])
   const [showRecents, setShowRecents] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ puuid: string; summonerName: string }[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [searchFired, setSearchFired] = useState(false)
+
+  useEffect(() => { loadRecents().then(setRecents) }, [])
 
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -318,8 +314,9 @@ function PlayerList({
       setSyncing(false)
       setAddLoading(false)
       const riotId = `${gameName}#${tagLine}`
-      const updated = saveRecent(riotId, summoner.puuid)
+      const updated = [{ riotId, puuid: summoner.puuid }, ...recents.filter(r => r.puuid !== summoner.puuid)].slice(0, MAX_RECENT)
       setRecents(updated)
+      persistRecents(updated)
       setAddInput('')
       setSyncMsg(`Added ${gameName}: ${result.imported} game${result.imported !== 1 ? 's' : ''} imported`)
       setTimeout(() => setSyncMsg(''), 5000)
@@ -329,12 +326,14 @@ function PlayerList({
       setAddLoading(false)
       setSyncing(false)
     }
-  }, [addInput, onPlayersChange])
+  }, [addInput, onPlayersChange, recents])
 
   const handleSelect = useCallback((puuid: string, player: PlayerStats) => {
-    setRecents(saveRecent(player.summonerName, puuid))
+    const next = [{ riotId: player.summonerName, puuid }, ...recents.filter(r => r.puuid !== puuid)].slice(0, MAX_RECENT)
+    setRecents(next)
+    persistRecents(next)
     onSelect(puuid, player)
-  }, [onSelect])
+  }, [onSelect, recents])
 
   return (
     <div>
@@ -363,7 +362,9 @@ function PlayerList({
                         games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
                         avgDpm: 0, avgGold: 0, syncedFull: false,
                       }
-                      setRecents(saveRecent(r.summonerName, r.puuid))
+                      const next = [{ riotId: r.summonerName, puuid: r.puuid }, ...recents.filter(e => e.puuid !== r.puuid)].slice(0, MAX_RECENT)
+                      setRecents(next)
+                      persistRecents(next)
                       setSearchQuery('')
                       setShowSearchDropdown(false)
                       onSelect(r.puuid, placeholder)
@@ -432,7 +433,11 @@ function PlayerList({
               selectedPatches={selectedPatches}
               onSelect={handleSelect}
               onPlayersChange={onPlayersChange}
-              onRemove={(puuid) => setRecents(removeRecent(puuid))}
+              onRemove={(puuid) => {
+                const next = recents.filter(r => r.puuid !== puuid)
+                setRecents(next)
+                persistRecents(next)
+              }}
             />
           ))}
         </div>

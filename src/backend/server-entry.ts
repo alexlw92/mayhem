@@ -47,32 +47,38 @@ async function refreshMetadata(
   }
 }
 
+async function tryWarm(key: string, fn: () => Promise<unknown>): Promise<void> {
+  try {
+    setCached(key, await fn())
+    console.log(`[cache] ${key} done`)
+  } catch (e) {
+    console.warn(`[cache] ${key} failed:`, (e as Error).message)
+  }
+}
+
 async function warmCache(augRef: { value: Record<number, AugmentInfo> }): Promise<void> {
   const patches = await getPatches()
   const patch = patches[0] ?? null
 
-  // Warm all-patches variants sequentially to avoid hammering the DB
-  setCached('champions:all', await getChampionStats(undefined, undefined))
-  console.log('[cache] champions:all done')
-  setCached('players:all', await getPlayerStats(undefined))
-  console.log('[cache] players:all done')
-  setCached('augments:all', await getAugmentStats(undefined, undefined, undefined, augRef.value))
-  console.log('[cache] augments:all done')
-
+  // Patch-specific queries first — these are what users see on first load.
+  // All-patches queries (full table scans) run after and are lower priority.
   if (patch) {
-    setCached(`champions:${patch}`, await getChampionStats(undefined, [patch]))
-    console.log(`[cache] champions:${patch} done`)
-    setCached(`players:${patch}`, await getPlayerStats([patch]))
-    console.log(`[cache] players:${patch} done`)
-    setCached(`augments:${patch}`, await getAugmentStats(undefined, undefined, [patch], augRef.value))
-    console.log(`[cache] augments:${patch} done`)
+    await tryWarm(`champions:${patch}`, () => getChampionStats(undefined, [patch]))
+    await tryWarm(`players:${patch}`,   () => getPlayerStats([patch]))
+    await tryWarm(`augments:${patch}`,  () => getAugmentStats(undefined, undefined, [patch], augRef.value))
   }
+
+  await tryWarm('champions:all', () => getChampionStats(undefined, undefined))
+  await tryWarm('players:all',   () => getPlayerStats(undefined))
+  await tryWarm('augments:all',  () => getAugmentStats(undefined, undefined, undefined, augRef.value))
 
   console.log('[cache] warm complete')
 }
 
 async function main() {
+  console.log('[db] initializing...')
   await initDb()
+  console.log('[db] ready')
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }

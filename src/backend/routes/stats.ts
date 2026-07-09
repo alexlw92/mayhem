@@ -103,7 +103,7 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
     const key = !championId
       ? (!patches?.length ? 'augments:all' : patches.length === 1 ? `augments:${patches[0]}` : null)
-      : null
+      : patches?.length === 1 ? `augments:champ:${championId}:${patches[0]}` : null
     if (key) { const hit = getCached(key); if (hit) return res.json(hit) }
     const result = await getAugmentStats(undefined, championId, patches, augCache)
     if (key) setCached(key, result)

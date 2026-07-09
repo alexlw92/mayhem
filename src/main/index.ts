@@ -358,6 +358,15 @@ ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
 ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[]) => apiClient.coplayerStats(puuid, patches))
 
+const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')
+ipcMain.handle('recents:load', () => {
+  try { return JSON.parse(fs.readFileSync(recentsPath(), 'utf-8')) }
+  catch { return [] }
+})
+ipcMain.handle('recents:save', (_e, entries: unknown) => {
+  fs.writeFileSync(recentsPath(), JSON.stringify(entries), 'utf-8')
+})
+
 ipcMain.handle('lcu:currentGame', async () => {
   if (!isClientRunning()) return null
   const session = await getGameflowSession()

@@ -36,6 +36,10 @@ const api = {
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')
   },
+  recents: {
+    load: () => ipcRenderer.invoke('recents:load'),
+    save: (entries: unknown) => ipcRenderer.invoke('recents:save', entries),
+  },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)
     ipcRenderer.on(channel, handler)

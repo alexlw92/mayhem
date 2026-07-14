@@ -43,7 +43,9 @@ export function mapGame(game: LCUMatchHistoryGame): Match {
         champLevel: s.champLevel,
         augments: [s.playerAugment1, s.playerAugment2, s.playerAugment3,
                    s.playerAugment4, s.playerAugment5, s.playerAugment6]
-                  .filter((a): a is number => !!a)
+                  .filter((a): a is number => !!a),
+        items: [s.item0, s.item1, s.item2, s.item3, s.item4, s.item5]
+               .filter((i): i is number => !!i)
       }
     })
   }

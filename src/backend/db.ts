@@ -32,6 +32,7 @@ export interface Participant {
   goldEarned: number
   champLevel: number
   augments: number[]
+  items?: number[]
 }
 
 export interface Match {
@@ -94,6 +95,12 @@ export async function initDb(url?: string): Promise<void> {
     )
   `
   await sql_`
+    CREATE TABLE IF NOT EXISTS participant_items (
+      "participantId" INTEGER NOT NULL REFERENCES participants(id),
+      "itemId"        INTEGER NOT NULL
+    )
+  `
+  await sql_`
     CREATE TABLE IF NOT EXISTS player_sync_times (
       puuid     TEXT PRIMARY KEY,
       "syncedAt" BIGINT NOT NULL
@@ -122,6 +129,8 @@ export async function initDb(url?: string): Promise<void> {
   await sql_`CREATE INDEX IF NOT EXISTS idx_matches_gameCreation      ON matches("gameCreation")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId           ON participant_augments("participantId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId_augmentId ON participant_augments("participantId", "augmentId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_items_participantId ON participant_items("participantId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_items_itemId        ON participant_items("itemId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_champid_gameid ON participants("championId", "gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion        ON participants("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion_champ  ON participants("gameVersion", "championId")`
@@ -279,6 +288,49 @@ export async function initDb(url?: string): Promise<void> {
     console.log('[db] player_champion_stats_cache backfill complete')
   }
 
+  // Prune raw match data older than the 4 most recent patches.
+  // Aggregate stats are preserved in cache tables so nothing is lost analytically.
+  const allPatchRows = await sql_`
+    SELECT DISTINCT "gameVersion" FROM matches WHERE "gameVersion" IS NOT NULL
+  `
+  const allPatches = allPatchRows
+    .map((r: any) => r.gameVersion as string)
+    .sort((a: string, b: string) => {
+      const [aMaj, aMin] = a.split('.').map(Number)
+      const [bMaj, bMin] = b.split('.').map(Number)
+      return bMaj !== aMaj ? bMaj - aMaj : bMin - aMin
+    })
+  const keepPatches = allPatches.slice(0, 4)
+  if (keepPatches.length === 4) {
+    const pruned = await deleteOldMatches(keepPatches)
+    if (pruned > 0) console.log(`[db] pruned ${pruned} old matches (keeping: ${keepPatches.join(', ')})`)
+  }
+}
+
+export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
+  const oldIds = (await sql_`
+    SELECT "gameId" FROM matches
+    WHERE "gameVersion" IS NOT NULL AND "gameVersion" <> ALL(${keepPatches})
+  `).map((r: any) => Number(r.gameId))
+
+  if (oldIds.length === 0) return 0
+
+  await sql_.begin(async (tx: any) => {
+    await tx`
+      DELETE FROM participant_augments WHERE "participantId" IN (
+        SELECT id FROM participants WHERE "gameId" = ANY(${oldIds})
+      )
+    `
+    await tx`
+      DELETE FROM participant_items WHERE "participantId" IN (
+        SELECT id FROM participants WHERE "gameId" = ANY(${oldIds})
+      )
+    `
+    await tx`DELETE FROM participants WHERE "gameId" = ANY(${oldIds})`
+    await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
+  })
+
+  return oldIds.length
 }
 
 export async function backfillDetailCaches(): Promise<void> {
@@ -562,6 +614,16 @@ export async function insertMatches(matches: Match[]): Promise<number> {
       await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES ${tx(augPairs)}`
     }
 
+    const itemPairs = newMatches.flatMap(m =>
+      m.participants.flatMap(p =>
+        (p.items ?? []).filter(Boolean).map(itemId => [partIdMap.get(`${m.gameId}:${p.puuid}`), itemId])
+      )
+    ).filter((pair): pair is [number, number] => pair[0] != null)
+
+    if (itemPairs.length > 0) {
+      await tx`INSERT INTO participant_items ("participantId","itemId") VALUES ${tx(itemPairs)}`
+    }
+
     // Maintain pre-aggregated summary tables
     const champAgg = new Map<string, [string, number, string, number, number, number, number, number, number, number]>()
     for (const m of newMatches) {
@@ -722,6 +784,7 @@ export async function upsertMatch(match: Match): Promise<void> {
     if (oldParts.length > 0) {
       const ids = oldParts.map((r: any) => r.id)
       await tx`DELETE FROM participant_augments WHERE "participantId" = ANY(${ids})`
+      await tx`DELETE FROM participant_items WHERE "participantId" = ANY(${ids})`
       await tx`DELETE FROM participants WHERE "gameId" = ${match.gameId}`
     }
     for (const p of match.participants) {
@@ -740,6 +803,10 @@ export async function upsertMatch(match: Match): Promise<void> {
       for (const augId of p.augments) {
         if (!augId) continue
         await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES (${row.id},${augId})`
+      }
+      for (const itemId of (p.items ?? [])) {
+        if (!itemId) continue
+        await tx`INSERT INTO participant_items ("participantId","itemId") VALUES (${row.id},${itemId})`
       }
     }
   })
@@ -1302,6 +1369,110 @@ export async function getAugmentChampionStats(augmentId: number, puuid?: string,
   }))
 }
 
+export interface ItemBuild {
+  build: number[]
+  games: number
+  wins: number
+}
+
+export interface ItemPickRate {
+  itemId: number
+  picks: number
+  wins: number
+}
+
+export async function getItemBuilds(championId: number, patches?: string[], allowedIds: number[] = []): Promise<ItemBuild[]> {
+  // Use [-1] sentinel when allowedIds is empty so postgres.js doesn't receive an empty array
+  const allowed = allowedIds.length > 0 ? allowedIds : [-1]
+  const rows = patches?.length
+    ? await sql_`
+        WITH non_boot AS (
+          SELECT p.id, p.win,
+            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+            AND p."gameVersion" IS NOT NULL
+            AND pi."itemId" = ANY(${allowed})
+          GROUP BY p.id, p.win
+          HAVING count(pi."itemId") >= 5
+        ),
+        unnested AS (
+          SELECT id, win, item, pos
+          FROM non_boot, LATERAL unnest(items) WITH ORDINALITY AS t(item, pos)
+        ),
+        quintuples AS (
+          SELECT a.id, a.win, ARRAY[a.item, b.item, c.item, d.item, e.item] AS quintuple
+          FROM unnested a
+          JOIN unnested b ON b.id = a.id AND b.pos > a.pos
+          JOIN unnested c ON c.id = a.id AND c.pos > b.pos
+          JOIN unnested d ON d.id = a.id AND d.pos > c.pos
+          JOIN unnested e ON e.id = a.id AND e.pos > d.pos
+        )
+        SELECT quintuple AS build, count(*)::int AS games, sum(win::int)::int AS wins
+        FROM quintuples
+        GROUP BY quintuple
+        ORDER BY games DESC
+        LIMIT 30
+      `
+    : await sql_`
+        WITH non_boot AS (
+          SELECT p.id, p.win,
+            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" IS NOT NULL
+            AND pi."itemId" = ANY(${allowed})
+          GROUP BY p.id, p.win
+          HAVING count(pi."itemId") >= 5
+        ),
+        unnested AS (
+          SELECT id, win, item, pos
+          FROM non_boot, LATERAL unnest(items) WITH ORDINALITY AS t(item, pos)
+        ),
+        quintuples AS (
+          SELECT a.id, a.win, ARRAY[a.item, b.item, c.item, d.item, e.item] AS quintuple
+          FROM unnested a
+          JOIN unnested b ON b.id = a.id AND b.pos > a.pos
+          JOIN unnested c ON c.id = a.id AND c.pos > b.pos
+          JOIN unnested d ON d.id = a.id AND d.pos > c.pos
+          JOIN unnested e ON e.id = a.id AND e.pos > d.pos
+        )
+        SELECT quintuple AS build, count(*)::int AS games, sum(win::int)::int AS wins
+        FROM quintuples
+        GROUP BY quintuple
+        ORDER BY games DESC
+        LIMIT 10
+      `
+  return rows.map((r: any) => ({ build: r.build as number[], games: r.games, wins: r.wins }))
+}
+
+export async function getItemPickRates(championId: number, patches?: string[]): Promise<ItemPickRate[]> {
+  const rows = patches?.length
+    ? await sql_`
+        SELECT pi."itemId", COUNT(*)::int AS picks, SUM(p.win::int)::int AS wins
+        FROM participant_items pi
+        JOIN participants p ON p.id = pi."participantId"
+        WHERE p."championId" = ${championId}
+          AND p."gameVersion" = ANY(${patches})
+          AND p."gameVersion" IS NOT NULL
+        GROUP BY pi."itemId"
+        ORDER BY picks DESC
+      `
+    : await sql_`
+        SELECT pi."itemId", COUNT(*)::int AS picks, SUM(p.win::int)::int AS wins
+        FROM participant_items pi
+        JOIN participants p ON p.id = pi."participantId"
+        WHERE p."championId" = ${championId}
+          AND p."gameVersion" IS NOT NULL
+        GROUP BY pi."itemId"
+        ORDER BY picks DESC
+      `
+  return rows.map((r: any) => ({ itemId: r.itemId, picks: r.picks, wins: r.wins }))
+}
+
 export interface MatchView {
   gameId: number
   gameCreation: number
@@ -1310,16 +1481,33 @@ export interface MatchView {
 }
 
 export async function getRecentMatches(limit = 20, puuid?: string, patches?: string[]): Promise<MatchView[]> {
-  const conditions: string[] = []
-  const params: any[] = []
-  if (puuid)        { params.push(puuid);      conditions.push(`EXISTS (SELECT 1 FROM participants pp WHERE pp."gameId" = m."gameId" AND pp.puuid = $${params.length})`) }
-  if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
-
-  const matchRows = await sql_.unsafe(`
-    SELECT "gameId","gameCreation","gameDuration" FROM matches m
-    ${where} ORDER BY "gameCreation" DESC LIMIT $${params.push(limit)}
-  `, params)
+  let matchRows: any[]
+  if (puuid && patches?.length) {
+    matchRows = await sql_`
+      SELECT DISTINCT m."gameId", m."gameCreation", m."gameDuration"
+      FROM participants p
+      JOIN matches m ON m."gameId" = p."gameId"
+      WHERE p.puuid = ${puuid} AND p."gameVersion" = ANY(${patches})
+      ORDER BY m."gameCreation" DESC LIMIT ${limit}
+    `
+  } else if (puuid) {
+    matchRows = await sql_`
+      SELECT DISTINCT m."gameId", m."gameCreation", m."gameDuration"
+      FROM participants p
+      JOIN matches m ON m."gameId" = p."gameId"
+      WHERE p.puuid = ${puuid}
+      ORDER BY m."gameCreation" DESC LIMIT ${limit}
+    `
+  } else {
+    const params: any[] = []
+    const conditions: string[] = []
+    if (patches?.length) { params.push(patches); conditions.push(`m."gameVersion" = ANY($${params.length})`) }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    matchRows = await sql_.unsafe(`
+      SELECT "gameId","gameCreation","gameDuration" FROM matches m
+      ${where} ORDER BY "gameCreation" DESC LIMIT $${params.push(limit)}
+    `, params)
+  }
   if (matchRows.length === 0) return []
 
   const gameIds = matchRows.map((r: any) => Number(r.gameId))

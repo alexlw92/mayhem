@@ -5,11 +5,19 @@ import type { AugmentInfo } from '../backend/db'
 
 export type { AugmentInfo }
 
-const META_VERSION = 2
+export interface ItemInfo {
+  id: number
+  name: string
+  iconPath: string
+  category: string
+}
+
+const META_VERSION = 4
 
 interface MetaCache {
   champions: Record<number, string>
   augments: Record<number, AugmentInfo>
+  items: Record<number, ItemInfo>
   fetchedAt: number
   version?: number
 }
@@ -25,8 +33,9 @@ function loadMeta(): MetaCache {
   try {
     metaCache = JSON.parse(fs.readFileSync(metaPath(), 'utf-8'))
   } catch {
-    metaCache = { champions: {}, augments: {}, fetchedAt: 0 }
+    metaCache = { champions: {}, augments: {}, items: {}, fetchedAt: 0 }
   }
+  if (!metaCache!.items) metaCache!.items = {}
   return metaCache!
 }
 
@@ -46,9 +55,10 @@ export function clearMetaCache(): void {
 
 export function saveMetaCache(
   champions: Record<number, string>,
-  augments: Record<number, AugmentInfo>
+  augments: Record<number, AugmentInfo>,
+  items: Record<number, ItemInfo>
 ): void {
-  metaCache = { champions, augments, fetchedAt: Date.now(), version: META_VERSION }
+  metaCache = { champions, augments, items, fetchedAt: Date.now(), version: META_VERSION }
   saveMeta()
 }
 
@@ -58,4 +68,8 @@ export function getChampionCache(): Record<number, string> {
 
 export function getAugmentCache(): Record<number, AugmentInfo> {
   return loadMeta().augments
+}
+
+export function getItemCache(): Record<number, ItemInfo> {
+  return loadMeta().items
 }

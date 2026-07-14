@@ -13,6 +13,8 @@ import {
   getCoplayerStats,
   getGroupSummary,
   searchPlayers,
+  getItemBuilds,
+  getItemPickRates,
   AugmentInfo
 } from '../db'
 
@@ -99,6 +101,25 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const augmentId = parseInt(req.params.augmentId)
     const puuid = typeof req.query.puuid === 'string' ? req.query.puuid : undefined
     res.json(await getAugmentChampionStats(augmentId, puuid, parsePatches(req.query.patches)))
+  })
+
+  router.get('/items/builds', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    const allowedIds = typeof req.query.allowed === 'string' && req.query.allowed
+      ? req.query.allowed.split(',').map(Number).filter(Boolean)
+      : []
+    res.json(await getItemBuilds(championId, patches, allowedIds))
+  })
+
+  router.get('/items/picks', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    res.json(await getItemPickRates(championId, patches))
   })
 
   return router

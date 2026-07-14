@@ -4,9 +4,10 @@ import Champions from './pages/Champions'
 import Augments from './pages/Augments'
 import AugmentDetail from './pages/AugmentDetail'
 import CurrentGame from './pages/CurrentGame'
+import ChampionDetail from './pages/ChampionDetail'
 import './App.css'
 
-type Page = 'players' | 'champions' | 'augments' | 'augment-detail' | 'current-game'
+type Page = 'players' | 'champions' | 'augments' | 'augment-detail' | 'current-game' | 'champion-detail'
 
 export type PatchFilter = string[] | undefined
 
@@ -29,7 +30,8 @@ export default function App() {
   const [syncProgress, setSyncProgress] = useState<{ playerName: string; gamesAdded: number; playersChecked: number; queueRemaining: number } | null>(null)
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
-  const [augmentChampionId, setAugmentChampionId] = useState<number | undefined>(undefined)
+  const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(undefined)
+  const [selectedChampionName, setSelectedChampionName] = useState('')
   const [selectedAugmentId, setSelectedAugmentId] = useState<number | undefined>(undefined)
   const [augmentDetailOrigin, setAugmentDetailOrigin] = useState<'augments' | 'players'>('augments')
   const [augmentDetailPuuid, setAugmentDetailPuuid] = useState<string | null>(null)
@@ -40,6 +42,7 @@ export default function App() {
   const [dbError, setDbError] = useState<string | null>(null)
   const [assetsReady, setAssetsReady] = useState(false)
   const [assetsProgress, setAssetsProgress] = useState<{ done: number; total: number } | null>(null)
+  const [metaKey, setMetaKey] = useState(0)
 
 
   const refreshPlayers = useCallback(async () => {
@@ -84,7 +87,8 @@ export default function App() {
       setAssetsProgress(data)
     })
     const unsubDbError = api.on('db-error', (msg: string) => setDbError(msg))
-    return () => { unsubReady(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError() }
+    const unsubMeta = api.on('meta-refreshed', () => setMetaKey(k => k + 1))
+    return () => { unsubReady(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError(); unsubMeta() }
   }, [])
 
   useEffect(() => {
@@ -312,14 +316,16 @@ export default function App() {
         <div style={{ display: page === 'champions' ? 'block' : 'none' }}>
           <Champions
             selectedPatches={selectedPatches}
-            onChampionClick={(championId) => { setAugmentChampionId(championId); setPage('augments') }}
+            onChampionClick={(championId, championName) => {
+              setSelectedChampionId(championId)
+              setSelectedChampionName(championName)
+              setPage('champion-detail')
+            }}
           />
         </div>
         <div style={{ display: page === 'augments' ? 'block' : 'none' }}>
           <Augments
             selectedPatches={selectedPatches}
-            initialChampionId={augmentChampionId}
-            onMounted={() => setAugmentChampionId(undefined)}
             onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
           />
         </div>
@@ -335,6 +341,18 @@ export default function App() {
         </div>
         <div style={{ display: page === 'current-game' ? 'block' : 'none' }}>
           <CurrentGame selectedPatches={selectedPatches} />
+        </div>
+        <div style={{ display: page === 'champion-detail' ? 'block' : 'none' }}>
+          {selectedChampionId !== undefined && (
+            <ChampionDetail
+              championId={selectedChampionId}
+              championName={selectedChampionName}
+              selectedPatches={selectedPatches}
+              metaKey={metaKey}
+              onBack={() => setPage('champions')}
+              onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
+            />
+          )}
         </div>
       </main>
     </div>

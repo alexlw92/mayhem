@@ -32,7 +32,7 @@ export const apiClient = {
 
   recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
     http.get(puuid ? `/api/players/${puuid}/matches` : '/api/matches', {
-      params: { limit, patches: patches?.join(',') }
+      params: { limit, patches: patches?.join(',') }, timeout: 30_000
     }).then((r) => r.data),
 
   augmentStats: (puuid?: string, championId?: number, patches?: string[]) =>
@@ -97,6 +97,12 @@ export const apiClient = {
 
   championCache: (): Promise<Record<number, string>> =>
     http.get('/api/meta/champions').then((r) => r.data),
+
+  itemBuilds: (championId: number, patches?: string[], allowedIds?: number[]) =>
+    http.get('/api/items/builds', { params: { championId, patches: patches?.join(','), allowed: allowedIds?.join(',') }, timeout: 30_000 }).then((r) => r.data),
+
+  itemPickRates: (championId: number, patches?: string[]) =>
+    http.get('/api/items/picks', { params: { championId, patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
 
   searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
     http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),

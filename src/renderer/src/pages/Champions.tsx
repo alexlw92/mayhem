@@ -24,13 +24,16 @@ function kda(kills: number, deaths: number, assists: number): string {
 
 interface Props {
   selectedPatches: string[] | null
-  onChampionClick?: (championId: number) => void
+  onChampionClick?: (championId: number, championName: string) => void
 }
+
+const MIN_GAMES_OPTIONS = [0, 20, 50, 100]
 
 export default function Champions({ selectedPatches, onChampionClick }: Props) {
   const [data, setData] = useState<ChampionStat[]>([])
   const [sort, setSort] = useState<SortKey>('games')
   const [search, setSearch] = useState('')
+  const [minGames, setMinGames] = useState(20)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function Champions({ selectedPatches, onChampionClick }: Props) {
   }, [selectedPatches])
 
   const filtered = data
-    .filter((c) => c.championName.toLowerCase().includes(search.toLowerCase()))
+    .filter((c) => c.games >= minGames && c.championName.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sort === 'games') return b.games - a.games
       if (sort === 'winRate') return b.wins / b.games - a.wins / a.games
@@ -67,7 +70,18 @@ export default function Champions({ selectedPatches, onChampionClick }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <label style={{ color: 'var(--text-secondary)', fontSize: 12, marginLeft: 'auto' }}>Sort by</label>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>Min games</span>
+        {MIN_GAMES_OPTIONS.map((n) => (
+          <button
+            key={n}
+            className={`sort-btn ${minGames === n ? 'active' : ''}`}
+            onClick={() => setMinGames(n)}
+          >
+            {n === 0 ? 'All' : n}
+          </button>
+        ))}
+        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
+        <label style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Sort by</label>
         {(['games', 'winRate', 'kda', 'avgDpm'] as SortKey[]).map((key) => (
           <button
             key={key}
@@ -105,7 +119,7 @@ export default function Champions({ selectedPatches, onChampionClick }: Props) {
                 return (
                   <tr
                     key={`${c.championId}-${c.puuid || 'all'}`}
-                    onClick={() => onChampionClick?.(c.championId)}
+                    onClick={() => onChampionClick?.(c.championId, c.championName)}
                     style={onChampionClick ? { cursor: 'pointer' } : undefined}
                     className={onChampionClick ? 'champ-row' : undefined}
                   >

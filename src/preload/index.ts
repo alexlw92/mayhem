@@ -32,7 +32,10 @@ const api = {
     augmentStats: (puuid?: string, championId?: number, patches?: string[]) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches),
     augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:augmentChampionStats', augmentId, puuid, patches),
     searchPlayers: (query: string) => ipcRenderer.invoke('db:searchPlayers', query),
-    coplayerStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:coplayerStats', puuid, patches)
+    coplayerStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:coplayerStats', puuid, patches),
+    itemCache: () => ipcRenderer.invoke('db:itemCache'),
+    itemBuilds: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemBuilds', championId, patches),
+    itemPickRates: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemPickRates', championId, patches)
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

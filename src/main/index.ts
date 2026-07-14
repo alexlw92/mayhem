@@ -29,8 +29,10 @@ import {
   saveMetaCache,
   getChampionCache,
   getAugmentCache,
+  getItemCache,
   clearMetaCache,
-  AugmentInfo
+  AugmentInfo,
+  ItemInfo
 } from './meta'
 import { apiClient } from './apiClient'
 import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
@@ -46,18 +48,29 @@ let syncInProgress = false
 let syncCancelled = false
 let syncAccum = { imported: 0, playerssynced: 0 }
 let backendProcess: Electron.UtilityProcess | null = null
+let backendReady = false
+let windowLoaded = false
+
+function maybeSignalReady() {
+  if (!backendReady || !windowLoaded) return
+  mainWindow?.webContents.send('db-ready')
+  refreshMetadata().catch(() => { mainWindow?.webContents.send('assets-ready') })
+  ensureChampionNames()
+  repairIncompleteMatches().catch(() => {})
+}
 
 const CLIENT_ID = `electron-${os.hostname()}-${process.pid}`
 
 function spawnLocalBackend(): void {
   const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3847'
   let hostname: string
-  try { hostname = new URL(backendUrl).hostname } catch { return }
-  if (hostname !== 'localhost' && hostname !== '127.0.0.1') return
+  try { hostname = new URL(backendUrl).hostname } catch { backendReady = true; return }
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') { backendReady = true; return }
 
   const serverPath = join(process.cwd(), 'dist-server', 'server-entry.js')
   if (!fs.existsSync(serverPath)) {
     console.warn('[backend] dist-server/server-entry.js not found — run: npm run server:build')
+    backendReady = true
     return
   }
 
@@ -68,6 +81,9 @@ function spawnLocalBackend(): void {
   backendProcess.stdout?.on('data', (d: Buffer) => process.stdout.write('[backend] ' + d))
   backendProcess.stderr?.on('data', (d: Buffer) => process.stderr.write('[backend] ' + d))
   backendProcess.on('exit', (code: number) => console.log(`[backend] exited (${code})`))
+  backendProcess.on('message', (msg: unknown) => {
+    if ((msg as any)?.type === 'ready') { backendReady = true; maybeSignalReady() }
+  })
 }
 
 // Forward main-process logs to renderer DevTools console
@@ -125,10 +141,33 @@ async function refreshMetadata(): Promise<void> {
     }
   }
 
+  // Fetch item data from CommunityDragon
+  const items: Record<number, ItemInfo> = {}
+  try {
+    const itemsRes = await axios.get<any[]>(`${CDRAGON_PLUGIN}/v1/items.json`, { timeout: 15000 })
+    for (const item of itemsRes.data) {
+      if (!item.id || !item.name) continue
+      const cats: string[] = item.categories ?? []
+      if (cats.includes('Consumable') || cats.includes('Trinket')) continue
+      if ((item.priceTotal ?? 0) < 700) continue
+      const builtInto: unknown[] = item.to ?? []
+      if (builtInto.length > 0 && !cats.includes('Boots')) continue
+      const iconRaw: string = item.iconPath ?? ''
+      const iconUrl = iconRaw
+        ? `${CDRAGON_PLUGIN}/${iconRaw.replace(/^\/lol-game-data\/assets\//i, '').toLowerCase()}`
+        : ''
+      const category = cats.includes('Boots') ? 'Boots' : (cats[0] ?? '')
+      items[item.id] = { id: item.id, name: item.name, iconPath: iconUrl, category }
+    }
+  } catch (e) {
+    console.warn('[meta] failed to fetch items:', (e as Error).message)
+  }
+
   const imageCacheDir = join(app.getPath('userData'), 'image-cache')
   const championIds = Object.keys(champions)
   const augmentList = Object.values(augments).filter((aug) => aug.iconPath)
-  const total = championIds.length + augmentList.length
+  const itemList = Object.values(items).filter((it) => it.iconPath)
+  const total = championIds.length + augmentList.length + itemList.length
   let done = 0
   mainWindow?.webContents.send('assets-progress', { done, total })
 
@@ -146,7 +185,16 @@ async function refreshMetadata(): Promise<void> {
     mainWindow?.webContents.send('assets-progress', { done: ++done, total })
   }))
 
-  saveMetaCache(champions, augments)
+  await Promise.all(itemList.map(async (item) => {
+    const dest = join(imageCacheDir, 'item-icons', `${item.id}.png`)
+    if (await downloadToCache(item.iconPath, dest)) {
+      item.iconPath = `mayhem-asset://item-icons/${item.id}.png`
+    }
+    mainWindow?.webContents.send('assets-progress', { done: ++done, total })
+  }))
+
+  saveMetaCache(champions, augments, items)
+  console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
   setChampionNames(champions)
   mainWindow?.webContents.send('meta-refreshed')
   mainWindow?.webContents.send('assets-ready')
@@ -323,12 +371,8 @@ app.whenReady().then(async () => {
   if (!is.dev) autoUpdater.checkForUpdatesAndNotify()
 
   mainWindow!.webContents.once('did-finish-load', () => {
-    mainWindow?.webContents.send('db-ready')
-    refreshMetadata().catch(() => {
-      mainWindow?.webContents.send('assets-ready')
-    })
-    ensureChampionNames()
-    repairIncompleteMatches().catch(() => {})
+    windowLoaded = true
+    maybeSignalReady()
   })
 
   app.on('activate', () => {
@@ -410,6 +454,7 @@ ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => apiClie
 ipcMain.handle('db:groupSummary', () => apiClient.groupSummary())
 ipcMain.handle('db:championCache', () => apiClient.championCache())
 ipcMain.handle('db:augmentCache', () => getAugmentCache())
+ipcMain.handle('db:itemCache', () => getItemCache())
 ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number, patches?: string[]) => {
   const stats = await apiClient.augmentStats(puuid, championId, patches)
   const cache = getAugmentCache()
@@ -418,6 +463,36 @@ ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number
 ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[]) => apiClient.augmentChampionStats(augmentId, puuid, patches))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
 ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[]) => apiClient.coplayerStats(puuid, patches))
+
+ipcMain.handle('db:itemBuilds', async (_e, championId: number, patches?: string[]) => {
+  const cache = getItemCache()
+  const allowedIds = Object.entries(cache)
+    .filter(([, v]) => v.category !== 'Boots')
+    .map(([k]) => Number(k))
+  const builds = await apiClient.itemBuilds(championId, patches, allowedIds)
+  return (builds as any[]).map((b) => ({
+    ...b,
+    items: (b.build as number[]).map((id) => ({
+      id,
+      name: cache[id]?.name ?? `Item ${id}`,
+      iconPath: cache[id]?.iconPath ?? '',
+      category: cache[id]?.category ?? '',
+    }))
+  }))
+})
+
+ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: string[]) => {
+  const picks = await apiClient.itemPickRates(championId, patches)
+  const cache = getItemCache()
+  return (picks as any[])
+    .filter((p) => cache[p.itemId])
+    .map((p) => ({
+      ...p,
+      name: cache[p.itemId].name,
+      iconPath: cache[p.itemId].iconPath,
+      category: cache[p.itemId].category,
+    }))
+})
 
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')
 ipcMain.handle('recents:load', () => {
@@ -490,7 +565,8 @@ ipcMain.handle('meta:refresh', async () => {
   await refreshMetadata()
   return {
     champions: Object.keys(getChampionCache()).length,
-    augments: Object.keys(getAugmentCache()).length
+    augments: Object.keys(getAugmentCache()).length,
+    items: Object.keys(getItemCache()).length,
   }
 })
 

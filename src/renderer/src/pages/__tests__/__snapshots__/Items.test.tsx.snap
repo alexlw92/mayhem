@@ -1,0 +1,566 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Items > renders all three sections with full data (archetypes default collapsed) 1`] = `
+<div>
+  <div
+    style=""
+  >
+    <section
+      style="margin-bottom: 28px;"
+    >
+      <div
+        style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;"
+      >
+        Boots
+      </div>
+      <table
+        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+      >
+        <thead>
+          <tr
+            style="color: var(--text-secondary); text-align: left;"
+          >
+            <th
+              style="padding: 4px 8px; font-weight: 400;"
+            >
+              Item
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Picks
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Pick%
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              WR%
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Berserker's Greaves"
+                >
+                  <img
+                    alt="Berserker's Greaves"
+                    src="mayhem-asset://items/3006.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Berserker's Greaves
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              45
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              100%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--green);"
+            >
+              57.8%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section
+      style="margin-bottom: 28px;"
+    >
+      <div
+        style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;"
+      >
+        Build Paths
+      </div>
+      <div
+        style="display: flex; flex-direction: column; gap: 16px;"
+      >
+        <div
+          style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"
+        >
+          <div
+            style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
+          >
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Evenshroud"
+            >
+              <img
+                alt="Evenshroud"
+                src="mayhem-asset://items/3001.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Archangel's Staff"
+            >
+              <img
+                alt="Archangel's Staff"
+                src="mayhem-asset://items/3003.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Rabadon's Deathcap"
+            >
+              <img
+                alt="Rabadon's Deathcap"
+                src="mayhem-asset://items/3089.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <span
+              style="font-size: 12px; color: var(--text-secondary); margin-left: 4px;"
+            >
+              18
+               games
+            </span>
+            <span
+              style="font-size: 12px; color: var(--green); margin-left: 4px;"
+            >
+              61.1
+              % WR
+            </span>
+            <span
+              style="font-size: 10px; color: var(--text-secondary); margin-left: auto;"
+            >
+              ▼
+            </span>
+          </div>
+        </div>
+        <div
+          style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"
+        >
+          <div
+            style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
+          >
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Rabadon's Deathcap"
+            >
+              <img
+                alt="Rabadon's Deathcap"
+                src="mayhem-asset://items/3089.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Sorcerer's Shoes"
+            >
+              <img
+                alt="Sorcerer's Shoes"
+                src="mayhem-asset://items/3020.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <div
+              style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+              title="Morellonomicon"
+            >
+              <img
+                alt="Morellonomicon"
+                src="mayhem-asset://items/3165.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <span
+              style="font-size: 12px; color: var(--text-secondary); margin-left: 4px;"
+            >
+              7
+               games
+            </span>
+            <span
+              style="font-size: 12px; color: var(--green); margin-left: 4px;"
+            >
+              57.1
+              % WR
+            </span>
+            <span
+              style="font-size: 10px; color: var(--text-secondary); margin-left: auto;"
+            >
+              ▼
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section
+      style="margin-bottom: 28px;"
+    >
+      <div
+        style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;"
+      >
+        Most Built
+      </div>
+      <table
+        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+      >
+        <thead>
+          <tr
+            style="color: var(--text-secondary); text-align: left;"
+          >
+            <th
+              style="padding: 4px 8px; font-weight: 400;"
+            >
+              Item
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Picks
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Pick%
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              WR%
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Lord Dominik's Regards"
+                >
+                  <img
+                    alt="Lord Dominik's Regards"
+                    src="mayhem-asset://items/3036.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Lord Dominik's Regards
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              40
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              89%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--green);"
+            >
+              55.0%
+            </td>
+          </tr>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Infinity Edge"
+                >
+                  <img
+                    alt="Infinity Edge"
+                    src="mayhem-asset://items/3031.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Infinity Edge
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              38
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              84%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-primary);"
+            >
+              50.0%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+`;
+
+exports[`Items > renders boots and most-built sections when picks exist but no archetypes 1`] = `
+<div>
+  <div
+    style=""
+  >
+    <section
+      style="margin-bottom: 28px;"
+    >
+      <div
+        style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;"
+      >
+        Boots
+      </div>
+      <table
+        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+      >
+        <thead>
+          <tr
+            style="color: var(--text-secondary); text-align: left;"
+          >
+            <th
+              style="padding: 4px 8px; font-weight: 400;"
+            >
+              Item
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Picks
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Pick%
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              WR%
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Berserker's Greaves"
+                >
+                  <img
+                    alt="Berserker's Greaves"
+                    src="mayhem-asset://items/3006.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Berserker's Greaves
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              45
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              100%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--green);"
+            >
+              57.8%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section
+      style="margin-bottom: 28px;"
+    >
+      <div
+        style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;"
+      >
+        Most Built
+      </div>
+      <table
+        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+      >
+        <thead>
+          <tr
+            style="color: var(--text-secondary); text-align: left;"
+          >
+            <th
+              style="padding: 4px 8px; font-weight: 400;"
+            >
+              Item
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Picks
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              Pick%
+            </th>
+            <th
+              style="padding: 4px 8px; font-weight: 400; text-align: right;"
+            >
+              WR%
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Lord Dominik's Regards"
+                >
+                  <img
+                    alt="Lord Dominik's Regards"
+                    src="mayhem-asset://items/3036.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Lord Dominik's Regards
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              40
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              89%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--green);"
+            >
+              55.0%
+            </td>
+          </tr>
+          <tr
+            style="border-top: 1px solid var(--border);"
+          >
+            <td
+              style="padding: 6px 8px;"
+            >
+              <div
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <div
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  title="Infinity Edge"
+                >
+                  <img
+                    alt="Infinity Edge"
+                    src="mayhem-asset://items/3031.png"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                  />
+                </div>
+                <span>
+                  Infinity Edge
+                </span>
+              </div>
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-secondary);"
+            >
+              38
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right;"
+            >
+              84%
+            </td>
+            <td
+              style="padding: 6px 8px; text-align: right; color: var(--text-primary);"
+            >
+              50.0%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+`;
+
+exports[`Items > shows "no item data" when both APIs return empty 1`] = `
+<div>
+  <div
+    style="color: var(--text-secondary); font-size: 13px; padding: 16px 0px;"
+  >
+    No item data yet — only games synced after this feature was enabled will have items.
+  </div>
+</div>
+`;
+
+exports[`Items > shows loading state initially 1`] = `
+<div>
+  <div
+    style="color: var(--text-secondary); font-size: 13px; padding: 16px 0px;"
+  >
+    Loading…
+  </div>
+</div>
+`;

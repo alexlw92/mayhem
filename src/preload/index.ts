@@ -35,7 +35,8 @@ const api = {
     coplayerStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:coplayerStats', puuid, patches),
     itemCache: () => ipcRenderer.invoke('db:itemCache'),
     itemBuilds: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemBuilds', championId, patches),
-    itemPickRates: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemPickRates', championId, patches)
+    itemPickRates: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemPickRates', championId, patches),
+    itemArchetypes: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemArchetypes', championId, patches)
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

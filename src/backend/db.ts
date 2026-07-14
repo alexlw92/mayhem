@@ -225,6 +225,17 @@ export async function initDb(url?: string): Promise<void> {
       PRIMARY KEY ("gameVersion", "augmentId", "championId")
     )
   `
+  await sql_`
+    CREATE TABLE IF NOT EXISTS item_builds_cache (
+      "gameVersion"  TEXT      NOT NULL,
+      "championId"   INTEGER   NOT NULL,
+      build          INTEGER[] NOT NULL,
+      games          INTEGER   NOT NULL DEFAULT 0,
+      wins           INTEGER   NOT NULL DEFAULT 0,
+      PRIMARY KEY ("gameVersion", "championId", build)
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
 
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
@@ -286,6 +297,37 @@ export async function initDb(url?: string): Promise<void> {
       ON CONFLICT DO NOTHING
     `
     console.log('[db] player_champion_stats_cache backfill complete')
+  }
+
+  const [{ count: itemBuildsCacheCount }] = await sql_`SELECT COUNT(*) FROM item_builds_cache`
+  if (Number(itemBuildsCacheCount) === 0) {
+    console.log('[db] backfilling item_builds_cache...')
+    await sql_`
+      WITH agg AS (
+        SELECT p."gameVersion", p."championId", p.win::int AS win,
+          array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+        FROM participants p JOIN participant_items pi ON pi."participantId" = p.id
+        WHERE p."gameVersion" IS NOT NULL
+        GROUP BY p.id, p."gameVersion", p."championId", p.win
+        HAVING count(*) >= 5
+      ),
+      combos AS (
+        SELECT agg."gameVersion", agg."championId", agg.win,
+          ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+        FROM agg,
+          LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+          LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+          LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+          LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+          LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+        WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+      )
+      INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
+      SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
+      FROM combos GROUP BY "gameVersion","championId",build
+      ON CONFLICT DO NOTHING
+    `
+    console.log('[db] item_builds_cache backfill complete')
   }
 
   // Prune raw match data older than the 4 most recent patches.
@@ -622,6 +664,42 @@ export async function insertMatches(matches: Match[]): Promise<number> {
 
     if (itemPairs.length > 0) {
       await tx`INSERT INTO participant_items ("participantId","itemId") VALUES ${tx(itemPairs)}`
+    }
+
+    const newGameIdArr = [...newGameIds]
+    if (newGameIdArr.length > 0) {
+      await tx`
+        WITH new_part AS (
+          SELECT p.id, p."gameVersion", p."championId", p.win::int AS win
+          FROM participants p
+          WHERE p."gameId" = ANY(${newGameIdArr})
+            AND p."gameVersion" IS NOT NULL
+        ),
+        agg AS (
+          SELECT np."gameVersion", np."championId", np.win,
+            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+          FROM new_part np JOIN participant_items pi ON pi."participantId" = np.id
+          GROUP BY np.id, np."gameVersion", np."championId", np.win
+          HAVING count(*) >= 5
+        ),
+        combos AS (
+          SELECT agg."gameVersion", agg."championId", agg.win,
+            ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+          FROM agg,
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+          WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+        )
+        INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
+        SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
+        FROM combos GROUP BY "gameVersion","championId",build
+        ON CONFLICT ("gameVersion","championId",build) DO UPDATE SET
+          games = item_builds_cache.games + EXCLUDED.games,
+          wins  = item_builds_cache.wins  + EXCLUDED.wins
+      `
     }
 
     // Maintain pre-aggregated summary tables
@@ -1382,69 +1460,23 @@ export interface ItemPickRate {
 }
 
 export async function getItemBuilds(championId: number, patches?: string[], allowedIds: number[] = []): Promise<ItemBuild[]> {
-  // Use [-1] sentinel when allowedIds is empty so postgres.js doesn't receive an empty array
   const allowed = allowedIds.length > 0 ? allowedIds : [-1]
   const rows = patches?.length
     ? await sql_`
-        WITH non_boot AS (
-          SELECT p.id, p.win,
-            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-            AND p."gameVersion" IS NOT NULL
-            AND pi."itemId" = ANY(${allowed})
-          GROUP BY p.id, p.win
-          HAVING count(pi."itemId") >= 5
-        ),
-        unnested AS (
-          SELECT id, win, item, pos
-          FROM non_boot, LATERAL unnest(items) WITH ORDINALITY AS t(item, pos)
-        ),
-        quintuples AS (
-          SELECT a.id, a.win, ARRAY[a.item, b.item, c.item, d.item, e.item] AS quintuple
-          FROM unnested a
-          JOIN unnested b ON b.id = a.id AND b.pos > a.pos
-          JOIN unnested c ON c.id = a.id AND c.pos > b.pos
-          JOIN unnested d ON d.id = a.id AND d.pos > c.pos
-          JOIN unnested e ON e.id = a.id AND e.pos > d.pos
-        )
-        SELECT quintuple AS build, count(*)::int AS games, sum(win::int)::int AS wins
-        FROM quintuples
-        GROUP BY quintuple
-        ORDER BY games DESC
-        LIMIT 30
+        SELECT build, SUM(games)::int AS games, SUM(wins)::int AS wins
+        FROM item_builds_cache
+        WHERE "championId" = ${championId}
+          AND "gameVersion" = ANY(${patches})
+          AND build <@ ${allowed}::int[]
+        GROUP BY build ORDER BY games DESC LIMIT 30
       `
     : await sql_`
-        WITH non_boot AS (
-          SELECT p.id, p.win,
-            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" IS NOT NULL
-            AND pi."itemId" = ANY(${allowed})
-          GROUP BY p.id, p.win
-          HAVING count(pi."itemId") >= 5
-        ),
-        unnested AS (
-          SELECT id, win, item, pos
-          FROM non_boot, LATERAL unnest(items) WITH ORDINALITY AS t(item, pos)
-        ),
-        quintuples AS (
-          SELECT a.id, a.win, ARRAY[a.item, b.item, c.item, d.item, e.item] AS quintuple
-          FROM unnested a
-          JOIN unnested b ON b.id = a.id AND b.pos > a.pos
-          JOIN unnested c ON c.id = a.id AND c.pos > b.pos
-          JOIN unnested d ON d.id = a.id AND d.pos > c.pos
-          JOIN unnested e ON e.id = a.id AND e.pos > d.pos
-        )
-        SELECT quintuple AS build, count(*)::int AS games, sum(win::int)::int AS wins
-        FROM quintuples
-        GROUP BY quintuple
-        ORDER BY games DESC
-        LIMIT 10
+        SELECT build, SUM(games)::int AS games, SUM(wins)::int AS wins
+        FROM item_builds_cache
+        WHERE "championId" = ${championId}
+          AND "gameVersion" IS NOT NULL
+          AND build <@ ${allowed}::int[]
+        GROUP BY build ORDER BY games DESC LIMIT 10
       `
   return rows.map((r: any) => ({ build: r.build as number[], games: r.games, wins: r.wins }))
 }

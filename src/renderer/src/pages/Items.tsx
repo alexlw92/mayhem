@@ -24,45 +24,6 @@ interface Archetype {
   wins: number
 }
 
-function clusterBuilds(builds: BuildRow[]): Archetype[] {
-  const trioMap = new Map<string, { ids: [number, number, number]; games: number; wins: number; combos: BuildRow[] }>()
-  for (const b of builds) {
-    const items = b.build
-    for (let i = 0; i < items.length - 2; i++)
-      for (let j = i + 1; j < items.length - 1; j++)
-        for (let k = j + 1; k < items.length; k++) {
-          const key = `${items[i]}-${items[j]}-${items[k]}`
-          const entry = trioMap.get(key) ?? { ids: [items[i], items[j], items[k]], games: 0, wins: 0, combos: [] }
-          entry.games += b.games
-          entry.wins += b.wins
-          entry.combos.push(b)
-          trioMap.set(key, entry)
-        }
-  }
-
-  const sortedTrios = [...trioMap.values()].sort((a, b) => b.games - a.games)
-  const assigned = new Set<BuildRow>()
-  const archetypes: Archetype[] = []
-
-  for (const trio of sortedTrios) {
-    if (archetypes.length >= 10) break
-    const unassigned = trio.combos.filter(b => !assigned.has(b))
-    if (unassigned.length === 0) continue
-    unassigned.forEach(b => assigned.add(b))
-    const findItem = (id: number): ItemMeta =>
-      unassigned.flatMap(b => b.items).find(i => i.id === id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' }
-    archetypes.push({
-      coreIds: trio.ids,
-      coreItems: [findItem(trio.ids[0]), findItem(trio.ids[1]), findItem(trio.ids[2])],
-      variants: [...unassigned].sort((a, b) => b.games - a.games),
-      games: unassigned.reduce((s, b) => s + b.games, 0),
-      wins: unassigned.reduce((s, b) => s + b.wins, 0),
-    })
-  }
-
-  return archetypes.sort((a, b) => b.games - a.games)
-}
-
 interface PickRow {
   itemId: number
   picks: number
@@ -79,7 +40,7 @@ interface Props {
 }
 
 export default function Items({ championId, selectedPatches, metaKey }: Props) {
-  const [builds, setBuilds] = useState<BuildRow[]>([])
+  const [archetypes, setArchetypes] = useState<Archetype[]>([])
   const [picks, setPicks] = useState<PickRow[]>([])
   const [loading, setLoading] = useState(false)
   const [totalGames, setTotalGames] = useState(0)
@@ -88,10 +49,10 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
     if (selectedPatches === null) return
     setLoading(true)
     Promise.all([
-      api.db.itemBuilds(championId, selectedPatches),
+      api.db.itemArchetypes(championId, selectedPatches),
       api.db.itemPickRates(championId, selectedPatches),
-    ]).then(([b, p]: [BuildRow[], PickRow[]]) => {
-      setBuilds(b)
+    ]).then(([a, p]: [Archetype[], PickRow[]]) => {
+      setArchetypes(a)
       setPicks(p)
       const maxPicks = p.length > 0 ? Math.max(...p.map((r) => r.picks)) : 0
       setTotalGames(maxPicks)
@@ -149,10 +110,10 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
         </section>
       )}
 
-      {builds.length > 0 && (
+      {archetypes.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Build Paths</div>
-          <BuildPaths builds={builds} totalGames={totalGames} />
+          <BuildPaths archetypes={archetypes} totalGames={totalGames} />
         </section>
       )}
 
@@ -194,44 +155,22 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
   )
 }
 
-function BuildPaths({ builds, totalGames }: { builds: BuildRow[]; totalGames: number }) {
-  const archetypes = builds.length >= 3 ? clusterBuilds(builds) : []
+function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
   const minGames = Math.max(totalGames * 0.01, 5)
   const visible = archetypes.filter(a => a.games >= minGames)
 
   if (visible.length === 0) {
-    return (
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-            <th style={{ padding: '4px 8px', fontWeight: 400 }}>Items</th>
-            <th style={{ padding: '4px 8px', fontWeight: 400, textAlign: 'right' }}>Games</th>
-            <th style={{ padding: '4px 8px', fontWeight: 400, textAlign: 'right' }}>WR%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {builds.map((b, i) => (
-            <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
-              <td style={{ padding: '6px 8px' }}>
-                <div style={{ display: 'flex', gap: 4 }}>{b.items.map(item => <ItemIcon key={item.id} iconPath={item.iconPath} name={item.name} size={32} />)}</div>
-              </td>
-              <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>{b.games}</td>
-              <td style={{ padding: '6px 8px', textAlign: 'right', color: b.games > 0 ? wrColor(b.wins / b.games) : 'var(--text-secondary)' }}>
-                {b.games > 0 ? `${((b.wins / b.games) * 100).toFixed(1)}%` : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )
+    return null
   }
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const globalFreq = new Map<number, number>()
-  for (const b of builds) {
-    for (const id of b.build) {
-      globalFreq.set(id, (globalFreq.get(id) ?? 0) + b.games)
+  for (const arch of visible) {
+    for (const v of arch.variants) {
+      for (const id of v.build) {
+        globalFreq.set(id, (globalFreq.get(id) ?? 0) + v.games)
+      }
     }
   }
 

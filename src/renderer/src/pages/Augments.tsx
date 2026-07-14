@@ -46,6 +46,7 @@ export default function Augments({ selectedPatches, initialChampionId, onMounted
   const [sort, setSort] = useState<SortKey>('pickCount')
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
   const [search, setSearch] = useState('')
+  const [minPicks, setMinPicks] = useState(20)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
     if (initialChampionId !== undefined) {
@@ -77,6 +78,7 @@ export default function Augments({ selectedPatches, initialChampionId, onMounted
 
   const filtered = data
     .filter((a) => {
+      if (a.pickCount < minPicks) return false
       if (rarityFilter !== null && a.rarity !== rarityFilter) return false
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false
       return true
@@ -135,6 +137,19 @@ export default function Augments({ selectedPatches, initialChampionId, onMounted
               onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
             >
               {RARITY_LABEL[r]}
+            </button>
+          ))}
+
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 6px' }} />
+
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Min picks</span>
+          {[0, 20, 50, 100].map((n) => (
+            <button
+              key={n}
+              className={`aug-btn ${minPicks === n ? 'active' : ''}`}
+              onClick={() => setMinPicks(n)}
+            >
+              {n === 0 ? 'All' : n}
             </button>
           ))}
 

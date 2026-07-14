@@ -35,6 +35,7 @@ import {
   ItemInfo
 } from './meta'
 import { apiClient } from './apiClient'
+import { clusterBuilds } from './itemArchetypes'
 import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
 import { autoUpdater } from 'electron-updater'
 
@@ -43,6 +44,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+const archetypeCache = new Map<string, any[]>()
 let workerRunning = false
 let syncInProgress = false
 let syncCancelled = false
@@ -196,6 +198,7 @@ async function refreshMetadata(): Promise<void> {
   saveMetaCache(champions, augments, items)
   console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
   setChampionNames(champions)
+  archetypeCache.clear()
   mainWindow?.webContents.send('meta-refreshed')
   mainWindow?.webContents.send('assets-ready')
 }
@@ -492,6 +495,29 @@ ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: stri
       iconPath: cache[p.itemId].iconPath,
       category: cache[p.itemId].category,
     }))
+})
+
+ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: string[]) => {
+  const key = `${championId}:${patches?.join(',') ?? ''}`
+  if (archetypeCache.has(key)) return archetypeCache.get(key)
+
+  const cache = getItemCache()
+  const allowedIds = Object.entries(cache)
+    .filter(([, v]) => v.category !== 'Boots')
+    .map(([k]) => Number(k))
+  const builds = await apiClient.itemBuilds(championId, patches, allowedIds)
+  const enriched = (builds as any[]).map((b) => ({
+    ...b,
+    items: (b.build as number[]).map((id) => ({
+      id,
+      name: cache[id]?.name ?? `Item ${id}`,
+      iconPath: cache[id]?.iconPath ?? '',
+      category: cache[id]?.category ?? '',
+    }))
+  }))
+  const archetypes = clusterBuilds(enriched)
+  archetypeCache.set(key, archetypes)
+  return archetypes
 })
 
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')

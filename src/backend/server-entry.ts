@@ -69,6 +69,7 @@ async function main() {
     latestPatch:  latestPatchRef,
   }).listen(PORT, () => {
     console.log(`[server] :${PORT}`)
+    ;(process as any).parentPort?.postMessage({ type: 'ready' })
   })
 }
 

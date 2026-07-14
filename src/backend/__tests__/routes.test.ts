@@ -18,9 +18,9 @@ beforeAll(async () => {
 async function truncate() {
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
-  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches,
+  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
     champion_stats_cache, augment_stats_cache, player_stats_cache,
-    player_champion_stats_cache, augment_champion_stats_cache
+    player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache
     RESTART IDENTITY CASCADE`
   await db.end()
 }
@@ -766,5 +766,203 @@ describe('POST /api/sync/fail/:puuid', () => {
     await request(app).post('/api/sync/fail/fail-test')
     const after = await request(app).get('/api/sync/next?clientId=worker-2')
     expect(after.body.puuid).toBe('fail-test')
+  })
+})
+
+// ─── Items endpoints ───────────────────────────────────────────────────────────
+
+const ITEM_CHAMP_ID = 55
+const ITEMS_CORE = [3001, 3003, 3089, 3135, 3157]
+const ITEMS_ALT =  [3001, 3003, 3089, 3165, 3157]
+const ITEMS_ALLOWED = [3001, 3003, 3089, 3135, 3157, 3165]
+
+const matchWithItems: Match = {
+  gameId: 9001,
+  queueId: 2400,
+  gameCreation: new Date('2025-06-20T10:00:00Z').getTime(),
+  gameDuration: 1100,
+  gameVersion: '15.12',
+  participants: [
+    {
+      puuid: 'item-puuid-1', summonerName: 'Mage#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
+      teamId: 100, win: true, kills: 5, deaths: 1, assists: 3,
+      damageDealt: 50000, damageTaken: 12000, goldEarned: 11000, champLevel: 15, augments: [],
+      items: ITEMS_CORE,
+    },
+    {
+      puuid: 'item-puuid-2', summonerName: 'Other#NA1', championId: 99, championName: 'Lux',
+      teamId: 200, win: false, kills: 1, deaths: 4, assists: 2,
+      damageDealt: 20000, damageTaken: 25000, goldEarned: 7000, champLevel: 11, augments: [],
+      items: [3006, 3031, 3033, 3034, 3035],
+    }
+  ]
+}
+
+const matchWithItemsAlt: Match = {
+  gameId: 9002,
+  queueId: 2400,
+  gameCreation: new Date('2025-06-21T10:00:00Z').getTime(),
+  gameDuration: 1200,
+  gameVersion: '15.12',
+  participants: [
+    {
+      puuid: 'item-puuid-3', summonerName: 'Mage2#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
+      teamId: 100, win: false, kills: 2, deaths: 3, assists: 4,
+      damageDealt: 35000, damageTaken: 18000, goldEarned: 9000, champLevel: 14, augments: [],
+      items: ITEMS_ALT,
+    }
+  ]
+}
+
+const matchWithItemsOldPatch: Match = {
+  gameId: 9003,
+  queueId: 2400,
+  gameCreation: new Date('2025-06-18T10:00:00Z').getTime(),
+  gameDuration: 1000,
+  gameVersion: '15.11',
+  participants: [
+    {
+      puuid: 'item-puuid-4', summonerName: 'Mage3#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
+      teamId: 100, win: true, kills: 3, deaths: 1, assists: 5,
+      damageDealt: 45000, damageTaken: 10000, goldEarned: 10500, champLevel: 15, augments: [],
+      items: ITEMS_CORE,
+    }
+  ]
+}
+
+describe('GET /api/items/picks', () => {
+  it('returns 400 when championId is missing', async () => {
+    const res = await request(app).get('/api/items/picks')
+    expect(res.status).toBe(400)
+  })
+
+  it('returns empty array when no data for champion', async () => {
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns item pick counts after match insertion', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    const ids = res.body.map((r: any) => r.itemId)
+    for (const id of ITEMS_CORE) expect(ids).toContain(id)
+  })
+
+  it('each row has picks and wins fields', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
+    for (const row of res.body) {
+      expect(typeof row.picks).toBe('number')
+      expect(typeof row.wins).toBe('number')
+      expect(row.picks).toBeGreaterThan(0)
+    }
+  })
+
+  it('filters by patch — returns empty for non-matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=99.99`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters by patch — returns data for matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=15.12`)
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    // Each item in the result came from the 15.12 match only (1 game)
+    for (const row of res.body) {
+      expect(row.picks).toBe(1)
+    }
+  })
+
+  it('does not return picks for other champions', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get('/api/items/picks?championId=999')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+})
+
+describe('GET /api/items/builds', () => {
+  it('returns 400 when championId is missing', async () => {
+    const res = await request(app).get('/api/items/builds')
+    expect(res.status).toBe(400)
+  })
+
+  it('returns empty array when no data for champion', async () => {
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns build rows after match insertion', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    const row = res.body[0]
+    expect(Array.isArray(row.build)).toBe(true)
+    expect(typeof row.games).toBe('number')
+    expect(typeof row.wins).toBe('number')
+  })
+
+  it('allowedIds filter — excludes builds containing items not in allowed list', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    // Provide only 4 of the 5 core items — the one build should be excluded
+    const partialAllowed = ITEMS_CORE.slice(0, 4).join(',')
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${partialAllowed}`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returned builds only contain items present in the allowed list', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
+    expect(res.status).toBe(200)
+    const allowedSet = new Set(ITEMS_ALLOWED)
+    for (const row of res.body) {
+      for (const id of row.build) {
+        expect(allowedSet.has(id)).toBe(true)
+      }
+    }
+  })
+
+  it('filters by patch — returns empty for non-matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=99.99`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters by patch — returns data for matching patch only', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    // Both patches have the same build; filtering to 15.12 should return games=1
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=15.12`)
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    const total = res.body.reduce((s: number, r: any) => s + r.games, 0)
+    expect(total).toBe(1)
+  })
+
+  it('aggregates games across patches when no patch filter given', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    const total = res.body.reduce((s: number, r: any) => s + r.games, 0)
+    expect(total).toBeGreaterThanOrEqual(2)
+  })
+
+  it('is idempotent — duplicate match insert does not double the build count', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=15.12`)
+    expect(res.status).toBe(200)
+    const total = res.body.reduce((s: number, r: any) => s + r.games, 0)
+    expect(total).toBe(1)
   })
 })

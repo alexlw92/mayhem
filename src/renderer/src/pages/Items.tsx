@@ -226,6 +226,8 @@ function BuildPaths({ builds, totalGames }: { builds: BuildRow[]; totalGames: nu
     )
   }
 
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
   const globalFreq = new Map<number, number>()
   for (const b of builds) {
     for (const id of b.build) {
@@ -240,9 +242,18 @@ function BuildPaths({ builds, totalGames }: { builds: BuildRow[]; totalGames: nu
         const sortedCore = [...arch.coreItems].sort(
           (a, b) => (globalFreq.get(b.id) ?? 0) - (globalFreq.get(a.id) ?? 0)
         )
+        const isOpen = expanded.has(ai)
+        const toggle = () => setExpanded(prev => {
+          const next = new Set(prev)
+          isOpen ? next.delete(ai) : next.add(ai)
+          return next
+        })
         return (
           <div key={ai} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-secondary)' }}>
+            <div
+              onClick={toggle}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
+            >
               <ItemIcon iconPath={sortedCore[0].iconPath} name={sortedCore[0].name} size={32} />
               <ItemIcon iconPath={sortedCore[1].iconPath} name={sortedCore[1].name} size={32} />
               <ItemIcon iconPath={sortedCore[2].iconPath} name={sortedCore[2].name} size={32} />
@@ -252,8 +263,11 @@ function BuildPaths({ builds, totalGames }: { builds: BuildRow[]; totalGames: nu
               <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 4 }}>
                 {(wr * 100).toFixed(1)}% WR
               </span>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                {isOpen ? '▲' : '▼'}
+              </span>
             </div>
-            {(() => {
+            {isOpen && (() => {
               const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
               for (const v of arch.variants) {
                 for (const fi of v.items.filter(i => !arch.coreIds.includes(i.id))) {

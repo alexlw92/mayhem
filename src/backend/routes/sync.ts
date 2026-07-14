@@ -16,19 +16,12 @@ import {
   Match
 } from '../db'
 
-export interface SyncOptions {
-  warmCache?: () => Promise<void>
-}
-
-export function createSyncRouter(opts: SyncOptions = {}): Router {
+export function createSyncRouter(): Router {
   const router = Router()
 
   router.post('/matches/bulk', async (req, res) => {
     const { matches } = req.body as { matches: Match[] }
     const inserted = await insertMatches(matches)
-    if (inserted > 0 && opts.warmCache) {
-      opts.warmCache().catch(err => console.warn('[cache] warm failed:', (err as Error).message))
-    }
     res.json({ inserted })
   })
 

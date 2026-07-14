@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import { initDb, Match } from '../db'
 import { createExpressApp } from '../server'
-import { getCached, setCached, clearCache } from '../queryCache'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -19,13 +18,15 @@ beforeAll(async () => {
 async function truncate() {
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
-  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches, champion_stats_cache, augment_stats_cache, player_stats_cache RESTART IDENTITY CASCADE`
+  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches,
+    champion_stats_cache, augment_stats_cache, player_stats_cache,
+    player_champion_stats_cache, augment_champion_stats_cache
+    RESTART IDENTITY CASCADE`
   await db.end()
 }
 
 beforeEach(async () => {
   await truncate()
-  clearCache()
 })
 
 const sampleMatch: Match = {
@@ -212,6 +213,30 @@ describe('GET /api/augments', () => {
     expect(aug.iconPath).toBe('mayhem-asset://augment-icons/200.png')
     expect(aug.rarity).toBe(1)
   })
+
+  it('filters by championId — returns augments picked by that champion', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments?championId=10')
+    expect(res.status).toBe(200)
+    const aug = res.body.find((a: any) => a.augmentId === 200)
+    expect(aug).toBeDefined()
+    expect(aug.pickCount).toBe(1)
+    expect(aug.wins).toBe(1)
+  })
+
+  it('filters by championId — returns empty for champion with no augments', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments?championId=20')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters by championId and patch — returns empty for unknown patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments?championId=10&patches=99.99')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
 })
 
 describe('GET /api/players/:puuid/augments', () => {
@@ -238,6 +263,37 @@ describe('GET /api/players/:puuid/augments', () => {
     expect(aug.name).toBe('Iron Will')
     expect(aug.iconPath).toBe('mayhem-asset://augment-icons/200.png')
   })
+
+  it('returns correct pickCount and wins', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/augments')
+    expect(res.status).toBe(200)
+    const aug = res.body.find((a: any) => a.augmentId === 200)
+    expect(aug.pickCount).toBe(1)
+    expect(aug.wins).toBe(1)
+  })
+
+  it('returns empty for player with no augments', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-2/augments')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('returns empty for unknown patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/augments?patches=99.99')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('is idempotent — duplicate insert does not double the pickCount', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/augments')
+    const aug = res.body.find((a: any) => a.augmentId === 200)
+    expect(aug.pickCount).toBe(1)
+  })
 })
 
 describe('GET /api/augments/:augmentId/champions', () => {
@@ -263,6 +319,21 @@ describe('GET /api/augments/:augmentId/champions', () => {
   it('returns empty array for an augment not in any game', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/augments/999/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('filters by patch — returns data for matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions?patches=15.12')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    expect(res.body[0].championName).toBe('Kayle')
+  })
+
+  it('filters by patch — returns empty for unknown patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions?patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
@@ -374,78 +445,6 @@ describe('POST /api/sync/enqueue-priority', () => {
   })
 })
 
-// ─── Cache unit tests ──────────────────────────────────────────────────────────
-
-describe('queryCache', () => {
-  it('returns null on a miss', () => {
-    expect(getCached('no-such-key')).toBeNull()
-  })
-
-  it('returns stored data on a hit', () => {
-    setCached('cache-test', { foo: 'bar' })
-    expect(getCached('cache-test')).toEqual({ foo: 'bar' })
-  })
-
-  it('returns null after clearCache', () => {
-    setCached('cache-test2', [1, 2, 3])
-    clearCache()
-    expect(getCached('cache-test2')).toBeNull()
-  })
-})
-
-// ─── Cache population via routes ───────────────────────────────────────────────
-
-describe('GET /api/players — cache', () => {
-  it('populates players:all after first request', async () => {
-    await request(app).get('/api/players')
-    expect(getCached('players:all')).not.toBeNull()
-  })
-
-  it('serves stale data injected into players:all without hitting DB', async () => {
-    setCached('players:all', [{ puuid: 'cached-player' }])
-    const res = await request(app).get('/api/players')
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual([{ puuid: 'cached-player' }])
-  })
-
-  it('populates players:<patch> after patch-filtered request', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
-    await request(app).get('/api/players?patches=15.12')
-    expect(getCached('players:15.12')).not.toBeNull()
-  })
-})
-
-describe('GET /api/champions — cache', () => {
-  it('populates champions:all after first request', async () => {
-    await request(app).get('/api/champions')
-    expect(getCached('champions:all')).not.toBeNull()
-  })
-
-  it('serves injected data from champions:all without hitting DB', async () => {
-    setCached('champions:all', [{ championId: 99, championName: 'Syndra' }])
-    const res = await request(app).get('/api/champions')
-    expect(res.body).toEqual([{ championId: 99, championName: 'Syndra' }])
-  })
-})
-
-describe('GET /api/augments — cache', () => {
-  it('populates augments:all after first request', async () => {
-    await request(app).get('/api/augments')
-    expect(getCached('augments:all')).not.toBeNull()
-  })
-
-  it('serves injected data from augments:all without hitting DB', async () => {
-    setCached('augments:all', [{ augmentId: 42, name: 'Test Aug' }])
-    const res = await request(app).get('/api/augments')
-    expect(res.body).toEqual([{ augmentId: 42, name: 'Test Aug' }])
-  })
-
-  it('does not cache when championId filter is present', async () => {
-    await request(app).get('/api/augments?championId=10')
-    expect(getCached('augments:all')).toBeNull()
-  })
-})
-
 // ─── Player endpoints ──────────────────────────────────────────────────────────
 
 describe('GET /api/players/search', () => {
@@ -494,6 +493,7 @@ describe('GET /api/players/:puuid/stats', () => {
     expect(res.body.games).toBe(3)
     expect(res.body.wins).toBe(2)
     expect(res.body.avgDpm).toBeGreaterThan(0)
+    expect(res.body.avgGold).toBe(0)
   })
 
   it('returns null when patch filter matches no games', async () => {
@@ -552,6 +552,15 @@ describe('GET /api/players/:puuid/champions', () => {
     expect(row.championName).toBe('Kayle')
     expect(row.games).toBe(3)
     expect(row.wins).toBe(2)
+  })
+
+  it('cross-player isolation — puuid-2 sees only Teemo', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-2/champions')
+    expect(res.status).toBe(200)
+    expect(res.body).toHaveLength(1)
+    expect(res.body[0].championId).toBe(20)
+    expect(res.body[0].championName).toBe('Teemo')
   })
 
   it('respects patch filter', async () => {
@@ -650,6 +659,13 @@ describe('GET /api/group', () => {
     expect(typeof res.body.avgWinRate).toBe('number')
     expect(typeof res.body.avgKda).toBe('number')
   })
+
+  it('avgWinRate and avgKda are non-zero when there are wins and kills', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/group')
+    expect(res.body.avgWinRate).toBeGreaterThan(0)
+    expect(res.body.avgKda).toBeGreaterThan(0)
+  })
 })
 
 // ─── Upsert / incomplete games / synctimes ─────────────────────────────────────
@@ -669,6 +685,21 @@ describe('PUT /api/matches/:gameId', () => {
     await request(app).put('/api/matches/5001').send(updated)
     const matches = await request(app).get('/api/players/test-puuid-1/matches')
     expect(matches.body[0].gameDuration).toBe(9999)
+  })
+
+  it('upsert does not double champion game count', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await request(app).put('/api/matches/5001').send(sampleMatch)
+    const res = await request(app).get('/api/players/test-puuid-1/champions')
+    expect(res.body[0].games).toBe(1)
+  })
+
+  it('upsert does not double player augment count', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await request(app).put('/api/matches/5001').send(sampleMatch)
+    const res = await request(app).get('/api/players/test-puuid-1/augments')
+    const aug = res.body.find((a: any) => a.augmentId === 200)
+    expect(aug.pickCount).toBe(1)
   })
 })
 

@@ -1,11 +1,11 @@
 import axios from 'axios'
 import {
   initDb,
+  backfillDetailCaches,
   upsertChampions, upsertAugments,
   getChampionsFromDb, getAugmentsFromDb,
-  getPatches, getChampionStats, getAugmentStats, getPlayerStats, getGroupSummary,
+  getPatches,
 } from './db'
-import { setCached } from './queryCache'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
 
@@ -46,48 +46,19 @@ async function refreshMetadata(
   }
 }
 
-async function tryWarm(key: string, fn: () => Promise<unknown>): Promise<void> {
-  try {
-    setCached(key, await fn())
-    console.log(`[cache] ${key} done`)
-  } catch (e) {
-    console.warn(`[cache] ${key} failed:`, (e as Error).message)
-  }
-}
-
-async function warmCache(
-  augRef: { value: Record<number, AugmentInfo> },
-  latestPatchRef: { value: string | null }
-): Promise<void> {
-  const patches = await getPatches()
-  const patch = patches[0] ?? null
-  latestPatchRef.value = patch
-
-  // Patch-specific queries first — these are what users see on first load.
-  // All-patches queries (full table scans) run after and are lower priority.
-  if (patch) {
-    await tryWarm(`champions:${patch}`, () => getChampionStats(undefined, [patch]))
-    await tryWarm(`players:${patch}`,   () => getPlayerStats([patch]))
-    await tryWarm(`augments:${patch}`,  () => getAugmentStats(undefined, undefined, [patch], augRef.value))
-  }
-
-  await tryWarm('champions:all', () => getChampionStats(undefined, undefined))
-  await tryWarm('players:all',   () => getPlayerStats(undefined))
-  await tryWarm('augments:all',  () => getAugmentStats(undefined, undefined, undefined, augRef.value))
-  await tryWarm('group:all',     () => getGroupSummary())
-
-  console.log('[cache] warm complete')
-}
-
 async function main() {
   console.log('[db] initializing...')
   await initDb()
   console.log('[db] ready')
+  backfillDetailCaches().catch(err => console.warn('[backfill] failed:', (err as Error).message))
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }
   const latestPatchRef = { value: null as string | null }
   console.log(`[meta] loaded from DB — ${Object.keys(champRef.value).length} champions, ${Object.keys(augRef.value).length} augments`)
+
+  const patches = await getPatches()
+  latestPatchRef.value = patches[0] ?? null
 
   refreshMetadata(champRef, augRef)
   setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
@@ -96,10 +67,8 @@ async function main() {
     getChampions: () => champRef.value,
     getAugments:  () => augRef.value,
     latestPatch:  latestPatchRef,
-    warmCache: () => warmCache(augRef, latestPatchRef),
   }).listen(PORT, () => {
     console.log(`[server] :${PORT}`)
-    warmCache(augRef, latestPatchRef).catch(err => console.warn('[cache] warm failed:', (err as Error).message))
   })
 }
 

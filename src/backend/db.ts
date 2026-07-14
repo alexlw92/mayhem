@@ -186,6 +186,36 @@ export async function initDb(url?: string): Promise<void> {
     )
   `
   await sql_`CREATE INDEX IF NOT EXISTS idx_player_stats_cache_puuid ON player_stats_cache (puuid)`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS player_champion_stats_cache (
+      "gameVersion"  TEXT    NOT NULL,
+      puuid          TEXT    NOT NULL,
+      "championId"   INTEGER NOT NULL,
+      "championName" TEXT    NOT NULL DEFAULT '',
+      games          INTEGER NOT NULL DEFAULT 0,
+      wins           INTEGER NOT NULL DEFAULT 0,
+      total_kills    INTEGER NOT NULL DEFAULT 0,
+      total_deaths   INTEGER NOT NULL DEFAULT 0,
+      total_assists  INTEGER NOT NULL DEFAULT 0,
+      total_damage   BIGINT  NOT NULL DEFAULT 0,
+      total_duration BIGINT  NOT NULL DEFAULT 0,
+      PRIMARY KEY ("gameVersion", puuid, "championId")
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_player_champion_stats_cache_puuid ON player_champion_stats_cache (puuid)`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS augment_champion_stats_cache (
+      "gameVersion"  TEXT    NOT NULL,
+      "augmentId"    INTEGER NOT NULL,
+      "championId"   INTEGER NOT NULL,
+      "championName" TEXT    NOT NULL DEFAULT '',
+      pick_count     INTEGER NOT NULL DEFAULT 0,
+      wins           INTEGER NOT NULL DEFAULT 0,
+      total_damage   BIGINT  NOT NULL DEFAULT 0,
+      total_duration BIGINT  NOT NULL DEFAULT 0,
+      PRIMARY KEY ("gameVersion", "augmentId", "championId")
+    )
+  `
 
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
@@ -231,6 +261,45 @@ export async function initDb(url?: string): Promise<void> {
     `
     console.log('[db] player stats cache backfill complete')
   }
+
+  const [{ count: playerChampCount }] = await sql_`SELECT COUNT(*) FROM player_champion_stats_cache`
+  if (Number(playerChampCount) === 0) {
+    console.log('[db] backfilling player_champion_stats_cache...')
+    await sql_`
+      INSERT INTO player_champion_stats_cache
+        ("gameVersion",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+      SELECT p."gameVersion",p.puuid,p."championId",MIN(p."championName"),
+        COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
+        SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+      FROM participants p
+      WHERE p."gameVersion" IS NOT NULL AND p.puuid != ''
+      GROUP BY p."gameVersion",p.puuid,p."championId"
+      ON CONFLICT DO NOTHING
+    `
+    console.log('[db] player_champion_stats_cache backfill complete')
+  }
+
+}
+
+export async function backfillDetailCaches(): Promise<void> {
+  const patches = await getPatches()
+  if (patches.length === 0) return
+  for (const gv of patches) {
+    console.log(`[backfill] augment_champion ${gv}...`)
+    await sql_`
+      INSERT INTO augment_champion_stats_cache
+        ("gameVersion","augmentId","championId","championName",pick_count,wins,total_damage,total_duration)
+      SELECT p."gameVersion",pa."augmentId",p."championId",MIN(p."championName"),
+        COUNT(*)::int,SUM(p.win::int)::int,SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+      FROM participants p
+      JOIN participant_augments pa ON pa."participantId"=p.id
+      WHERE p."gameVersion" = ${gv}
+      GROUP BY p."gameVersion",pa."augmentId",p."championId"
+      ON CONFLICT DO NOTHING
+    `
+    console.log(`[backfill] augment_champion ${gv} done`)
+  }
+  console.log('[backfill] complete')
 }
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
@@ -574,6 +643,62 @@ export async function insertMatches(matches: Match[]): Promise<number> {
       `
     }
 
+    const playerChampAgg = new Map<string, [string, string, number, string, number, number, number, number, number, number, number]>()
+    for (const m of newMatches) {
+      if (!m.gameVersion) continue
+      for (const p of m.participants) {
+        if (!p.puuid) continue
+        const key = `${m.gameVersion}:${p.puuid}:${p.championId}`
+        const cur = playerChampAgg.get(key) ?? [m.gameVersion, p.puuid, p.championId, p.championName, 0, 0, 0, 0, 0, 0, 0]
+        cur[4] += 1; cur[5] += p.win ? 1 : 0; cur[6] += p.kills; cur[7] += p.deaths
+        cur[8] += p.assists; cur[9] += p.damageDealt; cur[10] += m.gameDuration
+        playerChampAgg.set(key, cur)
+      }
+    }
+    if (playerChampAgg.size > 0) {
+      await tx`
+        INSERT INTO player_champion_stats_cache
+          ("gameVersion",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+        VALUES ${tx([...playerChampAgg.values()])}
+        ON CONFLICT ("gameVersion",puuid,"championId") DO UPDATE SET
+          "championName"  = EXCLUDED."championName",
+          games           = player_champion_stats_cache.games + EXCLUDED.games,
+          wins            = player_champion_stats_cache.wins + EXCLUDED.wins,
+          total_kills     = player_champion_stats_cache.total_kills + EXCLUDED.total_kills,
+          total_deaths    = player_champion_stats_cache.total_deaths + EXCLUDED.total_deaths,
+          total_assists   = player_champion_stats_cache.total_assists + EXCLUDED.total_assists,
+          total_damage    = player_champion_stats_cache.total_damage + EXCLUDED.total_damage,
+          total_duration  = player_champion_stats_cache.total_duration + EXCLUDED.total_duration
+      `
+    }
+
+    const augChampAgg = new Map<string, [string, number, number, string, number, number, number, number]>()
+    for (const m of newMatches) {
+      if (!m.gameVersion) continue
+      for (const p of m.participants) {
+        for (const augId of p.augments) {
+          if (!augId) continue
+          const key = `${m.gameVersion}:${augId}:${p.championId}`
+          const cur = augChampAgg.get(key) ?? [m.gameVersion, augId, p.championId, p.championName, 0, 0, 0, 0]
+          cur[4] += 1; cur[5] += p.win ? 1 : 0; cur[6] += p.damageDealt; cur[7] += m.gameDuration
+          augChampAgg.set(key, cur)
+        }
+      }
+    }
+    if (augChampAgg.size > 0) {
+      await tx`
+        INSERT INTO augment_champion_stats_cache
+          ("gameVersion","augmentId","championId","championName",pick_count,wins,total_damage,total_duration)
+        VALUES ${tx([...augChampAgg.values()])}
+        ON CONFLICT ("gameVersion","augmentId","championId") DO UPDATE SET
+          "championName"  = EXCLUDED."championName",
+          pick_count      = augment_champion_stats_cache.pick_count + EXCLUDED.pick_count,
+          wins            = augment_champion_stats_cache.wins + EXCLUDED.wins,
+          total_damage    = augment_champion_stats_cache.total_damage + EXCLUDED.total_damage,
+          total_duration  = augment_champion_stats_cache.total_duration + EXCLUDED.total_duration
+      `
+    }
+
     return newMatches.length
   })
 
@@ -672,6 +797,41 @@ export async function upsertMatch(match: Match): Promise<void> {
         total_kills     = EXCLUDED.total_kills,
         total_deaths    = EXCLUDED.total_deaths,
         total_assists   = EXCLUDED.total_assists,
+        total_damage    = EXCLUDED.total_damage,
+        total_duration  = EXCLUDED.total_duration
+    `
+    await sql_`
+      INSERT INTO player_champion_stats_cache
+        ("gameVersion",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+      SELECT p."gameVersion",p.puuid,p."championId",MIN(p."championName"),
+        COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
+        SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+      FROM participants p
+      WHERE p."gameVersion" = ${gv} AND p.puuid != ''
+      GROUP BY p."gameVersion",p.puuid,p."championId"
+      ON CONFLICT ("gameVersion",puuid,"championId") DO UPDATE SET
+        "championName"  = EXCLUDED."championName",
+        games           = EXCLUDED.games,
+        wins            = EXCLUDED.wins,
+        total_kills     = EXCLUDED.total_kills,
+        total_deaths    = EXCLUDED.total_deaths,
+        total_assists   = EXCLUDED.total_assists,
+        total_damage    = EXCLUDED.total_damage,
+        total_duration  = EXCLUDED.total_duration
+    `
+    await sql_`
+      INSERT INTO augment_champion_stats_cache
+        ("gameVersion","augmentId","championId","championName",pick_count,wins,total_damage,total_duration)
+      SELECT p."gameVersion",pa."augmentId",p."championId",MIN(p."championName"),
+        COUNT(*)::int,SUM(p.win::int)::int,SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+      FROM participants p
+      JOIN participant_augments pa ON pa."participantId"=p.id
+      WHERE p."gameVersion" = ${gv}
+      GROUP BY p."gameVersion",pa."augmentId",p."championId"
+      ON CONFLICT ("gameVersion","augmentId","championId") DO UPDATE SET
+        "championName"  = EXCLUDED."championName",
+        pick_count      = EXCLUDED.pick_count,
+        wins            = EXCLUDED.wins,
         total_damage    = EXCLUDED.total_damage,
         total_duration  = EXCLUDED.total_duration
     `
@@ -805,28 +965,28 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
 export async function getOnePlayerStats(puuid: string, patches?: string[]): Promise<PlayerStats | null> {
   const rows = patches?.length
     ? await sql_`
-        SELECT
-          ${puuid} AS puuid,
-          (SELECT "summonerName" FROM participants p2 WHERE p2.puuid = ${puuid} ORDER BY p2.id DESC LIMIT 1) AS "summonerName",
-          COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
-          SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
-          CASE WHEN SUM(p."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
-          AVG(p."goldEarned") AS "avgGold",
-          true AS "syncedFull"
-        FROM participants p
-        WHERE p.puuid = ${puuid} AND p."gameVersion" = ANY(${patches})
+        SELECT pc.puuid,
+          MAX(pc."summonerName") AS "summonerName",
+          SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
+          SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
+          CASE WHEN SUM(pc.total_duration) > 0
+            THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
+          END AS "avgDpm"
+        FROM player_stats_cache pc
+        WHERE pc.puuid = ${puuid} AND pc."gameVersion" = ANY(${patches})
+        GROUP BY pc.puuid
       `
     : await sql_`
-        SELECT
-          ${puuid} AS puuid,
-          (SELECT "summonerName" FROM participants p2 WHERE p2.puuid = ${puuid} ORDER BY p2.id DESC LIMIT 1) AS "summonerName",
-          COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
-          SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
-          CASE WHEN SUM(p."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
-          AVG(p."goldEarned") AS "avgGold",
-          true AS "syncedFull"
-        FROM participants p
-        WHERE p.puuid = ${puuid}
+        SELECT pc.puuid,
+          MAX(pc."summonerName") AS "summonerName",
+          SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
+          SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
+          CASE WHEN SUM(pc.total_duration) > 0
+            THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
+          END AS "avgDpm"
+        FROM player_stats_cache pc
+        WHERE pc.puuid = ${puuid}
+        GROUP BY pc.puuid
       `
   if (!rows.length || !rows[0].games) return null
   const r = rows[0]
@@ -839,7 +999,7 @@ export async function getOnePlayerStats(puuid: string, patches?: string[]): Prom
     deaths: r.deaths,
     assists: r.assists,
     avgDpm: parseFloat(r.avgDpm),
-    avgGold: parseFloat(r.avgGold),
+    avgGold: 0,
     syncedFull: true,
   }
 }
@@ -918,27 +1078,33 @@ export async function getChampionStats(puuid?: string, patches?: string[]): Prom
   let rows: any[]
 
   if (puuid && patches?.length) {
-    rows = await sql_.unsafe(
-      `SELECT p."championId", p."championName",
-        COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
-        SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
-        CASE WHEN SUM(p."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
-        p.puuid, p."summonerName"
-       FROM participants p WHERE p.puuid = $1 AND p."gameVersion" = ANY($2)
-       GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`,
-      [puuid, patches]
-    )
+    rows = await sql_`
+      SELECT pc."championId", pc."championName",
+        SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
+        SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
+        CASE WHEN SUM(pc.total_duration) > 0
+          THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
+        END AS "avgDpm",
+        ${puuid}::text AS puuid, ''::text AS "summonerName"
+      FROM player_champion_stats_cache pc
+      WHERE pc.puuid = ${puuid} AND pc."gameVersion" = ANY(${patches})
+      GROUP BY pc."championId", pc."championName"
+      ORDER BY games DESC
+    `
   } else if (puuid) {
-    rows = await sql_.unsafe(
-      `SELECT p."championId", p."championName",
-        COUNT(*)::int AS games, SUM(p.win::int)::int AS wins,
-        SUM(p.kills)::int AS kills, SUM(p.deaths)::int AS deaths, SUM(p.assists)::int AS assists,
-        CASE WHEN SUM(p."gameDuration") > 0 THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0) ELSE 0 END AS "avgDpm",
-        p.puuid, p."summonerName"
-       FROM participants p WHERE p.puuid = $1
-       GROUP BY p."championId", p."championName", p.puuid, p."summonerName" ORDER BY games DESC`,
-      [puuid]
-    )
+    rows = await sql_`
+      SELECT pc."championId", pc."championName",
+        SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
+        SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
+        CASE WHEN SUM(pc.total_duration) > 0
+          THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
+        END AS "avgDpm",
+        ${puuid}::text AS puuid, ''::text AS "summonerName"
+      FROM player_champion_stats_cache pc
+      WHERE pc.puuid = ${puuid}
+      GROUP BY pc."championId", pc."championName"
+      ORDER BY games DESC
+    `
   } else if (patches?.length) {
     // Fast path: read from pre-aggregated summary table
     rows = await sql_.unsafe(
@@ -1011,8 +1177,32 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
         GROUP BY "augmentId" ORDER BY "pickCount" DESC
       `
     }
+  } else if (championId && !puuid) {
+    rows = patches?.length
+      ? await sql_`
+          SELECT acc."augmentId",
+            SUM(acc.pick_count)::int AS "pickCount", SUM(acc.wins)::int AS wins,
+            CASE WHEN SUM(acc.total_duration) > 0
+              THEN SUM(acc.total_damage)::float / (SUM(acc.total_duration) / 60.0) ELSE 0
+            END AS "avgDpm"
+          FROM augment_champion_stats_cache acc
+          WHERE acc."championId" = ${championId} AND acc."gameVersion" = ANY(${patches})
+          GROUP BY acc."augmentId"
+          ORDER BY "pickCount" DESC
+        `
+      : await sql_`
+          SELECT acc."augmentId",
+            SUM(acc.pick_count)::int AS "pickCount", SUM(acc.wins)::int AS wins,
+            CASE WHEN SUM(acc.total_duration) > 0
+              THEN SUM(acc.total_damage)::float / (SUM(acc.total_duration) / 60.0) ELSE 0
+            END AS "avgDpm"
+          FROM augment_champion_stats_cache acc
+          WHERE acc."championId" = ${championId}
+          GROUP BY acc."augmentId"
+          ORDER BY "pickCount" DESC
+        `
   } else {
-    // Per-player or per-champion: fall back to participant-level join
+    // Both puuid and championId — raw join fallback (4-dimensional, no dedicated table)
     const conditions: string[] = []
     const params: any[] = []
     if (puuid)           { params.push(puuid);      conditions.push(`p.puuid = $${params.length}`) }
@@ -1055,25 +1245,53 @@ export interface AugmentChampionStat {
 }
 
 export async function getAugmentChampionStats(augmentId: number, puuid?: string, patches?: string[]): Promise<AugmentChampionStat[]> {
-  const conditions: string[] = [`pa."augmentId" = $1`]
-  const params: any[] = [augmentId]
-  if (puuid)           { params.push(puuid);   conditions.push(`p.puuid = $${params.length}`) }
-  if (patches?.length) { params.push(patches); conditions.push(`p."gameVersion" = ANY($${params.length})`) }
-  const where = `WHERE ${conditions.join(' AND ')}`
+  let rows: any[]
 
-  const rows = await sql_.unsafe(`
-    SELECT p."championId", MIN(p."championName") AS "championName",
-      COUNT(*)::int AS games,
-      SUM(p.win::int)::int AS wins,
-      CASE WHEN SUM(p."gameDuration") > 0
-        THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0)
-        ELSE 0 END AS "avgDpm"
-    FROM participant_augments pa
-    JOIN participants p ON pa."participantId" = p.id
-    ${where}
-    GROUP BY p."championId"
-    ORDER BY games DESC
-  `, params)
+  if (!puuid) {
+    rows = patches?.length
+      ? await sql_`
+          SELECT acc."championId", acc."championName",
+            SUM(acc.pick_count)::int AS games, SUM(acc.wins)::int AS wins,
+            CASE WHEN SUM(acc.total_duration) > 0
+              THEN SUM(acc.total_damage)::float / (SUM(acc.total_duration) / 60.0) ELSE 0
+            END AS "avgDpm"
+          FROM augment_champion_stats_cache acc
+          WHERE acc."augmentId" = ${augmentId} AND acc."gameVersion" = ANY(${patches})
+          GROUP BY acc."championId", acc."championName"
+          ORDER BY games DESC
+        `
+      : await sql_`
+          SELECT acc."championId", acc."championName",
+            SUM(acc.pick_count)::int AS games, SUM(acc.wins)::int AS wins,
+            CASE WHEN SUM(acc.total_duration) > 0
+              THEN SUM(acc.total_damage)::float / (SUM(acc.total_duration) / 60.0) ELSE 0
+            END AS "avgDpm"
+          FROM augment_champion_stats_cache acc
+          WHERE acc."augmentId" = ${augmentId}
+          GROUP BY acc."championId", acc."championName"
+          ORDER BY games DESC
+        `
+  } else {
+    // puuid filter — raw join
+    const conditions: string[] = [`pa."augmentId" = $1`]
+    const params: any[] = [augmentId]
+    params.push(puuid); conditions.push(`p.puuid = $${params.length}`)
+    if (patches?.length) { params.push(patches); conditions.push(`p."gameVersion" = ANY($${params.length})`) }
+    const where = `WHERE ${conditions.join(' AND ')}`
+    rows = await sql_.unsafe(`
+      SELECT p."championId", MIN(p."championName") AS "championName",
+        COUNT(*)::int AS games,
+        SUM(p.win::int)::int AS wins,
+        CASE WHEN SUM(p."gameDuration") > 0
+          THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0)
+          ELSE 0 END AS "avgDpm"
+      FROM participant_augments pa
+      JOIN participants p ON pa."participantId" = p.id
+      ${where}
+      GROUP BY p."championId"
+      ORDER BY games DESC
+    `, params)
+  }
 
   return rows.map((r: any) => ({
     championId: r.championId,
@@ -1191,14 +1409,14 @@ export async function getGroupSummary(): Promise<GroupSummary> {
   const rows = await sql_`
     SELECT
       (SELECT COUNT(*) FROM matches)::int AS "totalMatches",
-      AVG(p.win::int)                     AS "avgWinRate",
-      CASE WHEN SUM(p.deaths) > 0
-        THEN SUM(p.kills + p.assists)::float / SUM(p.deaths)
-        ELSE 0 END                        AS "avgKda",
-      CASE WHEN SUM(p."gameDuration") > 0
-        THEN SUM(p."damageDealt")::float / (SUM(p."gameDuration") / 60.0)
-        ELSE 0 END                        AS "avgDpm"
-    FROM participants p
+      CASE WHEN SUM(games) > 0 THEN SUM(wins)::float / SUM(games) ELSE 0 END AS "avgWinRate",
+      CASE WHEN SUM(total_deaths) > 0
+        THEN (SUM(total_kills) + SUM(total_assists))::float / SUM(total_deaths)
+        ELSE 0 END AS "avgKda",
+      CASE WHEN SUM(total_duration) > 0
+        THEN SUM(total_damage)::float / (SUM(total_duration) / 60.0)
+        ELSE 0 END AS "avgDpm"
+    FROM player_stats_cache
   `
   const r = rows[0]
   return {

@@ -214,6 +214,24 @@ exports[`CurrentGame > renders champ select state with team data 1`] = `
       <div />
       <div />
     </div>
+    <div
+      style="margin-bottom: 24px;"
+    >
+      <div
+        style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;"
+      >
+        <span
+          style="font-size: 13px; font-weight: 700; color: var(--text-primary);"
+        >
+          Augments on Screen
+        </span>
+        <button
+          class="aug-btn"
+        >
+          Scan Screen
+        </button>
+      </div>
+    </div>
     <div>
       <div
         class="card"
@@ -671,6 +689,24 @@ exports[`CurrentGame > shows in-progress state 1`] = `
             Hidden Player
           </div>
         </div>
+      </div>
+    </div>
+    <div
+      style="margin-bottom: 24px;"
+    >
+      <div
+        style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;"
+      >
+        <span
+          style="font-size: 13px; font-weight: 700; color: var(--text-primary);"
+        >
+          Augments on Screen
+        </span>
+        <button
+          class="aug-btn"
+        >
+          Scan Screen
+        </button>
       </div>
     </div>
     <div>

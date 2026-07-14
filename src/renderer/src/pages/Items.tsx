@@ -60,9 +60,7 @@ function clusterBuilds(builds: BuildRow[]): Archetype[] {
     })
   }
 
-  const sorted = archetypes.sort((a, b) => b.games - a.games)
-  const minGames = (sorted[0]?.games ?? 0) * 0.01
-  return sorted.filter(a => a.games >= minGames)
+  return archetypes.sort((a, b) => b.games - a.games)
 }
 
 interface PickRow {
@@ -154,7 +152,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
       {builds.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Build Paths</div>
-          <BuildPaths builds={builds} />
+          <BuildPaths builds={builds} totalGames={totalGames} />
         </section>
       )}
 
@@ -196,10 +194,12 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
   )
 }
 
-function BuildPaths({ builds }: { builds: BuildRow[] }) {
+function BuildPaths({ builds, totalGames }: { builds: BuildRow[]; totalGames: number }) {
   const archetypes = builds.length >= 3 ? clusterBuilds(builds) : []
+  const minGames = Math.max(totalGames * 0.01, 5)
+  const visible = archetypes.filter(a => a.games >= minGames)
 
-  if (archetypes.length === 0) {
+  if (visible.length === 0) {
     return (
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
@@ -235,7 +235,7 @@ function BuildPaths({ builds }: { builds: BuildRow[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {archetypes.map((arch, ai) => {
+      {visible.map((arch, ai) => {
         const wr = arch.games > 0 ? arch.wins / arch.games : 0
         const sortedCore = [...arch.coreItems].sort(
           (a, b) => (globalFreq.get(b.id) ?? 0) - (globalFreq.get(a.id) ?? 0)

@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import Overlay from './pages/Overlay'
 import './index.css'
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
@@ -16,10 +17,12 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   }
 }
 
+const isOverlay = window.location.hash.slice(1) === 'overlay'
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {isOverlay ? <Overlay /> : <App />}
     </ErrorBoundary>
   </React.StrictMode>
 )

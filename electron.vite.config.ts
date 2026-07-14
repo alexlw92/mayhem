@@ -1,6 +1,16 @@
-import { resolve } from 'path'
+import { resolve, join } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import dotenv from 'dotenv'
+
+// Must load env BEFORE defineConfig evaluates the define block.
+// Vite plugin hooks (vite-plugin-dotenv) run after the config object is built,
+// so process.env values set by plugins are too late for define to capture.
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
+} else {
+  dotenv.config({ path: join(process.cwd(), '.env') })
+}
 
 export default defineConfig({
   main: {

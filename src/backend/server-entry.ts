@@ -1,10 +1,9 @@
-import 'dotenv/config'
 import axios from 'axios'
 import {
   initDb,
   upsertChampions, upsertAugments,
   getChampionsFromDb, getAugmentsFromDb,
-  getPatches, getChampionStats, getAugmentStats, getPlayerStats,
+  getPatches, getChampionStats, getAugmentStats, getPlayerStats, getGroupSummary,
 } from './db'
 import { setCached } from './queryCache'
 import { createExpressApp } from './server'
@@ -56,9 +55,13 @@ async function tryWarm(key: string, fn: () => Promise<unknown>): Promise<void> {
   }
 }
 
-async function warmCache(augRef: { value: Record<number, AugmentInfo> }): Promise<void> {
+async function warmCache(
+  augRef: { value: Record<number, AugmentInfo> },
+  latestPatchRef: { value: string | null }
+): Promise<void> {
   const patches = await getPatches()
   const patch = patches[0] ?? null
+  latestPatchRef.value = patch
 
   // Patch-specific queries first — these are what users see on first load.
   // All-patches queries (full table scans) run after and are lower priority.
@@ -71,6 +74,7 @@ async function warmCache(augRef: { value: Record<number, AugmentInfo> }): Promis
   await tryWarm('champions:all', () => getChampionStats(undefined, undefined))
   await tryWarm('players:all',   () => getPlayerStats(undefined))
   await tryWarm('augments:all',  () => getAugmentStats(undefined, undefined, undefined, augRef.value))
+  await tryWarm('group:all',     () => getGroupSummary())
 
   console.log('[cache] warm complete')
 }
@@ -82,6 +86,7 @@ async function main() {
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }
+  const latestPatchRef = { value: null as string | null }
   console.log(`[meta] loaded from DB — ${Object.keys(champRef.value).length} champions, ${Object.keys(augRef.value).length} augments`)
 
   refreshMetadata(champRef, augRef)
@@ -90,10 +95,11 @@ async function main() {
   createExpressApp({
     getChampions: () => champRef.value,
     getAugments:  () => augRef.value,
-    warmCache: () => warmCache(augRef),
+    latestPatch:  latestPatchRef,
+    warmCache: () => warmCache(augRef, latestPatchRef),
   }).listen(PORT, () => {
     console.log(`[server] :${PORT}`)
-    warmCache(augRef).catch(err => console.warn('[cache] warm failed:', (err as Error).message))
+    warmCache(augRef, latestPatchRef).catch(err => console.warn('[cache] warm failed:', (err as Error).message))
   })
 }
 

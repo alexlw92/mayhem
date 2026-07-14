@@ -1,0 +1,7 @@
+#!/bin/sh
+echo "[hooks] running tests before push..."
+npm test
+if [ $? -ne 0 ]; then
+  echo "[hooks] tests failed — push aborted. Use git push --no-verify to bypass."
+  exit 1
+fi

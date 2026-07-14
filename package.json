@@ -4,7 +4,7 @@
   "description": "ARAM Mayhem stats tracker",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "npm run server:build && electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite dev",
@@ -13,7 +13,8 @@
     "server:start": "node dist-server/server-entry.js",
     "worker:build": "tsc --project tsconfig.worker.json",
     "worker:start": "node dist-worker/src/worker/index.js",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "build": {
     "appId": "com.mayhem.stats",
@@ -43,7 +44,8 @@
     "express": "^5.2.1",
     "postgres": "^3.4.9",
     "react-router-dom": "^6.23.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",

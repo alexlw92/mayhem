@@ -490,16 +490,15 @@ function ParticipantCard({ participant, stats, champStats, globalChampRow, resol
             {resolvedName || (puuid ? puuid.slice(0, 12) + '…' : '—')}
           </div>
 
-          {stats === undefined && (
+          {!puuid ? (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hidden</div>
+          ) : stats === undefined ? (
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Loading…</div>
-          )}
-          {stats === null && (
+          ) : stats === null ? (
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No data</div>
-          )}
-          {stats && stats.games === 0 && (
+          ) : stats.games === 0 ? (
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>No ARAM data</div>
-          )}
-          {stats && stats.games > 0 && (
+          ) : (
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               {stats.games}g · <span className={overallWr! >= 0.5 ? 'win' : 'loss'}>{(overallWr! * 100).toFixed(0)}% WR</span> · {Math.round(stats.avgDpm)}/min
             </div>

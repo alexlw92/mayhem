@@ -19,7 +19,7 @@ beforeAll(async () => {
 async function truncate() {
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
-  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches RESTART IDENTITY CASCADE`
+  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches, champion_stats_cache, augment_stats_cache, player_stats_cache RESTART IDENTITY CASCADE`
   await db.end()
 }
 

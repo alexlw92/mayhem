@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getCached, setCached } from '../queryCache'
+import { getCached, getStale, setCached } from '../queryCache'
 import {
   getPatches,
   getPlayerStats,
@@ -19,6 +19,7 @@ import {
 
 export interface StatsOptions {
   getAugments?: () => Record<number, AugmentInfo>
+  latestPatch?: { value: string | null }
 }
 
 const parsePatches = (raw: unknown): string[] | undefined => {
@@ -85,7 +86,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
   })
 
   router.get('/group', async (_req, res) => {
-    res.json(await getGroupSummary())
+    const key = 'group:all'
+    const hit = getCached(key)
+    if (hit) return res.json(hit)
+    const result = await getGroupSummary()
+    setCached(key, result)
+    res.json(result)
   })
 
   router.get('/champions', async (req, res) => {
@@ -99,12 +105,24 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/augments', async (req, res) => {
     const augCache = opts.getAugments?.() ?? {}
-    const patches = parsePatches(req.query.patches)
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
     const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
     const key = !championId
       ? (!patches?.length ? 'augments:all' : patches.length === 1 ? `augments:${patches[0]}` : null)
       : patches?.length === 1 ? `augments:champ:${championId}:${patches[0]}` : null
-    if (key) { const hit = getCached(key); if (hit) return res.json(hit) }
+    if (key) {
+      const hit = getStale<Awaited<ReturnType<typeof getAugmentStats>>>(key)
+      if (hit) {
+        res.json(hit.data)
+        if (hit.needsRefresh) {
+          getAugmentStats(undefined, championId, patches, augCache)
+            .then(fresh => setCached(key, fresh))
+            .catch(err => console.warn('[cache] revalidate failed:', (err as Error).message))
+        }
+        return
+      }
+    }
     const result = await getAugmentStats(undefined, championId, patches, augCache)
     if (key) setCached(key, result)
     res.json(result)

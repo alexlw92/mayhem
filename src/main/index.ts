@@ -1,10 +1,15 @@
 import dotenv from 'dotenv'
 import { join, dirname } from 'path'
-// Load .env: next to exe (production), one level up (dist-electron → project root), then cwd (dev terminal)
-dotenv.config({ path: join(dirname(process.execPath), '.env') })
-dotenv.config({ path: join(dirname(process.execPath), '..', '.env') })
-dotenv.config()
-import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron'
+if (process.env.NODE_ENV !== 'production') {
+  // Dev: load .env.dev from project root
+  dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
+} else {
+  // Production: load .env next to exe, then one level up, then cwd fallback
+  dotenv.config({ path: join(dirname(process.execPath), '.env') })
+  dotenv.config({ path: join(dirname(process.execPath), '..', '.env') })
+  dotenv.config()
+}
+import { app, BrowserWindow, ipcMain, shell, protocol, net, globalShortcut, screen, desktopCapturer, utilityProcess } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import axios from 'axios'
@@ -36,12 +41,35 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+let overlayWindow: BrowserWindow | null = null
 let workerRunning = false
 let syncInProgress = false
 let syncCancelled = false
 let syncAccum = { imported: 0, playerssynced: 0 }
+let backendProcess: Electron.UtilityProcess | null = null
 
 const CLIENT_ID = `electron-${os.hostname()}-${process.pid}`
+
+function spawnLocalBackend(): void {
+  const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:3847'
+  let hostname: string
+  try { hostname = new URL(backendUrl).hostname } catch { return }
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') return
+
+  const serverPath = join(process.cwd(), 'dist-server', 'server-entry.js')
+  if (!fs.existsSync(serverPath)) {
+    console.warn('[backend] dist-server/server-entry.js not found — run: npm run server:build')
+    return
+  }
+
+  backendProcess = utilityProcess.fork(serverPath, [], {
+    stdio: 'pipe',
+    env: { ...process.env },
+  })
+  backendProcess.stdout?.on('data', (d: Buffer) => process.stdout.write('[backend] ' + d))
+  backendProcess.stderr?.on('data', (d: Buffer) => process.stderr.write('[backend] ' + d))
+  backendProcess.on('exit', (code: number) => console.log(`[backend] exited (${code})`))
+}
 
 // Forward main-process logs to renderer DevTools console
 const _origLog = console.log.bind(console)
@@ -172,7 +200,28 @@ async function syncWorker(): Promise<void> {
     }
     ensureChampionNames()
 
-    const { puuid } = await apiClient.claimNextJob(CLIENT_ID)
+    let puuid: string | null = null
+    let claimed = false
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        ;({ puuid } = await apiClient.claimNextJob(CLIENT_ID))
+        claimed = true
+        break
+      } catch (err) {
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 5_000))
+        } else {
+          console.warn('[sync] backend unreachable after retries, stopping worker:', (err as Error).message)
+          if (draining && syncInProgress) {
+            syncInProgress = false
+            mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'error' })
+          }
+          return
+        }
+      }
+    }
+    if (!claimed) return
+
     if (!puuid) {
       if (draining && syncInProgress) {
         syncInProgress = false
@@ -181,7 +230,7 @@ async function syncWorker(): Promise<void> {
       return
     }
 
-    const playerName = await apiClient.playerName(puuid) ?? puuid.slice(0, 8) + '…'
+    const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
 
     try {
       const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
@@ -239,12 +288,49 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F5' || (input.key === 'r' && input.control)) {
+        event.preventDefault()
+      }
+    })
   }
+}
+
+// ─── Overlay window ──────────────────────────────────────────────────────────
+
+function createOverlay(): void {
+  const display = screen.getPrimaryDisplay()
+  overlayWindow = new BrowserWindow({
+    width: 1060,
+    height: 320,
+    x: display.bounds.x,
+    y: display.bounds.y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  })
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    overlayWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#overlay')
+  } else {
+    overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'overlay' })
+  }
+  overlayWindow.hide()
+  overlayWindow.on('closed', () => { overlayWindow = null })
 }
 
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
+  spawnLocalBackend()
   electronApp.setAppUserModelId('com.mayhem.stats')
   app.on('browser-window-created', (_, win) => optimizer.watchWindowShortcuts(win))
 
@@ -265,6 +351,17 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+  createOverlay()
+
+  globalShortcut.register('Alt+M', () => {
+    if (!overlayWindow) return
+    if (overlayWindow.isVisible()) {
+      overlayWindow.hide()
+    } else {
+      overlayWindow.showInactive()
+    }
+  })
+
   if (!is.dev) autoUpdater.checkForUpdatesAndNotify()
 
   mainWindow!.webContents.once('did-finish-load', () => {
@@ -279,6 +376,12 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => { backendProcess?.kill(); backendProcess = null })
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {
@@ -435,4 +538,17 @@ ipcMain.handle('meta:refresh', async () => {
     champions: Object.keys(getChampionCache()).length,
     augments: Object.keys(getAugmentCache()).length
   }
+})
+
+ipcMain.on('overlay:hide', () => { overlayWindow?.hide() })
+ipcMain.on('overlay:show', () => { overlayWindow?.showInactive() })
+ipcMain.on('overlay:resize', (_e, w: number, h: number) => { overlayWindow?.setContentSize(w, h) })
+
+ipcMain.handle('overlay:captureScreen', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 1920, height: 1080 },
+  })
+  const lol = sources.find(s => /league.of.legends/i.test(s.name)) ?? sources[0]
+  return lol?.thumbnail.toDataURL() ?? null
 })

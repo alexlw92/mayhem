@@ -13,7 +13,11 @@ const api = {
     lookupPlayer: (gameName: string, tagLine: string) =>
       ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine),
     currentGame: () => ipcRenderer.invoke('lcu:currentGame'),
-    syncCurrentGame: (puuids: string[]) => ipcRenderer.invoke('lcu:syncCurrentGame', puuids)
+    syncCurrentGame: (puuids: string[]) => ipcRenderer.invoke('lcu:syncCurrentGame', puuids),
+    captureScreen: () => ipcRenderer.invoke('overlay:captureScreen'),
+    hideOverlay: () => ipcRenderer.send('overlay:hide'),
+    showOverlay: () => ipcRenderer.send('overlay:show'),
+    resizeOverlay: (w: number, h: number) => ipcRenderer.send('overlay:resize', w, h)
   },
   db: {
     patches: () => ipcRenderer.invoke('db:patches'),

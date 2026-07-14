@@ -9,7 +9,7 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: join(dirname(process.execPath), '..', '.env') })
   dotenv.config()
 }
-import { app, BrowserWindow, ipcMain, shell, protocol, net, globalShortcut, screen, desktopCapturer, utilityProcess } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, protocol, net, desktopCapturer, utilityProcess } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import axios from 'axios'
@@ -41,7 +41,6 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
-let overlayWindow: BrowserWindow | null = null
 let workerRunning = false
 let syncInProgress = false
 let syncCancelled = false
@@ -296,37 +295,6 @@ function createWindow(): void {
   }
 }
 
-// ─── Overlay window ──────────────────────────────────────────────────────────
-
-function createOverlay(): void {
-  const display = screen.getPrimaryDisplay()
-  overlayWindow = new BrowserWindow({
-    width: 1060,
-    height: 320,
-    x: display.bounds.x,
-    y: display.bounds.y,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      contextIsolation: true,
-    },
-  })
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    overlayWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#overlay')
-  } else {
-    overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'overlay' })
-  }
-  overlayWindow.hide()
-  overlayWindow.on('closed', () => { overlayWindow = null })
-}
-
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
@@ -351,16 +319,6 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
-  createOverlay()
-
-  globalShortcut.register('Alt+M', () => {
-    if (!overlayWindow) return
-    if (overlayWindow.isVisible()) {
-      overlayWindow.hide()
-    } else {
-      overlayWindow.showInactive()
-    }
-  })
 
   if (!is.dev) autoUpdater.checkForUpdatesAndNotify()
 
@@ -379,10 +337,6 @@ app.whenReady().then(async () => {
 })
 
 app.on('before-quit', () => { backendProcess?.kill(); backendProcess = null })
-
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll()
-})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -539,10 +493,6 @@ ipcMain.handle('meta:refresh', async () => {
     augments: Object.keys(getAugmentCache()).length
   }
 })
-
-ipcMain.on('overlay:hide', () => { overlayWindow?.hide() })
-ipcMain.on('overlay:show', () => { overlayWindow?.showInactive() })
-ipcMain.on('overlay:resize', (_e, w: number, h: number) => { overlayWindow?.setContentSize(w, h) })
 
 ipcMain.handle('overlay:captureScreen', async () => {
   const sources = await desktopCapturer.getSources({

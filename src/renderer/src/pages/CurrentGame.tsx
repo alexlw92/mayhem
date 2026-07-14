@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
+import { matchAugments } from './ocrUtils'
 import './Dashboard.css'
 
 const api = (window as any).api
@@ -83,12 +84,42 @@ export default function CurrentGame({ selectedPatches }: Props) {
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
   const [augSort, setAugSort] = useState<SortKey>('pickCount')
   const [search, setSearch] = useState('')
+  const tesseractRef = useRef<any>(null)
+  const [scannedAugIds, setScannedAugIds] = useState<number[]>([])
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done'>('idle')
+  const [scannedAugStats, setScannedAugStats] = useState<AugmentStat[]>([])
 
   useEffect(() => {
     api.db.augmentCache().then(setAugmentCache).catch(() => {})
     api.db.championCache().then(setChampionCache).catch(() => {})
     api.lcu.currentSummoner().then((s: any) => { if (s?.puuid) setMyPuuid(s.puuid) }).catch(() => {})
+    return () => { tesseractRef.current?.terminate() }
   }, [])
+
+  async function handleScan() {
+    setScanStatus('scanning')
+    try {
+      const dataUrl = await api.lcu.captureScreen()
+      if (!tesseractRef.current) {
+        const { createWorker } = await import('tesseract.js')
+        tesseractRef.current = await createWorker('eng', 1, { logger: () => {} })
+      }
+      const { data: { text } } = await tesseractRef.current.recognize(dataUrl)
+      const ids = matchAugments(text, augmentCache)
+      setScannedAugIds(ids)
+      if (ids.length > 0) {
+        const allStats: AugmentStat[] = await api.db.augmentStats(undefined, undefined, selectedPatches ?? undefined)
+        setScannedAugStats(allStats.filter((s) => ids.includes(s.augmentId)))
+      } else {
+        setScannedAugStats([])
+      }
+    } catch (e) {
+      console.warn('[scan]', e)
+      setScannedAugStats([])
+    } finally {
+      setScanStatus('done')
+    }
+  }
 
   useEffect(() => {
     if (!selectedPatches?.length) return
@@ -322,6 +353,60 @@ export default function CurrentGame({ selectedPatches }: Props) {
             ) : phase === 'InProgress' && i < 5 ? <HiddenPlayerCard /> : <div />}
           </Fragment>
         ))}
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Augments on Screen</span>
+          <button className="aug-btn" onClick={handleScan} disabled={scanStatus === 'scanning'}>
+            {scanStatus === 'scanning' ? 'Scanning…' : 'Scan Screen'}
+          </button>
+        </div>
+        {scanStatus === 'done' && scannedAugIds.length === 0 && (
+          <div className="card"><div className="empty-state">No augments detected</div></div>
+        )}
+        {scannedAugStats.length > 0 && (
+          <div className="card">
+            <table>
+              <thead>
+                <tr><th>Augment</th><th>Rarity</th><th>Picks</th><th>Win Rate</th><th>Avg DPM</th></tr>
+              </thead>
+              <tbody>
+                {scannedAugStats.map((a) => {
+                  const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
+                  const rarityColor = RARITY_COLOR[a.rarity] ?? RARITY_COLOR[0]
+                  return (
+                    <tr key={a.augmentId}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 4, border: `1px solid ${rarityColor}`, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-primary)' }}>
+                            {a.iconPath && <img src={a.iconPath} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />}
+                          </div>
+                          {a.name}
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: rarityColor, border: `1px solid ${rarityColor}`, opacity: 0.9 }}>
+                          {RARITY_LABEL[a.rarity] ?? 'Silver'}
+                        </span>
+                      </td>
+                      <td>{a.pickCount}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
+                          </div>
+                          <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
+                        </div>
+                      </td>
+                      <td>{Math.round(a.avgDpm)}/min</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {myChampId !== 0 && (

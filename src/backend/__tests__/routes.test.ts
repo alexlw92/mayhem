@@ -831,6 +831,21 @@ const matchWithItemsOldPatch: Match = {
 }
 
 describe('GET /api/items/picks', () => {
+  beforeAll(async () => {
+    await request(app).post('/api/meta/items').send({
+      items: [
+        { id: 3001, name: 'Evenshroud',       iconPath: '', category: 'Armor'  },
+        { id: 3003, name: "Archangel's Staff", iconPath: '', category: 'AP'     },
+        { id: 3089, name: "Rabadon's Deathcap",iconPath: '', category: 'AP'     },
+        { id: 3135, name: 'Void Staff',        iconPath: '', category: 'AP'     },
+        { id: 3157, name: "Zhonya's Hourglass",iconPath: '', category: 'AP'     },
+        { id: 3165, name: 'Morellonomicon',    iconPath: '', category: 'AP'     },
+        { id: 3006, name: "Berserker's Greaves",iconPath:'', category: 'Boots'  },
+      ],
+      componentIds: [],
+    })
+  })
+
   it('returns 400 when championId is missing', async () => {
     const res = await request(app).get('/api/items/picks')
     expect(res.status).toBe(400)

@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
-const ARCHETYPE_CACHE_VERSION = 3
+const ARCHETYPE_CACHE_VERSION = 4
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1898,8 +1898,8 @@ async function _computeArchetypes(
     }))
     .filter(b => b.items.filter((i: any) => i.category !== 'Boots' && !componentIds.has(i.id)).length >= 3)
 
-  const { clusterByFrequency } = await import('./itemArchetypes')
-  const archetypes = clusterByFrequency(enriched, componentIds)
+  const { clusterByCooccurrence } = await import('./itemArchetypes')
+  const archetypes = clusterByCooccurrence(enriched, componentIds)
 
   await sql_`
     INSERT INTO item_archetypes_cache ("championId", patches_key, archetypes)

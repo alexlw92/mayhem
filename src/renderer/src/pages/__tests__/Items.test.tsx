@@ -8,13 +8,13 @@ const mockArchetype = {
   openingId: 3001,
   openingItem: { id: 3001, name: 'Evenshroud', iconPath: 'mayhem-asset://items/3001.png', category: 'Armor' },
   archetypeLabel: 'Tank',
-  bootId: 3020,
-  bootItem: { id: 3020, name: "Sorcerer's Shoes", iconPath: 'mayhem-asset://items/3020.png', category: 'Boots' },
-  coreIds: [3003, 3089] as [number, number],
+  starterId: null,
+  coreIds: [3003, 3089, 3135],
   coreItems: [
     { id: 3003, name: 'Archangel\'s Staff', iconPath: 'mayhem-asset://items/3003.png', category: 'AP' },
     { id: 3089, name: 'Rabadon\'s Deathcap', iconPath: 'mayhem-asset://items/3089.png', category: 'AP' },
-  ] as [any, any],
+    { id: 3135, name: 'Void Staff', iconPath: 'mayhem-asset://items/3135.png', category: 'AP' },
+  ],
   variants: [
     {
       build: [3001, 3003, 3089, 3135, 3157],
@@ -31,22 +31,24 @@ const mockArchetype = {
   ],
   games: 18,
   wins: 11,
+  orGroups: [],
 }
 
 const mockArchetype2 = {
   openingId: 3165,
   openingItem: { id: 3165, name: 'Morellonomicon', iconPath: 'mayhem-asset://items/3165.png', category: 'AP' },
   archetypeLabel: null,
-  bootId: null,
-  bootItem: null,
-  coreIds: [3089, 3135] as [number, number],
+  starterId: null,
+  coreIds: [3089, 3135, 3157],
   coreItems: [
     { id: 3089, name: 'Rabadon\'s Deathcap', iconPath: 'mayhem-asset://items/3089.png', category: 'AP' },
     { id: 3135, name: 'Void Staff', iconPath: 'mayhem-asset://items/3135.png', category: 'AP' },
-  ] as [any, any],
+    { id: 3157, name: 'Zhonya\'s Hourglass', iconPath: 'mayhem-asset://items/3157.png', category: 'AP' },
+  ],
   variants: [],
   games: 7,
   wins: 4,
+  orGroups: [],
 }
 
 const mockPickRows = [

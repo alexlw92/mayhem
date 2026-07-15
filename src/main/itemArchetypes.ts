@@ -16,10 +16,8 @@ export interface Archetype {
   openingId: number
   openingItem: ItemMeta
   archetypeLabel: string | null
-  bootId: number | null
-  bootItem: ItemMeta | null
-  coreIds: [number]
-  coreItems: [ItemMeta]
+  coreIds: number[]
+  coreItems: ItemMeta[]
   variants: BuildRow[]
   games: number
   wins: number
@@ -54,7 +52,7 @@ export function clusterBuilds(builds: BuildRow[], validItemNames?: Set<string>):
   const globalFreq = new Map<number, number>()
   const itemById = new Map<number, ItemMeta>()
   for (const b of builds) {
-    for (const item of b.items) {
+    for (const item of b.items.filter(i => i.category !== 'Boots')) {
       globalFreq.set(item.id, (globalFreq.get(item.id) ?? 0) + b.games)
       if (!itemById.has(item.id)) itemById.set(item.id, item)
     }
@@ -62,7 +60,7 @@ export function clusterBuilds(builds: BuildRow[], validItemNames?: Set<string>):
 
   const pairMap = new Map<string, { ids: [number, number]; games: number; wins: number; variants: BuildRow[] }>()
   for (const b of builds) {
-    const ids = b.items.map(i => i.id)
+    const ids = b.items.filter(i => i.category !== 'Boots').map(i => i.id)
     for (let i = 0; i < ids.length - 1; i++) {
       for (let j = i + 1; j < ids.length; j++) {
         const sorted = [ids[i], ids[j]].sort((a, z) => a - z) as [number, number]
@@ -81,45 +79,106 @@ export function clusterBuilds(builds: BuildRow[], validItemNames?: Set<string>):
   const top: Array<{ ids: [number, number]; games: number; wins: number; variants: BuildRow[] }> = []
 
   for (const pair of sortedPairs) {
-    if (top.length >= 10) break
+    if (top.length >= 20) break
     const unassigned = pair.variants.filter(b => !assigned.has(b))
     if (unassigned.length === 0) continue
     unassigned.forEach(b => assigned.add(b))
     top.push({
       ids: pair.ids,
-      variants: unassigned,
-      games: unassigned.reduce((s, b) => s + b.games, 0),
-      wins: unassigned.reduce((s, b) => s + b.wins, 0),
+      variants: pair.variants,
+      games: pair.games,
+      wins: pair.wins,
     })
   }
 
-  return top.map(({ ids, games, wins, variants }) => {
-    const items = ids.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
-
-    const isOpener = (item: ItemMeta) => {
-      const lower = item.name.toLowerCase()
-      return FIRST_ITEM_LOOKUP.has(lower) && (!validItemNames || validItemNames.has(lower))
+  function topNSig(variants: BuildRow[], n: number): string {
+    const freq = new Map<number, number>()
+    for (const v of variants) {
+      for (const item of v.items.filter(i => i.category !== 'Boots')) {
+        freq.set(item.id, (freq.get(item.id) ?? 0) + v.games)
+      }
     }
-    const byFreqDesc = (a: ItemMeta, b: ItemMeta) => (globalFreq.get(b.id) ?? 0) - (globalFreq.get(a.id) ?? 0)
+    return [...freq.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n)
+      .map(([id]) => id)
+      .sort((a, b) => a - b)
+      .join('-')
+  }
 
-    const recognized = items.filter(isOpener).sort(byFreqDesc)
-    const others = items.filter(i => !isOpener(i)).sort(byFreqDesc)
-    const ordered = [...recognized, ...others]
+  function buildArchetype(variants: BuildRow[], games: number, wins: number, numCore: 1 | 2): Archetype {
+    const localFreq = new Map<number, number>()
+    for (const v of variants) {
+      for (const item of v.items.filter(i => i.category !== 'Boots')) {
+        localFreq.set(item.id, (localFreq.get(item.id) ?? 0) + v.games)
+      }
+    }
+    const topIds = [...localFreq.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 1 + numCore)
+      .map(([id]) => id)
+    const items = topIds.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
 
-    const opener = ordered[0]
-    const openerLabel = FIRST_ITEM_LOOKUP.get(opener.name.toLowerCase())?.join(' / ') ?? null
-
+    const first = items[0]
+    const cores = items.slice(1)
+    const archetypeLabel = items.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
     return {
-      openingId: opener.id,
-      openingItem: opener,
-      archetypeLabel: openerLabel,
+      openingId: first.id,
+      openingItem: first,
+      archetypeLabel,
       bootId: null,
       bootItem: null,
-      coreIds: [ordered[1].id] as [number],
-      coreItems: [ordered[1]] as [ItemMeta],
+      coreIds: cores.map(c => c.id),
+      coreItems: cores,
       variants: [...variants].sort((a, b) => b.games - a.games),
       games,
       wins,
     }
+  }
+
+  function mergeGroup(group: Array<{ variants: BuildRow[]; games: number; wins: number }>, numCore: 1 | 2): Archetype {
+    if (group.length === 1) return buildArchetype(group[0].variants, group[0].games, group[0].wins, numCore)
+    const uniqueVariants = new Set<BuildRow>()
+    for (const g of group) for (const v of g.variants) uniqueVariants.add(v)
+    const all = [...uniqueVariants]
+    return buildArchetype(all, all.reduce((s, v) => s + v.games, 0), all.reduce((s, v) => s + v.wins, 0), numCore)
+  }
+
+  function runMergePass(archs: Archetype[], n: number): Archetype[] {
+    const groups = new Map<string, Archetype[]>()
+    for (const a of archs) {
+      const key = topNSig(a.variants, n)
+      const g = groups.get(key) ?? []
+      g.push(a)
+      groups.set(key, g)
+    }
+    return [...groups.values()].map(group => {
+      if (group.length === 1) return group[0]
+      const uniqueVariants = new Set<BuildRow>()
+      for (const a of group) for (const v of a.variants) uniqueVariants.add(v)
+      const all = [...uniqueVariants]
+      return buildArchetype(all, all.reduce((s, v) => s + v.games, 0), all.reduce((s, v) => s + v.wins, 0), 2)
+    })
+  }
+
+  // Pass 1: derive opener for each top[] entry first, then group by top-3 sig
+  const preliminary = top.map(e => buildArchetype(e.variants, e.games, e.wins, 1))
+  const pass1Map = new Map<string, number[]>()
+  preliminary.forEach((arch, idx) => {
+    const key = topNSig(arch.variants, 3)
+    const g = pass1Map.get(key) ?? []
+    g.push(idx)
+    pass1Map.set(key, g)
   })
+  let archetypes: Archetype[] = [...pass1Map.values()].map(indices => {
+    if (indices.length === 1) return preliminary[indices[0]]
+    const group = indices.map(i => top[i])
+    return mergeGroup(group, 2)
+  }).sort((a, b) => b.games - a.games)
+
+  // Pass 2 (top-4) and Pass 3 (top-5): further merge within same opener
+  archetypes = runMergePass(archetypes, 4).sort((a, b) => b.games - a.games)
+  archetypes = runMergePass(archetypes, 5).sort((a, b) => b.games - a.games)
+
+  return archetypes
 }

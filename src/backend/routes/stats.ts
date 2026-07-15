@@ -17,6 +17,8 @@ import {
   getItemBuildsForArchetypes,
   getItemPickRates,
   getBootsByOpener,
+  upsertItemMeta,
+  getOrComputeArchetypes,
   AugmentInfo
 } from '../db'
 
@@ -132,6 +134,21 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const bootIds = typeof req.query.boots === 'string' && req.query.boots
       ? req.query.boots.split(',').map(Number).filter(Boolean) : []
     res.json(await getItemBuildsForArchetypes(championId, patches, bootIds))
+  })
+
+  router.get('/items/archetypes', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    res.json(await getOrComputeArchetypes(championId, patches))
+  })
+
+  router.post('/meta/items', async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items : []
+    const componentIds = Array.isArray(req.body?.componentIds) ? req.body.componentIds : []
+    await upsertItemMeta(items, componentIds)
+    res.json({ ok: true })
   })
 
   router.get('/items/boots-by-opener', async (req, res) => {

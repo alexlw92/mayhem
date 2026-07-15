@@ -35,7 +35,6 @@ import {
   ItemInfo
 } from './meta'
 import { apiClient } from './apiClient'
-import { clusterBuilds } from './itemArchetypes'
 import { mapGame, importGamesForPuuid, setChampionNames, getChampionNames } from './sync'
 import { autoUpdater } from 'electron-updater'
 
@@ -47,7 +46,6 @@ let mainWindow: BrowserWindow | null = null
 function sendToWindow(channel: string, ...args: unknown[]): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args)
 }
-const archetypeCache = new Map<string, any[]>()
 let workerRunning = false
 let syncInProgress = false
 let syncCancelled = false
@@ -148,6 +146,7 @@ async function refreshMetadata(): Promise<void> {
 
   // Fetch item data from CommunityDragon
   const items: Record<number, ItemInfo> = {}
+  const componentIds: number[] = []
   try {
     const itemsRes = await axios.get<any[]>(`${CDRAGON_PLUGIN}/v1/items.json`, { timeout: 15000 })
     for (const item of itemsRes.data) {
@@ -155,6 +154,10 @@ async function refreshMetadata(): Promise<void> {
       const cats: string[] = item.categories ?? []
       if (cats.includes('Consumable') || cats.includes('Trinket')) continue
       if ((item.priceTotal ?? 0) < 700) continue
+      if ((item.from?.length ?? 0) === 0 && Array.isArray(item.to) && item.to.length > 0) {
+        componentIds.push(item.id)
+        continue
+      }
       const iconRaw: string = item.iconPath ?? ''
       const iconUrl = iconRaw
         ? `${CDRAGON_PLUGIN}/${iconRaw.replace(/^\/lol-game-data\/assets\//i, '').toLowerCase()}`
@@ -199,7 +202,7 @@ async function refreshMetadata(): Promise<void> {
   saveMetaCache(champions, augments, items)
   console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
   setChampionNames(champions)
-  archetypeCache.clear()
+  apiClient.syncItemMeta(Object.values(items), componentIds).catch(e => console.warn('[meta] item meta sync failed:', (e as Error).message))
   sendToWindow('meta-refreshed')
   sendToWindow('assets-ready')
 }
@@ -502,51 +505,7 @@ ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: stri
 })
 
 ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: string[]) => {
-  const key = `${championId}:${patches?.join(',') ?? ''}`
-  if (archetypeCache.has(key)) return archetypeCache.get(key)
-
-  const cache = getItemCache()
-  const bootIds = Object.entries(cache)
-    .filter(([, v]) => v.category === 'Boots')
-    .map(([k]) => Number(k))
-
-  const rawBuilds = await apiClient.itemBuildsForArchetypes(championId, patches, bootIds)
-  const enriched = (rawBuilds as any[]).map((b) => ({
-    ...b,
-    items: (b.build as number[]).map((id) => ({
-      id,
-      name: cache[id]?.name ?? `Item ${id}`,
-      iconPath: cache[id]?.iconPath ?? '',
-      category: cache[id]?.category ?? '',
-    })),
-  }))
-  const validItemNames = new Set(Object.values(cache).map(v => v.name.toLowerCase()))
-  const archetypes = clusterBuilds(enriched, validItemNames)
-
-  // attach per-path boots
-  const openerIds = archetypes.map(a => a.openingId)
-  const bootsData: { openerId: number; bootId: number; picks: number }[] =
-    openerIds.length > 0 && bootIds.length > 0
-      ? await apiClient.itemBootsByOpener(championId, openerIds, bootIds, patches).catch(() => [])
-      : []
-
-  const topBoot = new Map<number, number>()
-  for (const r of bootsData) {
-    if (!topBoot.has(r.openerId)) topBoot.set(r.openerId, r.bootId)
-  }
-
-  const result = archetypes.map(a => {
-    const bootId = topBoot.get(a.openingId) ?? null
-    return {
-      ...a,
-      bootId,
-      bootItem: bootId != null
-        ? { id: bootId, name: cache[bootId]?.name ?? `Item ${bootId}`, iconPath: cache[bootId]?.iconPath ?? '', category: 'Boots' }
-        : null,
-    }
-  })
-  archetypeCache.set(key, result)
-  return result
+  return apiClient.itemArchetypes(championId, patches)
 })
 
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')

@@ -5,6 +5,7 @@ import {
   upsertChampions, upsertAugments,
   getChampionsFromDb, getAugmentsFromDb,
   getPatches,
+  upsertItemMeta,
 } from './db'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
@@ -46,11 +47,35 @@ async function refreshMetadata(
   }
 }
 
+async function fetchAndStoreItems(): Promise<void> {
+  const CDRAGON_PLUGIN = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default'
+  const { data } = await axios.get<any[]>(`${CDRAGON_PLUGIN}/v1/items.json`, { timeout: 15000 })
+  const items: Array<{ id: number; name: string; iconPath: string; category: string }> = []
+  const componentIds: number[] = []
+  for (const item of data) {
+    if (!item.id || !item.name) continue
+    const cats: string[] = item.categories ?? []
+    if (cats.includes('Consumable') || cats.includes('Trinket')) continue
+    if ((item.priceTotal ?? 0) < 700) continue
+    if ((item.from?.length ?? 0) === 0 && Array.isArray(item.to) && item.to.length > 0) {
+      componentIds.push(item.id); continue
+    }
+    const iconRaw: string = item.iconPath ?? ''
+    const iconPath = iconRaw
+      ? `${CDRAGON_PLUGIN}/${iconRaw.replace(/^\/lol-game-data\/assets\//i, '').toLowerCase()}`
+      : ''
+    items.push({ id: item.id, name: item.name, iconPath, category: cats.includes('Boots') ? 'Boots' : (cats[0] ?? '') })
+  }
+  await upsertItemMeta(items, componentIds)
+  console.log(`[meta] seeded ${items.length} items + ${componentIds.length} components`)
+}
+
 async function main() {
   console.log('[db] initializing...')
   await initDb()
   console.log('[db] ready')
   backfillDetailCaches().catch(err => console.warn('[backfill] failed:', (err as Error).message))
+  fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }

@@ -237,6 +237,25 @@ export async function initDb(url?: string): Promise<void> {
   `
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_build ON item_builds_cache USING gin(build)`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS meta_items (
+      id           int  PRIMARY KEY,
+      name         text NOT NULL,
+      "iconPath"   text,
+      category     text,
+      is_component boolean DEFAULT false
+    )
+  `
+  await sql_`ALTER TABLE meta_items ADD COLUMN IF NOT EXISTS is_component boolean DEFAULT false`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS item_archetypes_cache (
+      "championId"  int  NOT NULL,
+      patches_key   text NOT NULL,
+      archetypes    jsonb NOT NULL,
+      computed_at   timestamptz DEFAULT now(),
+      PRIMARY KEY ("championId", patches_key)
+    )
+  `
 
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
@@ -300,10 +319,11 @@ export async function initDb(url?: string): Promise<void> {
     console.log('[db] player_champion_stats_cache backfill complete')
   }
 
-  const [{ count: itemBuildsCacheCount }] = await sql_`SELECT COUNT(*) FROM item_builds_cache`
-  if (Number(itemBuildsCacheCount) === 0) {
-    console.log('[db] backfilling item_builds_cache...')
-    await sql_`
+  sql_`SELECT COUNT(*) FROM item_builds_cache`.then((rows: any[]) => {
+    const count = rows[0]?.count
+    if (Number(count) > 0) return
+    console.log('[db] backfilling item_builds_cache (background)...')
+    return sql_`
       WITH agg AS (
         SELECT p."gameVersion", p."championId", p.win::int AS win,
           array_agg(pi."itemId" ORDER BY pi."itemId") AS items
@@ -327,9 +347,8 @@ export async function initDb(url?: string): Promise<void> {
       SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
       FROM combos GROUP BY "gameVersion","championId",build
       ON CONFLICT DO NOTHING
-    `
-    console.log('[db] item_builds_cache backfill complete')
-  }
+    `.then(() => console.log('[db] item_builds_cache backfill complete'))
+  }).catch((e: Error) => console.warn('[db] item_builds_cache backfill failed:', e.message))
 
   // Prune raw match data older than the 4 most recent patches.
   // Aggregate stats are preserved in cache tables so nothing is lost analytically.
@@ -983,6 +1002,8 @@ export async function upsertMatch(match: Match): Promise<void> {
         total_damage    = EXCLUDED.total_damage,
         total_duration  = EXCLUDED.total_duration
     `
+    const affectedChampionIds = [...new Set(match.participants.map(p => p.championId))]
+    await sql_`DELETE FROM item_archetypes_cache WHERE "championId" = ANY(${affectedChampionIds}::int[])`
   }
 }
 
@@ -1537,7 +1558,7 @@ export async function getBootsByOpener(
 export async function getItemBuildsForArchetypes(
   championId: number,
   patches: string[] | undefined,
-  bootIds: number[]
+  excludedIds: number[]
 ): Promise<{ build: number[]; games: number; wins: number }[]> {
   const rows = patches?.length
     ? await sql_`
@@ -1547,9 +1568,8 @@ export async function getItemBuildsForArchetypes(
               SELECT pi."itemId"
               FROM participant_items pi
               WHERE pi."participantId" = p.id
-                AND pi."itemId" != ALL(${bootIds}::int[])
+                AND pi."itemId" != ALL(${excludedIds}::int[])
               ORDER BY pi."itemId"
-              LIMIT 5
             ) AS build
           FROM participants p
           WHERE p."championId" = ${championId}
@@ -1560,6 +1580,7 @@ export async function getItemBuildsForArchetypes(
         WHERE array_length(build, 1) >= 3
         GROUP BY build
         ORDER BY games DESC
+        LIMIT 1000
       `
     : await sql_`
         WITH per_game AS (
@@ -1568,9 +1589,8 @@ export async function getItemBuildsForArchetypes(
               SELECT pi."itemId"
               FROM participant_items pi
               WHERE pi."participantId" = p.id
-                AND pi."itemId" != ALL(${bootIds}::int[])
+                AND pi."itemId" != ALL(${excludedIds}::int[])
               ORDER BY pi."itemId"
-              LIMIT 5
             ) AS build
           FROM participants p
           WHERE p."championId" = ${championId}
@@ -1580,6 +1600,7 @@ export async function getItemBuildsForArchetypes(
         WHERE array_length(build, 1) >= 3
         GROUP BY build
         ORDER BY games DESC
+        LIMIT 1000
       `
   return rows.map((r: any) => ({ build: r.build as number[], games: r.games, wins: r.wins }))
 }
@@ -1772,4 +1793,78 @@ export async function getGroupSummary(): Promise<GroupSummary> {
     avgKda: parseFloat(r.avgKda ?? '0'),
     avgDpm: parseFloat(r.avgDpm ?? '0')
   }
+}
+
+export async function upsertItemMeta(
+  items: Array<{ id: number; name: string; iconPath: string; category: string }>,
+  componentIds: number[] = []
+): Promise<void> {
+  if (items.length > 0) {
+    const ids = items.map(i => i.id)
+    const names = items.map(i => i.name)
+    const iconPaths = items.map(i => i.iconPath)
+    const categories = items.map(i => i.category)
+    await sql_`
+      INSERT INTO meta_items (id, name, "iconPath", category, is_component)
+      SELECT *, false FROM unnest(${ids}::int[], ${names}::text[], ${iconPaths}::text[], ${categories}::text[])
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        "iconPath" = EXCLUDED."iconPath",
+        category = EXCLUDED.category,
+        is_component = false
+    `
+  }
+  if (componentIds.length > 0) {
+    await sql_`
+      INSERT INTO meta_items (id, name, "iconPath", category, is_component)
+      SELECT id, '', null, null, true FROM unnest(${componentIds}::int[]) AS id
+      ON CONFLICT (id) DO UPDATE SET is_component = true
+    `
+  }
+}
+
+export async function getOrComputeArchetypes(
+  championId: number,
+  patches?: string[]
+): Promise<any[]> {
+  const patchesKey = (patches ?? []).slice().sort().join(',')
+  const cached = await sql_`
+    SELECT archetypes FROM item_archetypes_cache
+    WHERE "championId" = ${championId} AND patches_key = ${patchesKey}
+  `
+  if (cached.length > 0) return cached[0].archetypes as any[]
+
+  console.log(`[db] computing archetypes for champion ${championId}...`)
+
+  const itemRows = await sql_`SELECT id, name, "iconPath", category FROM meta_items WHERE is_component = false`
+  const itemById = new Map<number, { id: number; name: string; iconPath: string; category: string }>()
+  for (const r of itemRows as any[]) {
+    itemById.set(r.id, { id: r.id, name: r.name, iconPath: r.iconPath ?? '', category: r.category ?? '' })
+  }
+  if (itemById.size === 0) return []
+
+  const componentRows = await sql_`SELECT id FROM meta_items WHERE is_component = true`
+  const componentIds = (componentRows as any[]).map(r => r.id as number)
+  const validItemNames = new Set([...itemById.values()].map(i => i.name.toLowerCase()))
+
+  const rawBuilds = await getItemBuildsForArchetypes(championId, patches, componentIds)
+  const enriched = rawBuilds
+    .map(b => ({
+      ...b,
+      items: b.build.filter(id => itemById.has(id)).map(id => itemById.get(id)!),
+    }))
+    .filter(b => b.items.length >= 3)
+
+  const { clusterBuilds } = await import('./itemArchetypes')
+  const result = clusterBuilds(enriched, validItemNames)
+
+  await sql_`
+    INSERT INTO item_archetypes_cache ("championId", patches_key, archetypes)
+    VALUES (${championId}, ${patchesKey}, ${JSON.stringify(result)})
+    ON CONFLICT ("championId", patches_key) DO UPDATE SET
+      archetypes = EXCLUDED.archetypes,
+      computed_at = now()
+  `
+  console.log(`[db] archetypes cached for champion ${championId}`)
+  return result
 }

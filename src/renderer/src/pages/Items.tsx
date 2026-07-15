@@ -20,10 +20,8 @@ interface Archetype {
   openingId: number
   openingItem: ItemMeta
   archetypeLabel: string | null
-  bootId: number | null
-  bootItem: ItemMeta | null
-  coreIds: [number]
-  coreItems: [ItemMeta]
+  coreIds: number[]
+  coreItems: ItemMeta[]
   variants: BuildRow[]
   games: number
   wins: number
@@ -150,7 +148,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
               </tr>
             </thead>
             <tbody>
-              {regularItems.slice(0, 20).map((item) => (
+              {regularItems.filter(item => item.picks >= Math.max(totalGames * 0.10, 3)).slice(0, 20).map((item) => (
                 <tr key={item.itemId} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={{ padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -176,11 +174,10 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
 }
 
 function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
-  const minGames = Math.max(totalGames * 0.05, 10)
   const visible = archetypes
-    .filter(a => a.games >= minGames)
     .sort((a, b) => b.games - a.games)
-    .slice(0, 10)
+    .filter(a => a.games >= Math.max(totalGames * 0.05, 5))
+    .slice(0, 5)
   if (visible.length === 0) return null
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -196,17 +193,20 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
           return next
         })
 
-        const shownIds = new Set([arch.openingId, arch.coreIds[0]])
+        const shownIds = new Set([arch.openingId, ...arch.coreIds])
         const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
         for (const v of arch.variants) {
-          for (const fi of v.items.filter(item => !shownIds.has(item.id))) {
+          for (const fi of v.items.filter(item => !shownIds.has(item.id) && item.category !== 'Boots')) {
             const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
             s.picks += v.games
             s.wins += v.wins
             flexStats.set(fi.id, s)
           }
         }
-        const sortedFlex = [...flexStats.values()].sort((a, b) => b.picks - a.picks)
+        const minFlexPicks = Math.max(arch.games * 0.10, 3)
+        const sortedFlex = [...flexStats.values()]
+          .sort((a, b) => b.picks - a.picks)
+          .filter(f => f.picks >= minFlexPicks)
 
         return (
           <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -217,6 +217,12 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
               <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={30} />
               <Arrow />
               <ItemIcon iconPath={arch.coreItems[0].iconPath} name={arch.coreItems[0].name} size={30} />
+              {arch.coreItems[1] && (
+                <>
+                  <Arrow />
+                  <ItemIcon iconPath={arch.coreItems[1].iconPath} name={arch.coreItems[1].name} size={30} />
+                </>
+              )}
               {arch.archetypeLabel && (
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-primary)', borderRadius: 3, padding: '1px 5px', marginLeft: 2 }}>
                   {arch.archetypeLabel}
@@ -262,8 +268,8 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
 }
 
 function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
-  const minGames = Math.max(totalGames * 0.01, 5)
-  const visible = archetypes.filter(a => a.games >= minGames)
+  const minGames = Math.max(totalGames * 0.05, 5)
+  const visible = archetypes.filter(a => a.games >= minGames).slice(0, 5)
 
   if (visible.length === 0) return null
 
@@ -280,6 +286,21 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
           return next
         })
 
+        // For non-merged archetypes (1 core item), find top flex item to show as 3rd slot
+        let displayCore2: ItemMeta | null = arch.coreItems[1] ?? null
+        if (!displayCore2) {
+          const skipIds = new Set([arch.openingId, ...arch.coreIds])
+          const flexFreq = new Map<number, { item: ItemMeta; picks: number }>()
+          for (const v of arch.variants) {
+            for (const item of v.items.filter(i => !skipIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
+              const s = flexFreq.get(item.id) ?? { item, picks: 0 }
+              s.picks += v.games
+              flexFreq.set(item.id, s)
+            }
+          }
+          displayCore2 = [...flexFreq.values()].sort((a, b) => b.picks - a.picks)[0]?.item ?? null
+        }
+
         return (
           <div key={ai} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
             <div
@@ -289,12 +310,13 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
               <>
                 <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={34} />
                 <Arrow />
-                {arch.bootItem
-                  ? <ItemIcon iconPath={arch.bootItem.iconPath} name={arch.bootItem.name} size={30} />
-                  : <EmptySlot size={30} label="boots" />
-                }
-                <Arrow />
                 <ItemIcon iconPath={arch.coreItems[0].iconPath} name={arch.coreItems[0].name} size={30} />
+                {displayCore2 && (
+                  <>
+                    <Arrow />
+                    <ItemIcon iconPath={displayCore2.iconPath} name={displayCore2.name} size={30} />
+                  </>
+                )}
               </>
 
               {arch.archetypeLabel && (
@@ -316,15 +338,19 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
             {isOpen && (() => {
               const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
               const skipIds = new Set([arch.openingId, ...arch.coreIds])
+              if (displayCore2) skipIds.add(displayCore2.id)
               for (const v of arch.variants) {
-                for (const fi of v.items.filter(i => !skipIds.has(i.id))) {
+                for (const fi of v.items.filter(i => !skipIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
                   const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
                   s.picks += v.games
                   s.wins += v.wins
                   flexStats.set(fi.id, s)
                 }
               }
-              const sortedFlex = [...flexStats.values()].sort((a, b) => b.picks - a.picks)
+              const minFlexPicks = Math.max(arch.games * 0.10, 3)
+              const sortedFlex = [...flexStats.values()]
+                .sort((a, b) => b.picks - a.picks)
+                .filter(f => f.picks >= minFlexPicks)
               if (sortedFlex.length === 0) return null
               return (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -358,17 +384,6 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
 function Arrow() {
   return (
     <span style={{ fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>›</span>
-  )
-}
-
-function EmptySlot({ size, label }: { size: number; label: string }) {
-  return (
-    <div
-      title={`No ${label} data`}
-      style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'var(--text-secondary)' }}
-    >
-      ?
-    </div>
   )
 }
 

@@ -17,6 +17,13 @@ interface ChampionOption {
   championName: string
 }
 
+const championListCache = new Map<string, ChampionOption[]>()
+const augmentStatsCache = new Map<string, AugmentStat[]>()
+api.on('sync-complete', () => {
+  championListCache.clear()
+  augmentStatsCache.clear()
+})
+
 type SortKey = 'pickCount' | 'winRate' | 'avgDpm'
 
 const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
@@ -57,20 +64,26 @@ export default function Augments({ selectedPatches, initialChampionId, onMounted
 
   useEffect(() => {
     if (selectedPatches === null) return
+    const key = selectedPatches.join(',')
+    const cached = championListCache.get(key)
+    if (cached) { setChampions(cached); return }
     api.db.championStats(undefined, selectedPatches).then((stats: { championId: number; championName: string }[]) => {
-      setChampions(
-        stats
-          .map((s) => ({ championId: s.championId, championName: s.championName }))
-          .sort((a, b) => a.championName.localeCompare(b.championName))
-      )
-      setSelectedChampionId(undefined)
+      const sorted = stats
+        .map((s) => ({ championId: s.championId, championName: s.championName }))
+        .sort((a, b) => a.championName.localeCompare(b.championName))
+      championListCache.set(key, sorted)
+      setChampions(sorted)
     }).catch(() => {})
   }, [selectedPatches])
 
   useEffect(() => {
     if (selectedPatches === null) return
+    const key = `${selectedPatches.join(',')}-${selectedChampionId ?? 'all'}`
+    const cached = augmentStatsCache.get(key)
+    if (cached) { setData(cached); setLoading(false); return }
     setLoading(true)
     api.db.augmentStats(undefined, selectedChampionId, selectedPatches).then((d: AugmentStat[]) => {
+      augmentStatsCache.set(key, d)
       setData(d)
       setLoading(false)
     }).catch(() => setLoading(false))

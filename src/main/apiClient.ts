@@ -116,6 +116,15 @@ export const apiClient = {
       timeout: 15_000,
     }).then((r) => r.data),
 
+  itemArchetypes: (championId: number, patches?: string[]) =>
+    http.get('/api/items/archetypes', {
+      params: { championId, patches: patches?.join(',') },
+      timeout: 60_000,
+    }).then((r) => r.data),
+
+  syncItemMeta: (items: Array<{ id: number; name: string; iconPath: string; category: string }>, componentIds: number[]) =>
+    http.post('/api/meta/items', { items, componentIds }, { timeout: 15_000 }),
+
   searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
     http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),
 }

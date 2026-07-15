@@ -58,7 +58,7 @@ async function fetchAndStoreItems(): Promise<void> {
     const cats: string[] = item.categories ?? []
     if (cats.includes('Consumable') || cats.includes('Trinket')) continue
     if ((item.priceTotal ?? 0) < 700) continue
-    if ((item.from?.length ?? 0) === 0 && Array.isArray(item.to) && item.to.length > 0) {
+    if (Array.isArray(item.to) && item.to.length > 0) {
       componentIds.push(item.id); continue
     }
     const iconRaw: string = item.iconPath ?? ''

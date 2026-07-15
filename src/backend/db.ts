@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
-const ARCHETYPE_CACHE_VERSION = 2
+const ARCHETYPE_CACHE_VERSION = 3
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1616,7 +1616,10 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
                  SUM(ibc.games)::int AS picks, SUM(ibc.wins)::int AS wins
           FROM item_builds_cache ibc,
                unnest(ibc.build) AS u(item_id)
-          LEFT JOIN meta_items m ON m.id = u.item_id
+          JOIN meta_items m ON m.id = u.item_id
+            AND m.is_component = false
+            AND m.name IS NOT NULL
+            AND m.name != ''
           WHERE ibc."championId" = ${championId}
             AND ibc."gameVersion" = ANY(${patches})
           GROUP BY u.item_id, m.name, m."iconPath", m.category
@@ -1627,7 +1630,10 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
                  SUM(ibc.games)::int AS picks, SUM(ibc.wins)::int AS wins
           FROM item_builds_cache ibc,
                unnest(ibc.build) AS u(item_id)
-          LEFT JOIN meta_items m ON m.id = u.item_id
+          JOIN meta_items m ON m.id = u.item_id
+            AND m.is_component = false
+            AND m.name IS NOT NULL
+            AND m.name != ''
           WHERE ibc."championId" = ${championId}
           GROUP BY u.item_id, m.name, m."iconPath", m.category
           ORDER BY picks DESC
@@ -1826,6 +1832,7 @@ export async function upsertItemMeta(
       ON CONFLICT (id) DO UPDATE SET is_component = true
     `
   }
+  await sql_`TRUNCATE item_archetypes_cache`
 }
 
 const inflightArchetypes = new Map<string, Promise<any[]>>()

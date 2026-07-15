@@ -16,6 +16,7 @@ export interface Archetype {
   openingId: number
   openingItem: ItemMeta
   archetypeLabel: string | null
+  starterId: number | null
   coreIds: number[]
   coreItems: ItemMeta[]
   variants: BuildRow[]
@@ -71,6 +72,21 @@ export function clusterByFrequency(
   const archetypes: Archetype[] = []
   let remaining = [...builds]
 
+  // Find the most-frequent item (across all variant builds) that appears in ITEM_ARCHETYPES
+  function findStarterId(pool: BuildRow[]): number | null {
+    const freq = new Map<number, { item: ItemMeta; games: number }>()
+    for (const b of pool) {
+      for (const item of b.items) {
+        if (item.category === 'Boots' || !item.name) continue
+        const e = freq.get(item.id) ?? { item, games: 0 }
+        e.games += b.games
+        freq.set(item.id, e)
+      }
+    }
+    const sorted = [...freq.values()].sort((a, b) => b.games - a.games)
+    return sorted.find(e => FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase()))?.item.id ?? null
+  }
+
   while (remaining.length > 0 && archetypes.length < 20) {
     const triple = top3(remaining)
     if (triple.length < 3) break
@@ -84,8 +100,9 @@ export function clusterByFrequency(
     const games = claimed.reduce((s, b) => s + b.games, 0)
     const wins  = claimed.reduce((s, b) => s + b.wins,  0)
     const archetypeLabel = triple.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
+    const starterId = findStarterId(claimed)
     archetypes.push({
-      openingId: triple[0].id, openingItem: triple[0], archetypeLabel,
+      openingId: triple[0].id, openingItem: triple[0], archetypeLabel, starterId,
       coreIds: triple.slice(1).map(i => i.id), coreItems: triple.slice(1),
       variants: claimed.sort((a, b) => b.games - a.games),
       games, wins,
@@ -113,16 +130,18 @@ export function clusterByFrequency(
     return [...groups.values()].map(group => {
       if (group.length === 1) return group[0]
       const allVariants = [...new Set(group.flatMap(a => a.variants))]
-      const newTriple = top3(allVariants)
       const games = allVariants.reduce((s, b) => s + b.games, 0)
       const wins  = allVariants.reduce((s, b) => s + b.wins,  0)
-      const archetypeLabel = newTriple.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
+      // Use the biggest sub-archetype's triple as representative — recomputing with top3
+      // introduces items not in either original triple, causing cascading merges across passes.
+      const biggest = group.reduce((best, a) => a.games > best.games ? a : best)
       return {
-        openingId: newTriple[0]?.id ?? group[0].openingId,
-        openingItem: newTriple[0] ?? group[0].openingItem,
-        archetypeLabel,
-        coreIds: newTriple.slice(1).map(i => i.id),
-        coreItems: newTriple.slice(1),
+        openingId: biggest.openingId,
+        openingItem: biggest.openingItem,
+        archetypeLabel: biggest.archetypeLabel,
+        starterId: findStarterId(allVariants),
+        coreIds: biggest.coreIds,
+        coreItems: biggest.coreItems,
         variants: allVariants.sort((a, b) => b.games - a.games),
         games, wins,
       }

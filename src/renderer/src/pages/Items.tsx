@@ -20,6 +20,7 @@ interface Archetype {
   openingId: number
   openingItem: ItemMeta
   archetypeLabel: string | null
+  starterId: number | null
   coreIds: number[]
   coreItems: ItemMeta[]
   variants: BuildRow[]
@@ -196,7 +197,7 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
         const shownIds = new Set([arch.openingId, ...arch.coreIds])
         const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
         for (const v of arch.variants) {
-          for (const fi of v.items.filter(item => !shownIds.has(item.id) && item.category !== 'Boots')) {
+          for (const fi of v.items.filter(item => !shownIds.has(item.id) && item.category !== 'Boots' && item.name !== '')) {
             const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
             s.picks += v.games
             s.wins += v.wins
@@ -267,6 +268,7 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
   )
 }
 
+
 function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
   const minGames = Math.max(totalGames * 0.01, 2)
   const visible = archetypes.filter(a => a.games >= minGames).slice(0, 8)
@@ -276,7 +278,7 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {visible.map((arch, ai) => {
         const wr = arch.games > 0 ? arch.wins / arch.games : 0
         const isOpen = expanded.has(ai)
@@ -286,37 +288,63 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
           return next
         })
 
-        // For non-merged archetypes (1 core item), find top flex item to show as 3rd slot
-        let displayCore2: ItemMeta | null = arch.coreItems[1] ?? null
-        if (!displayCore2) {
-          const skipIds = new Set([arch.openingId, ...arch.coreIds])
-          const flexFreq = new Map<number, { item: ItemMeta; picks: number }>()
-          for (const v of arch.variants) {
-            for (const item of v.items.filter(i => !skipIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
-              const s = flexFreq.get(item.id) ?? { item, picks: 0 }
-              s.picks += v.games
-              flexFreq.set(item.id, s)
-            }
+        // Order archetype items: starter (from ITEM_ARCHETYPES) first, then rest in frequency order
+        const archetypeItems = [arch.openingItem, ...arch.coreItems].filter(Boolean) as ItemMeta[]
+        const starterIdx = arch.starterId != null
+          ? archetypeItems.findIndex(i => i.id === arch.starterId)
+          : -1
+        const orderedArch = starterIdx > 0
+          ? [archetypeItems[starterIdx], ...archetypeItems.filter((_, i) => i !== starterIdx)]
+          : archetypeItems
+
+        // Top boot from variants
+        const bootFreq = new Map<number, { item: ItemMeta; picks: number }>()
+        for (const v of arch.variants) {
+          for (const item of v.items) {
+            if (item.category !== 'Boots') continue
+            const s = bootFreq.get(item.id) ?? { item, picks: 0 }
+            s.picks += v.games
+            bootFreq.set(item.id, s)
           }
-          displayCore2 = [...flexFreq.values()].sort((a, b) => b.picks - a.picks)[0]?.item ?? null
+        }
+        const topBoot = [...bootFreq.values()].sort((a, b) => b.picks - a.picks)[0]?.item ?? null
+
+        // Top flex item (not archetype, not boots)
+        const archIds = new Set(archetypeItems.map(i => i.id))
+        const flexFreq = new Map<number, { item: ItemMeta; picks: number }>()
+        for (const v of arch.variants) {
+          for (const item of v.items) {
+            if (archIds.has(item.id) || item.category === 'Boots' || !item.name) continue
+            const s = flexFreq.get(item.id) ?? { item, picks: 0 }
+            s.picks += v.games
+            flexFreq.set(item.id, s)
+          }
+        }
+        const topFlex = [...flexFreq.values()].sort((a, b) => b.picks - a.picks)[0]?.item ?? null
+
+        // 5-slot sequence: [starter/arch1] → [boots] → [arch2] → [arch3] → [flex]
+        const displayItems = [orderedArch[0], topBoot, orderedArch[1], orderedArch[2], topFlex]
+          .filter((x): x is ItemMeta => x != null)
+
+        // If the starter is in the flex slot (not in the triple), promote it to first
+        if (topFlex && arch.starterId === topFlex.id) {
+          const idx = displayItems.indexOf(topFlex)
+          if (idx > 0) { displayItems.splice(idx, 1); displayItems.unshift(topFlex) }
         }
 
         return (
           <div key={ai} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
             <div
               onClick={toggle}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
             >
               <>
-                <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={34} />
-                <Arrow />
-                <ItemIcon iconPath={arch.coreItems[0].iconPath} name={arch.coreItems[0].name} size={30} />
-                {displayCore2 && (
-                  <>
-                    <Arrow />
-                    <ItemIcon iconPath={displayCore2.iconPath} name={displayCore2.name} size={30} />
-                  </>
-                )}
+                {displayItems.map((item, idx) => (
+                  <span key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {idx > 0 && <Arrow />}
+                    <ItemIcon iconPath={item.iconPath} name={item.name} size={30} />
+                  </span>
+                ))}
               </>
 
               {arch.archetypeLabel && (
@@ -324,23 +352,21 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
                   {arch.archetypeLabel}
                 </span>
               )}
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
                 {arch.games} games
               </span>
-              <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 2 }}>
+              <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 8 }}>
                 {(wr * 100).toFixed(1)}% WR
               </span>
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8 }}>
                 {isOpen ? '▲' : '▼'}
               </span>
             </div>
 
             {isOpen && (() => {
               const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
-              const skipIds = new Set([arch.openingId, ...arch.coreIds])
-              if (displayCore2) skipIds.add(displayCore2.id)
               for (const v of arch.variants) {
-                for (const fi of v.items.filter(i => !skipIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
+                for (const fi of v.items.filter(i => !archIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
                   const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
                   s.picks += v.games
                   s.wins += v.wins
@@ -405,7 +431,7 @@ function ItemIcon({ iconPath, name, size }: { iconPath: string; name: string; si
 }
 
 function wrColor(wr: number): string {
-  if (wr >= 0.55) return 'var(--green)'
-  if (wr <= 0.45) return 'var(--red)'
+  if (wr > 0.5) return 'var(--green)'
+  if (wr < 0.5) return 'var(--red)'
   return 'var(--text-primary)'
 }

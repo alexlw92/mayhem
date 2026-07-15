@@ -44,6 +44,9 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+function sendToWindow(channel: string, ...args: unknown[]): void {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args)
+}
 const archetypeCache = new Map<string, any[]>()
 let workerRunning = false
 let syncInProgress = false
@@ -55,8 +58,8 @@ let windowLoaded = false
 
 function maybeSignalReady() {
   if (!backendReady || !windowLoaded) return
-  mainWindow?.webContents.send('db-ready')
-  refreshMetadata().catch(() => { mainWindow?.webContents.send('assets-ready') })
+  sendToWindow('db-ready')
+  refreshMetadata().catch(() => { sendToWindow('assets-ready') })
   ensureChampionNames()
   repairIncompleteMatches().catch(() => {})
 }
@@ -93,9 +96,9 @@ const _origLog = console.log.bind(console)
 const _origWarn = console.warn.bind(console)
 const _origError = console.error.bind(console)
 function proxyConsole() {
-  console.log = (...args) => { _origLog(...args); mainWindow?.webContents.send('main-log', 'log', args.map(String).join(' ')) }
-  console.warn = (...args) => { _origWarn(...args); mainWindow?.webContents.send('main-log', 'warn', args.map(String).join(' ')) }
-  console.error = (...args) => { _origError(...args); mainWindow?.webContents.send('main-log', 'error', args.map(String).join(' ')) }
+  console.log = (...args) => { _origLog(...args); sendToWindow('main-log', 'log', args.map(String).join(' ')) }
+  console.warn = (...args) => { _origWarn(...args); sendToWindow('main-log', 'warn', args.map(String).join(' ')) }
+  console.error = (...args) => { _origError(...args); sendToWindow('main-log', 'error', args.map(String).join(' ')) }
 }
 
 // ─── Metadata ────────────────────────────────────────────────────────────────
@@ -117,12 +120,12 @@ async function downloadToCache(url: string, destPath: string): Promise<boolean> 
 
 async function refreshMetadata(): Promise<void> {
   if (!isMetaStale()) {
-    mainWindow?.webContents.send('assets-ready')
+    sendToWindow('assets-ready')
     return
   }
   const [champions, augmentsRaw] = await Promise.all([getChampionData(), getAugmentData()])
   if (Object.keys(champions).length === 0) {
-    mainWindow?.webContents.send('assets-ready')
+    sendToWindow('assets-ready')
     return
   }
 
@@ -169,12 +172,12 @@ async function refreshMetadata(): Promise<void> {
   const itemList = Object.values(items).filter((it) => it.iconPath)
   const total = championIds.length + augmentList.length + itemList.length
   let done = 0
-  mainWindow?.webContents.send('assets-progress', { done, total })
+  sendToWindow('assets-progress', { done, total })
 
   await Promise.all(championIds.map(async (idStr) => {
     const url = `${CDRAGON_PLUGIN}/v1/champion-icons/${idStr}.png`
     await downloadToCache(url, join(imageCacheDir, 'champion-icons', `${idStr}.png`))
-    mainWindow?.webContents.send('assets-progress', { done: ++done, total })
+    sendToWindow('assets-progress', { done: ++done, total })
   }))
 
   await Promise.all(augmentList.map(async (aug) => {
@@ -182,7 +185,7 @@ async function refreshMetadata(): Promise<void> {
     if (await downloadToCache(aug.iconPath, dest)) {
       aug.iconPath = `mayhem-asset://augment-icons/${aug.id}.png`
     }
-    mainWindow?.webContents.send('assets-progress', { done: ++done, total })
+    sendToWindow('assets-progress', { done: ++done, total })
   }))
 
   await Promise.all(itemList.map(async (item) => {
@@ -190,15 +193,15 @@ async function refreshMetadata(): Promise<void> {
     if (await downloadToCache(item.iconPath, dest)) {
       item.iconPath = `mayhem-asset://item-icons/${item.id}.png`
     }
-    mainWindow?.webContents.send('assets-progress', { done: ++done, total })
+    sendToWindow('assets-progress', { done: ++done, total })
   }))
 
   saveMetaCache(champions, augments, items)
   console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
   setChampionNames(champions)
   archetypeCache.clear()
-  mainWindow?.webContents.send('meta-refreshed')
-  mainWindow?.webContents.send('assets-ready')
+  sendToWindow('meta-refreshed')
+  sendToWindow('assets-ready')
 }
 
 function ensureChampionNames(): void {
@@ -236,13 +239,13 @@ async function syncWorker(): Promise<void> {
     if (syncCancelled) {
       syncCancelled = false
       syncInProgress = false
-      mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'cancelled' })
+      sendToWindow('sync-complete', { ...syncAccum, reason: 'cancelled' })
       return
     }
     if (!isClientRunning()) {
       if (draining && syncInProgress) {
         syncInProgress = false
-        mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'client-offline' })
+        sendToWindow('sync-complete', { ...syncAccum, reason: 'client-offline' })
       }
       return
     }
@@ -262,7 +265,7 @@ async function syncWorker(): Promise<void> {
           console.warn('[sync] backend unreachable after retries, stopping worker:', (err as Error).message)
           if (draining && syncInProgress) {
             syncInProgress = false
-            mainWindow?.webContents.send('sync-complete', { ...syncAccum, reason: 'error' })
+            sendToWindow('sync-complete', { ...syncAccum, reason: 'error' })
           }
           return
         }
@@ -273,7 +276,7 @@ async function syncWorker(): Promise<void> {
     if (!puuid) {
       if (draining && syncInProgress) {
         syncInProgress = false
-        mainWindow?.webContents.send('sync-complete', syncAccum)
+        sendToWindow('sync-complete', syncAccum)
       }
       return
     }
@@ -293,7 +296,7 @@ async function syncWorker(): Promise<void> {
         }
         const { total: queueRemaining } = await apiClient.queueStatus()
         console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${queueRemaining} remaining in queue)`)
-        mainWindow?.webContents.send('sync-progress', {
+        sendToWindow('sync-progress', {
           puuid,
           playerName,
           gamesAdded: syncAccum.imported,
@@ -405,7 +408,7 @@ ipcMain.handle('lcu:sync', async () => {
   syncInProgress = true
   syncAccum = { imported: 0, playerssynced: 0 }
   await apiClient.enqueuePlayer(summoner.puuid)
-  mainWindow?.webContents.send('sync-started')
+  sendToWindow('sync-started')
   const { total } = await apiClient.queueStatus()
   console.log(`[sync] started — ${total} player${total !== 1 ? 's' : ''} in queue`)
   startSyncWorker()
@@ -422,7 +425,7 @@ ipcMain.handle('lcu:fullSync', async () => {
   await apiClient.clearQueue()
   await apiClient.invalidateSyncTimes()
   await apiClient.enqueuePlayer(summoner.puuid)
-  mainWindow?.webContents.send('sync-started')
+  sendToWindow('sync-started')
   const { total } = await apiClient.queueStatus()
   console.log(`[sync] full reload — ${total} player${total !== 1 ? 's' : ''} in queue`)
   startSyncWorker()

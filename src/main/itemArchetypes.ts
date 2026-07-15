@@ -18,8 +18,8 @@ export interface Archetype {
   archetypeLabel: string | null
   bootId: number | null
   bootItem: ItemMeta | null
-  coreIds: [number, number]
-  coreItems: [ItemMeta, ItemMeta]
+  coreIds: [number]
+  coreItems: [ItemMeta]
   variants: BuildRow[]
   games: number
   wins: number
@@ -60,25 +60,38 @@ export function clusterBuilds(builds: BuildRow[], validItemNames?: Set<string>):
     }
   }
 
-  const tripleMap = new Map<string, { ids: [number, number, number]; games: number; wins: number; variants: BuildRow[] }>()
+  const pairMap = new Map<string, { ids: [number, number]; games: number; wins: number; variants: BuildRow[] }>()
   for (const b of builds) {
     const ids = b.items.map(i => i.id)
-    for (let i = 0; i < ids.length - 2; i++) {
-      for (let j = i + 1; j < ids.length - 1; j++) {
-        for (let k = j + 1; k < ids.length; k++) {
-          const sorted = [ids[i], ids[j], ids[k]].sort((a, z) => a - z) as [number, number, number]
-          const key = sorted.join('-')
-          const entry = tripleMap.get(key) ?? { ids: sorted, games: 0, wins: 0, variants: [] }
-          entry.games += b.games
-          entry.wins += b.wins
-          entry.variants.push(b)
-          tripleMap.set(key, entry)
-        }
+    for (let i = 0; i < ids.length - 1; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const sorted = [ids[i], ids[j]].sort((a, z) => a - z) as [number, number]
+        const key = sorted.join('-')
+        const entry = pairMap.get(key) ?? { ids: sorted, games: 0, wins: 0, variants: [] }
+        entry.games += b.games
+        entry.wins += b.wins
+        entry.variants.push(b)
+        pairMap.set(key, entry)
       }
     }
   }
 
-  const top = [...tripleMap.values()].sort((a, b) => b.games - a.games).slice(0, 10)
+  const sortedPairs = [...pairMap.values()].sort((a, b) => b.games - a.games)
+  const assigned = new Set<BuildRow>()
+  const top: Array<{ ids: [number, number]; games: number; wins: number; variants: BuildRow[] }> = []
+
+  for (const pair of sortedPairs) {
+    if (top.length >= 10) break
+    const unassigned = pair.variants.filter(b => !assigned.has(b))
+    if (unassigned.length === 0) continue
+    unassigned.forEach(b => assigned.add(b))
+    top.push({
+      ids: pair.ids,
+      variants: unassigned,
+      games: unassigned.reduce((s, b) => s + b.games, 0),
+      wins: unassigned.reduce((s, b) => s + b.wins, 0),
+    })
+  }
 
   return top.map(({ ids, games, wins, variants }) => {
     const items = ids.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
@@ -102,8 +115,8 @@ export function clusterBuilds(builds: BuildRow[], validItemNames?: Set<string>):
       archetypeLabel: openerLabel,
       bootId: null,
       bootItem: null,
-      coreIds: [ordered[1].id, ordered[2].id] as [number, number],
-      coreItems: [ordered[1], ordered[2]] as [ItemMeta, ItemMeta],
+      coreIds: [ordered[1].id] as [number],
+      coreItems: [ordered[1]] as [ItemMeta],
       variants: [...variants].sort((a, b) => b.games - a.games),
       games,
       wins,

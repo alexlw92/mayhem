@@ -22,8 +22,8 @@ interface Archetype {
   archetypeLabel: string | null
   bootId: number | null
   bootItem: ItemMeta | null
-  coreIds: [number, number]
-  coreItems: [ItemMeta, ItemMeta]
+  coreIds: [number]
+  coreItems: [ItemMeta]
   variants: BuildRow[]
   games: number
   wins: number
@@ -86,28 +86,19 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
   const boots = picks.filter((p) => p.category === 'Boots' && p.picks >= minBootPicks)
   const regularItems = picks.filter((p) => p.category !== 'Boots')
 
-  const itemFreq = new Map<number, number>()
-  for (const arch of archetypes) {
-    for (const v of arch.variants) {
-      for (const item of v.items) {
-        itemFreq.set(item.id, (itemFreq.get(item.id) ?? 0) + v.games)
-      }
-    }
-  }
-
   return (
     <div>
       {archetypes.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Build Paths</div>
-          <BuildPaths archetypes={archetypes} totalGames={totalGames} itemFreq={itemFreq} />
+          <BuildPaths archetypes={archetypes} totalGames={totalGames} />
         </section>
       )}
 
       {archetypes.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Item Archetypes</div>
-          <ItemArchetypes archetypes={archetypes} totalGames={totalGames} itemFreq={itemFreq} />
+          <ItemArchetypes archetypes={archetypes} totalGames={totalGames} />
         </section>
       )}
 
@@ -184,35 +175,85 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
   )
 }
 
-function ItemArchetypes({ archetypes, totalGames, itemFreq }: { archetypes: Archetype[]; totalGames: number; itemFreq: Map<number, number> }) {
-  const minGames = Math.max(totalGames * 0.01, 5)
-  const visible = archetypes.filter(a => a.games >= minGames).slice(0, 10)
+function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
+  const minGames = Math.max(totalGames * 0.05, 10)
+  const visible = archetypes
+    .filter(a => a.games >= minGames)
+    .sort((a, b) => b.games - a.games)
+    .slice(0, 10)
   if (visible.length === 0) return null
+
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {visible.map((arch, i) => {
         const wr = arch.games > 0 ? arch.wins / arch.games : 0
-        const sorted = [arch.openingItem, arch.coreItems[0], arch.coreItems[1]]
-          .sort((a, b) => (itemFreq.get(b.id) ?? 0) - (itemFreq.get(a.id) ?? 0))
+        const isOpen = expanded.has(i)
+        const toggle = () => setExpanded(prev => {
+          const next = new Set(prev)
+          isOpen ? next.delete(i) : next.add(i)
+          return next
+        })
+
+        const shownIds = new Set([arch.openingId, arch.coreIds[0]])
+        const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
+        for (const v of arch.variants) {
+          for (const fi of v.items.filter(item => !shownIds.has(item.id))) {
+            const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
+            s.picks += v.games
+            s.wins += v.wins
+            flexStats.set(fi.id, s)
+          }
+        }
+        const sortedFlex = [...flexStats.values()].sort((a, b) => b.picks - a.picks)
+
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
-            <ItemIcon iconPath={sorted[0].iconPath} name={sorted[0].name} size={30} />
-            <Arrow />
-            <ItemIcon iconPath={sorted[1].iconPath} name={sorted[1].name} size={30} />
-            <Arrow />
-            <ItemIcon iconPath={sorted[2].iconPath} name={sorted[2].name} size={30} />
-            {arch.archetypeLabel && (
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-primary)', borderRadius: 3, padding: '1px 5px', marginLeft: 2 }}>
-                {arch.archetypeLabel}
+          <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div
+              onClick={toggle}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
+            >
+              <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={30} />
+              <Arrow />
+              <ItemIcon iconPath={arch.coreItems[0].iconPath} name={arch.coreItems[0].name} size={30} />
+              {arch.archetypeLabel && (
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-primary)', borderRadius: 3, padding: '1px 5px', marginLeft: 2 }}>
+                  {arch.archetypeLabel}
+                </span>
+              )}
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                {arch.games} games
               </span>
+              <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 8 }}>
+                {(wr * 100).toFixed(1)}% WR
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8 }}>
+                {isOpen ? '▲' : '▼'}
+              </span>
+            </div>
+
+            {isOpen && sortedFlex.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <tbody>
+                  {sortedFlex.map(({ item: fi, picks, wins }) => (
+                    <tr key={fi.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '6px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 12 }}>+</span>
+                          <ItemIcon iconPath={fi.iconPath} name={fi.name} size={26} />
+                          <span style={{ fontSize: 12 }}>{fi.name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
+                      <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
-              {arch.games} games
-            </span>
-            <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 8 }}>
-              {(wr * 100).toFixed(1)}% WR
-            </span>
           </div>
         )
       })}
@@ -220,7 +261,7 @@ function ItemArchetypes({ archetypes, totalGames, itemFreq }: { archetypes: Arch
   )
 }
 
-function BuildPaths({ archetypes, totalGames, itemFreq }: { archetypes: Archetype[]; totalGames: number; itemFreq: Map<number, number> }) {
+function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
   const minGames = Math.max(totalGames * 0.01, 5)
   const visible = archetypes.filter(a => a.games >= minGames)
 
@@ -245,21 +286,16 @@ function BuildPaths({ archetypes, totalGames, itemFreq }: { archetypes: Archetyp
               onClick={toggle}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none', flexWrap: 'wrap' }}
             >
-              {(() => {
-                const sortedCore = [arch.coreItems[0], arch.coreItems[1]]
-                  .sort((a, b) => (itemFreq.get(b.id) ?? 0) - (itemFreq.get(a.id) ?? 0))
-                return <>
-                  <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={34} />
-                  <Arrow />
-                  {arch.bootItem
-                    ? <ItemIcon iconPath={arch.bootItem.iconPath} name={arch.bootItem.name} size={30} />
-                    : <EmptySlot size={30} label="boots" />
-                  }
-                  <Arrow />
-                  <ItemIcon iconPath={sortedCore[0].iconPath} name={sortedCore[0].name} size={30} />
-                  <ItemIcon iconPath={sortedCore[1].iconPath} name={sortedCore[1].name} size={30} />
-                </>
-              })()}
+              <>
+                <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={34} />
+                <Arrow />
+                {arch.bootItem
+                  ? <ItemIcon iconPath={arch.bootItem.iconPath} name={arch.bootItem.name} size={30} />
+                  : <EmptySlot size={30} label="boots" />
+                }
+                <Arrow />
+                <ItemIcon iconPath={arch.coreItems[0].iconPath} name={arch.coreItems[0].name} size={30} />
+              </>
 
               {arch.archetypeLabel && (
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-primary)', borderRadius: 3, padding: '1px 5px', marginLeft: 2 }}>

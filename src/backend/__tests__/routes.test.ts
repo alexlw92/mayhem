@@ -836,25 +836,26 @@ describe('GET /api/items/picks', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns empty array when no data for champion', async () => {
+  it('returns empty items array when no data for champion', async () => {
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
     expect(res.status).toBe(200)
-    expect(res.body).toEqual([])
+    expect(res.body.items).toEqual([])
+    expect(typeof res.body.totalGames).toBe('number')
   })
 
   it('returns item pick counts after match insertion', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
     expect(res.status).toBe(200)
-    expect(res.body.length).toBeGreaterThan(0)
-    const ids = res.body.map((r: any) => r.itemId)
+    expect(res.body.items.length).toBeGreaterThan(0)
+    const ids = res.body.items.map((r: any) => r.itemId)
     for (const id of ITEMS_CORE) expect(ids).toContain(id)
   })
 
   it('each row has picks and wins fields', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
-    for (const row of res.body) {
+    for (const row of res.body.items) {
       expect(typeof row.picks).toBe('number')
       expect(typeof row.wins).toBe('number')
       expect(row.picks).toBeGreaterThan(0)
@@ -865,16 +866,16 @@ describe('GET /api/items/picks', () => {
     await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=99.99`)
     expect(res.status).toBe(200)
-    expect(res.body).toEqual([])
+    expect(res.body.items).toEqual([])
   })
 
   it('filters by patch — returns data for matching patch', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=15.12`)
     expect(res.status).toBe(200)
-    expect(res.body.length).toBeGreaterThan(0)
+    expect(res.body.items.length).toBeGreaterThan(0)
     // Each item in the result came from the 15.12 match only (1 game)
-    for (const row of res.body) {
+    for (const row of res.body.items) {
       expect(row.picks).toBe(1)
     }
   })
@@ -883,7 +884,7 @@ describe('GET /api/items/picks', () => {
     await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
     const res = await request(app).get('/api/items/picks?championId=999')
     expect(res.status).toBe(200)
-    expect(res.body).toEqual([])
+    expect(res.body.items).toEqual([])
   })
 })
 

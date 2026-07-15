@@ -5,12 +5,16 @@ import { render, cleanup, act } from '@testing-library/react'
 afterEach(() => cleanup())
 
 const mockArchetype = {
-  coreIds: [3001, 3003, 3089] as [number, number, number],
+  openingId: 3001,
+  openingItem: { id: 3001, name: 'Evenshroud', iconPath: 'mayhem-asset://items/3001.png', category: 'Armor' },
+  archetypeLabel: 'Tank',
+  bootId: 3020,
+  bootItem: { id: 3020, name: "Sorcerer's Shoes", iconPath: 'mayhem-asset://items/3020.png', category: 'Boots' },
+  coreIds: [3003, 3089] as [number, number],
   coreItems: [
-    { id: 3001, name: 'Evenshroud', iconPath: 'mayhem-asset://items/3001.png', category: 'Armor' },
     { id: 3003, name: 'Archangel\'s Staff', iconPath: 'mayhem-asset://items/3003.png', category: 'AP' },
     { id: 3089, name: 'Rabadon\'s Deathcap', iconPath: 'mayhem-asset://items/3089.png', category: 'AP' },
-  ] as [any, any, any],
+  ] as [any, any],
   variants: [
     {
       build: [3001, 3003, 3089, 3135, 3157],
@@ -30,12 +34,16 @@ const mockArchetype = {
 }
 
 const mockArchetype2 = {
-  coreIds: [3020, 3165, 3089] as [number, number, number],
+  openingId: 3165,
+  openingItem: { id: 3165, name: 'Morellonomicon', iconPath: 'mayhem-asset://items/3165.png', category: 'AP' },
+  archetypeLabel: null,
+  bootId: null,
+  bootItem: null,
+  coreIds: [3089, 3135] as [number, number],
   coreItems: [
-    { id: 3020, name: 'Sorcerer\'s Shoes', iconPath: 'mayhem-asset://items/3020.png', category: 'Boots' },
-    { id: 3165, name: 'Morellonomicon', iconPath: 'mayhem-asset://items/3165.png', category: 'AP' },
     { id: 3089, name: 'Rabadon\'s Deathcap', iconPath: 'mayhem-asset://items/3089.png', category: 'AP' },
-  ] as [any, any, any],
+    { id: 3135, name: 'Void Staff', iconPath: 'mayhem-asset://items/3135.png', category: 'AP' },
+  ] as [any, any],
   variants: [],
   games: 7,
   wins: 4,
@@ -47,10 +55,12 @@ const mockPickRows = [
   { itemId: 3031, picks: 38, wins: 19, name: 'Infinity Edge', iconPath: 'mayhem-asset://items/3031.png', category: 'Damage' },
 ]
 
+const mockPickRatesResult = { totalGames: 45, items: mockPickRows }
+
 const mockApi = {
   db: {
     itemArchetypes: vi.fn().mockResolvedValue([mockArchetype, mockArchetype2]),
-    itemPickRates: vi.fn().mockResolvedValue(mockPickRows),
+    itemPickRates: vi.fn().mockResolvedValue(mockPickRatesResult),
   },
 }
 
@@ -72,7 +82,7 @@ describe('Items', () => {
 
   it('shows "no item data" when both APIs return empty', async () => {
     mockApi.db.itemArchetypes.mockResolvedValue([])
-    mockApi.db.itemPickRates.mockResolvedValue([])
+    mockApi.db.itemPickRates.mockResolvedValue({ totalGames: 0, items: [] })
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -83,7 +93,7 @@ describe('Items', () => {
 
   it('renders boots and most-built sections when picks exist but no archetypes', async () => {
     mockApi.db.itemArchetypes.mockResolvedValue([])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRows)
+    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -94,7 +104,7 @@ describe('Items', () => {
 
   it('renders all three sections with full data (archetypes default collapsed)', async () => {
     mockApi.db.itemArchetypes.mockResolvedValue([mockArchetype, mockArchetype2])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRows)
+    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -113,7 +123,7 @@ describe('Items', () => {
 
   it('re-fetches when metaKey changes', async () => {
     mockApi.db.itemArchetypes.mockResolvedValue([mockArchetype])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRows)
+    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
     mockApi.db.itemArchetypes.mockClear()
     let rerender!: (ui: React.ReactElement) => void
     await act(async () => {

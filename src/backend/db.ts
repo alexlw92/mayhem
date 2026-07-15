@@ -236,6 +236,7 @@ export async function initDb(url?: string): Promise<void> {
     )
   `
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_build ON item_builds_cache USING gin(build)`
 
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
@@ -379,6 +380,8 @@ export async function backfillDetailCaches(): Promise<void> {
   const patches = await getPatches()
   if (patches.length === 0) return
   for (const gv of patches) {
+    const [{ count }] = await sql_`SELECT COUNT(*) FROM augment_champion_stats_cache WHERE "gameVersion" = ${gv}`
+    if (Number(count) > 0) continue
     console.log(`[backfill] augment_champion ${gv}...`)
     await sql_`
       INSERT INTO augment_champion_stats_cache
@@ -1067,6 +1070,7 @@ export interface PlayerStats {
   avgDpm: number
   avgGold: number
   syncedFull: boolean
+  syncedAt: number
 }
 
 export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]> {
@@ -1076,7 +1080,8 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
           MAX(pc."summonerName") AS "summonerName",
           SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
-          CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm"
+          CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm",
+          MAX(s."syncedAt") AS "syncedAt"
         FROM player_stats_cache pc
         JOIN player_sync_times s ON s.puuid = pc.puuid
         WHERE pc."gameVersion" = ANY(${patches}) AND pc.puuid != ''
@@ -1087,7 +1092,8 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
           MAX(pc."summonerName") AS "summonerName",
           SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
-          CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm"
+          CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm",
+          MAX(s."syncedAt") AS "syncedAt"
         FROM player_stats_cache pc
         JOIN player_sync_times s ON s.puuid = pc.puuid
         WHERE pc.puuid != ''
@@ -1103,7 +1109,8 @@ export async function getPlayerStats(patches?: string[]): Promise<PlayerStats[]>
     assists: r.assists,
     avgDpm: parseFloat(r.avgDpm),
     avgGold: 0,
-    syncedFull: true
+    syncedFull: true,
+    syncedAt: Number(r.syncedAt ?? 0),
   }))
 }
 
@@ -1116,8 +1123,10 @@ export async function getOnePlayerStats(puuid: string, patches?: string[]): Prom
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
-          END AS "avgDpm"
+          END AS "avgDpm",
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
         FROM player_stats_cache pc
+        LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
         WHERE pc.puuid = ${puuid} AND pc."gameVersion" = ANY(${patches})
         GROUP BY pc.puuid
       `
@@ -1128,8 +1137,10 @@ export async function getOnePlayerStats(puuid: string, patches?: string[]): Prom
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
-          END AS "avgDpm"
+          END AS "avgDpm",
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
         FROM player_stats_cache pc
+        LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
         WHERE pc.puuid = ${puuid}
         GROUP BY pc.puuid
       `
@@ -1146,6 +1157,7 @@ export async function getOnePlayerStats(puuid: string, patches?: string[]): Prom
     avgDpm: parseFloat(r.avgDpm),
     avgGold: 0,
     syncedFull: true,
+    syncedAt: Number(r.syncedAt ?? 0),
   }
 }
 
@@ -1191,6 +1203,7 @@ export async function getBulkPlayerStats(
       avgDpm: parseFloat(r.avgDpm),
       avgGold: 0,
       syncedFull: true,
+      syncedAt: 0,
     }
   }
   return result
@@ -1468,7 +1481,7 @@ export async function getItemBuilds(championId: number, patches?: string[], allo
         WHERE "championId" = ${championId}
           AND "gameVersion" = ANY(${patches})
           AND build <@ ${allowed}::int[]
-        GROUP BY build ORDER BY games DESC LIMIT 30
+        GROUP BY build ORDER BY games DESC LIMIT 50
       `
     : await sql_`
         SELECT build, SUM(games)::int AS games, SUM(wins)::int AS wins
@@ -1476,33 +1489,147 @@ export async function getItemBuilds(championId: number, patches?: string[], allo
         WHERE "championId" = ${championId}
           AND "gameVersion" IS NOT NULL
           AND build <@ ${allowed}::int[]
-        GROUP BY build ORDER BY games DESC LIMIT 10
+        GROUP BY build ORDER BY games DESC LIMIT 50
       `
   return rows.map((r: any) => ({ build: r.build as number[], games: r.games, wins: r.wins }))
 }
 
-export async function getItemPickRates(championId: number, patches?: string[]): Promise<ItemPickRate[]> {
+export interface BootsByOpenerRow {
+  openerId: number
+  bootId: number
+  picks: number
+}
+
+export async function getBootsByOpener(
+  championId: number,
+  openerIds: number[],
+  bootIds: number[],
+  patches?: string[]
+): Promise<BootsByOpenerRow[]> {
+  if (openerIds.length === 0 || bootIds.length === 0) return []
   const rows = patches?.length
     ? await sql_`
-        SELECT pi."itemId", COUNT(*)::int AS picks, SUM(p.win::int)::int AS wins
-        FROM participant_items pi
-        JOIN participants p ON p.id = pi."participantId"
+        SELECT pi_o."itemId" AS "openerId", pi_b."itemId" AS "bootId", COUNT(*)::int AS picks
+        FROM participants p
+        JOIN participant_items pi_o ON pi_o."participantId" = p.id
+        JOIN participant_items pi_b ON pi_b."participantId" = p.id
         WHERE p."championId" = ${championId}
           AND p."gameVersion" = ANY(${patches})
-          AND p."gameVersion" IS NOT NULL
-        GROUP BY pi."itemId"
+          AND pi_o."itemId" = ANY(${openerIds})
+          AND pi_b."itemId" = ANY(${bootIds})
+        GROUP BY pi_o."itemId", pi_b."itemId"
         ORDER BY picks DESC
       `
     : await sql_`
-        SELECT pi."itemId", COUNT(*)::int AS picks, SUM(p.win::int)::int AS wins
-        FROM participant_items pi
-        JOIN participants p ON p.id = pi."participantId"
+        SELECT pi_o."itemId" AS "openerId", pi_b."itemId" AS "bootId", COUNT(*)::int AS picks
+        FROM participants p
+        JOIN participant_items pi_o ON pi_o."participantId" = p.id
+        JOIN participant_items pi_b ON pi_b."participantId" = p.id
         WHERE p."championId" = ${championId}
-          AND p."gameVersion" IS NOT NULL
-        GROUP BY pi."itemId"
+          AND pi_o."itemId" = ANY(${openerIds})
+          AND pi_b."itemId" = ANY(${bootIds})
+        GROUP BY pi_o."itemId", pi_b."itemId"
         ORDER BY picks DESC
       `
-  return rows.map((r: any) => ({ itemId: r.itemId, picks: r.picks, wins: r.wins }))
+  return rows.map((r: any) => ({ openerId: r.openerId, bootId: r.bootId, picks: r.picks }))
+}
+
+export async function getItemBuildsForArchetypes(
+  championId: number,
+  patches: string[] | undefined,
+  bootIds: number[]
+): Promise<{ build: number[]; games: number; wins: number }[]> {
+  const rows = patches?.length
+    ? await sql_`
+        WITH per_game AS (
+          SELECT p.win,
+            ARRAY(
+              SELECT pi."itemId"
+              FROM participant_items pi
+              WHERE pi."participantId" = p.id
+                AND pi."itemId" != ALL(${bootIds}::int[])
+              ORDER BY pi."itemId"
+              LIMIT 5
+            ) AS build
+          FROM participants p
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+        )
+        SELECT build, COUNT(*)::int AS games, SUM(win::int)::int AS wins
+        FROM per_game
+        WHERE array_length(build, 1) >= 3
+        GROUP BY build
+        ORDER BY games DESC
+      `
+    : await sql_`
+        WITH per_game AS (
+          SELECT p.win,
+            ARRAY(
+              SELECT pi."itemId"
+              FROM participant_items pi
+              WHERE pi."participantId" = p.id
+                AND pi."itemId" != ALL(${bootIds}::int[])
+              ORDER BY pi."itemId"
+              LIMIT 5
+            ) AS build
+          FROM participants p
+          WHERE p."championId" = ${championId}
+        )
+        SELECT build, COUNT(*)::int AS games, SUM(win::int)::int AS wins
+        FROM per_game
+        WHERE array_length(build, 1) >= 3
+        GROUP BY build
+        ORDER BY games DESC
+      `
+  return rows.map((r: any) => ({ build: r.build as number[], games: r.games, wins: r.wins }))
+}
+
+export interface ItemPickRatesResult {
+  totalGames: number
+  items: ItemPickRate[]
+}
+
+export async function getItemPickRates(championId: number, patches?: string[]): Promise<ItemPickRatesResult> {
+  const [itemRows, countRows] = await Promise.all([
+    patches?.length
+      ? sql_`
+          SELECT unnest(build) AS "itemId",
+                 SUM(games)::int AS picks,
+                 SUM(wins)::int AS wins
+          FROM item_builds_cache
+          WHERE "championId" = ${championId}
+            AND "gameVersion" = ANY(${patches})
+          GROUP BY "itemId"
+          ORDER BY picks DESC
+        `
+      : sql_`
+          SELECT unnest(build) AS "itemId",
+                 SUM(games)::int AS picks,
+                 SUM(wins)::int AS wins
+          FROM item_builds_cache
+          WHERE "championId" = ${championId}
+          GROUP BY "itemId"
+          ORDER BY picks DESC
+        `,
+    patches?.length
+      ? sql_`
+          SELECT COUNT(DISTINCT p.id)::int AS total
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+        `
+      : sql_`
+          SELECT COUNT(DISTINCT p.id)::int AS total
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          WHERE p."championId" = ${championId}
+        `,
+  ])
+  return {
+    totalGames: (countRows[0] as any)?.total ?? 0,
+    items: itemRows.map((r: any) => ({ itemId: r.itemId, picks: r.picks, wins: r.wins })),
+  }
 }
 
 export interface MatchView {

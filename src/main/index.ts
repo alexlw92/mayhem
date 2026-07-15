@@ -152,8 +152,6 @@ async function refreshMetadata(): Promise<void> {
       const cats: string[] = item.categories ?? []
       if (cats.includes('Consumable') || cats.includes('Trinket')) continue
       if ((item.priceTotal ?? 0) < 700) continue
-      const builtInto: unknown[] = item.to ?? []
-      if (builtInto.length > 0 && !cats.includes('Boots')) continue
       const iconRaw: string = item.iconPath ?? ''
       const iconUrl = iconRaw
         ? `${CDRAGON_PLUGIN}/${iconRaw.replace(/^\/lol-game-data\/assets\//i, '').toLowerCase()}`
@@ -485,16 +483,19 @@ ipcMain.handle('db:itemBuilds', async (_e, championId: number, patches?: string[
 })
 
 ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: string[]) => {
-  const picks = await apiClient.itemPickRates(championId, patches)
+  const result = await apiClient.itemPickRates(championId, patches)
   const cache = getItemCache()
-  return (picks as any[])
-    .filter((p) => cache[p.itemId])
-    .map((p) => ({
-      ...p,
-      name: cache[p.itemId].name,
-      iconPath: cache[p.itemId].iconPath,
-      category: cache[p.itemId].category,
-    }))
+  return {
+    totalGames: result.totalGames,
+    items: (result.items as any[])
+      .filter((p) => cache[p.itemId])
+      .map((p) => ({
+        ...p,
+        name: cache[p.itemId].name,
+        iconPath: cache[p.itemId].iconPath,
+        category: cache[p.itemId].category,
+      })),
+  }
 })
 
 ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: string[]) => {
@@ -502,22 +503,47 @@ ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: str
   if (archetypeCache.has(key)) return archetypeCache.get(key)
 
   const cache = getItemCache()
-  const allowedIds = Object.entries(cache)
-    .filter(([, v]) => v.category !== 'Boots')
+  const bootIds = Object.entries(cache)
+    .filter(([, v]) => v.category === 'Boots')
     .map(([k]) => Number(k))
-  const builds = await apiClient.itemBuilds(championId, patches, allowedIds)
-  const enriched = (builds as any[]).map((b) => ({
+
+  const rawBuilds = await apiClient.itemBuildsForArchetypes(championId, patches, bootIds)
+  const enriched = (rawBuilds as any[]).map((b) => ({
     ...b,
     items: (b.build as number[]).map((id) => ({
       id,
       name: cache[id]?.name ?? `Item ${id}`,
       iconPath: cache[id]?.iconPath ?? '',
       category: cache[id]?.category ?? '',
-    }))
+    })),
   }))
-  const archetypes = clusterBuilds(enriched)
-  archetypeCache.set(key, archetypes)
-  return archetypes
+  const validItemNames = new Set(Object.values(cache).map(v => v.name.toLowerCase()))
+  const archetypes = clusterBuilds(enriched, validItemNames)
+
+  // attach per-path boots
+  const openerIds = archetypes.map(a => a.openingId)
+  const bootsData: { openerId: number; bootId: number; picks: number }[] =
+    openerIds.length > 0 && bootIds.length > 0
+      ? await apiClient.itemBootsByOpener(championId, openerIds, bootIds, patches).catch(() => [])
+      : []
+
+  const topBoot = new Map<number, number>()
+  for (const r of bootsData) {
+    if (!topBoot.has(r.openerId)) topBoot.set(r.openerId, r.bootId)
+  }
+
+  const result = archetypes.map(a => {
+    const bootId = topBoot.get(a.openingId) ?? null
+    return {
+      ...a,
+      bootId,
+      bootItem: bootId != null
+        ? { id: bootId, name: cache[bootId]?.name ?? `Item ${bootId}`, iconPath: cache[bootId]?.iconPath ?? '', category: 'Boots' }
+        : null,
+    }
+  })
+  archetypeCache.set(key, result)
+  return result
 })
 
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')

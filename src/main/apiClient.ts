@@ -104,6 +104,18 @@ export const apiClient = {
   itemPickRates: (championId: number, patches?: string[]) =>
     http.get('/api/items/picks', { params: { championId, patches: patches?.join(',') }, timeout: 30_000 }).then((r) => r.data),
 
+  itemBuildsForArchetypes: (championId: number, patches?: string[], bootIds?: number[]) =>
+    http.get('/api/items/builds-archetypes', {
+      params: { championId, patches: patches?.join(','), boots: bootIds?.join(',') },
+      timeout: 30_000,
+    }).then((r) => r.data),
+
+  itemBootsByOpener: (championId: number, openerIds: number[], bootIds: number[], patches?: string[]) =>
+    http.get('/api/items/boots-by-opener', {
+      params: { championId, openers: openerIds.join(','), boots: bootIds.join(','), patches: patches?.join(',') },
+      timeout: 15_000,
+    }).then((r) => r.data),
+
   searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
     http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),
 }

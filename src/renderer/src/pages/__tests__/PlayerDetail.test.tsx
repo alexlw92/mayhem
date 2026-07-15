@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
-import { ChampionTable, AugmentTable, CoplayerTable, ChampionStat, AugmentStat, AugmentInfo, CoplayerStat } from '../Players'
+import { ChampionTable, AugmentTable, CoplayerTable, MatchCard, ChampionStat, AugmentStat, AugmentInfo, CoplayerStat, MatchView } from '../Players'
 
 afterEach(() => cleanup())
 
@@ -125,5 +125,63 @@ describe('CoplayerTable', () => {
     fireEvent.click(header)
     fireEvent.click(header)
     expect(container).toMatchSnapshot()
+  })
+
+  it('renders names as clickable spans when onPlayerClick is provided', () => {
+    const { container } = render(<CoplayerTable data={coplayers} onPlayerClick={vi.fn()} />)
+    expect(container).toMatchSnapshot()
+  })
+
+  it('fires onPlayerClick with puuid and name when a coplayer name is clicked', () => {
+    const handler = vi.fn()
+    const { getByText } = render(<CoplayerTable data={coplayers} onPlayerClick={handler} />)
+    fireEvent.click(getByText('Alice#NA1'))
+    expect(handler).toHaveBeenCalledWith('p1', 'Alice#NA1')
+  })
+})
+
+// ─── MatchCard ────────────────────────────────────────────────────────────────
+
+const matchFixture: MatchView = {
+  gameId: 1001,
+  gameCreation: Date.now() - 3600_000,
+  gameDuration: 1200,
+  participants: [
+    { puuid: 'me', summonerName: 'Me#NA1', championId: 1, championName: 'Annie', teamId: 100, win: true, kills: 5, deaths: 1, assists: 3, damageDealt: 30000, augments: [] },
+    { puuid: 'ally', summonerName: 'Ally#NA1', championId: 2, championName: 'Teemo', teamId: 100, win: true, kills: 3, deaths: 2, assists: 6, damageDealt: 20000, augments: [] },
+    { puuid: 'foe', summonerName: 'Foe#NA1', championId: 3, championName: 'Lux', teamId: 200, win: false, kills: 1, deaths: 4, assists: 0, damageDealt: 15000, augments: [] },
+  ],
+}
+
+describe('MatchCard', () => {
+  it('renders without onPlayerClick — names are plain text', () => {
+    const { container } = render(<MatchCard match={matchFixture} selectedPuuid="me" augments={{}} />)
+    expect(container).toMatchSnapshot()
+  })
+
+  it('renders with onPlayerClick — other players have clickable spans', () => {
+    const { container } = render(<MatchCard match={matchFixture} selectedPuuid="me" augments={{}} onPlayerClick={vi.fn()} />)
+    expect(container).toMatchSnapshot()
+  })
+
+  it('fires onPlayerClick when an ally name is clicked', () => {
+    const handler = vi.fn()
+    const { getByText } = render(<MatchCard match={matchFixture} selectedPuuid="me" augments={{}} onPlayerClick={handler} />)
+    fireEvent.click(getByText('Ally#NA1'))
+    expect(handler).toHaveBeenCalledWith('ally', 'Ally#NA1')
+  })
+
+  it('fires onPlayerClick when an enemy name is clicked', () => {
+    const handler = vi.fn()
+    const { getByText } = render(<MatchCard match={matchFixture} selectedPuuid="me" augments={{}} onPlayerClick={handler} />)
+    fireEvent.click(getByText('Foe#NA1'))
+    expect(handler).toHaveBeenCalledWith('foe', 'Foe#NA1')
+  })
+
+  it('does not make the selected player name clickable', () => {
+    const handler = vi.fn()
+    const { getByText } = render(<MatchCard match={matchFixture} selectedPuuid="me" augments={{}} onPlayerClick={handler} />)
+    fireEvent.click(getByText('Me#NA1'))
+    expect(handler).not.toHaveBeenCalled()
   })
 })

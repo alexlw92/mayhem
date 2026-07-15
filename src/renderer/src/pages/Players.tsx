@@ -17,6 +17,7 @@ interface PlayerStats {
   avgDpm: number
   avgGold: number
   syncedFull: boolean
+  syncedAt: number
 }
 
 interface MatchParticipant {
@@ -33,7 +34,7 @@ interface MatchParticipant {
   augments: number[]
 }
 
-interface MatchView {
+export interface MatchView {
   gameId: number
   gameCreation: number
   gameDuration: number
@@ -142,6 +143,15 @@ export default function Players({ onPlayersChange, selectedPatches, selectedPuui
         selectedPatches={selectedPatches}
         onBack={() => { setSelectedPlayerData(null); onPlayerDeselect() }}
         onAugmentClick={onAugmentClick}
+        onPlayerClick={(newPuuid, name) => {
+          const placeholder: PlayerStats = {
+            puuid: newPuuid, summonerName: name,
+            games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
+          }
+          setSelectedPlayerData(placeholder)
+          onPlayerSelect(newPuuid, name)
+        }}
       />
     )
   }
@@ -202,7 +212,7 @@ function RecentPlayerCard({
   const placeholder: PlayerStats = {
     puuid: entry.puuid, summonerName: entry.riotId,
     games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-    avgDpm: 0, avgGold: 0, syncedFull: false,
+    avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
   }
 
   return (
@@ -224,22 +234,27 @@ function RecentPlayerCard({
         )}
         {syncMsg && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2 }}>{syncMsg}</div>}
       </div>
-      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        <button
-          className="lb-sync-btn"
-          onClick={handleSync}
-          disabled={syncing}
-          title="Sync player"
-        >
-          {syncing ? '…' : '↻'}
-        </button>
-        <button
-          className="lb-remove-btn"
-          onClick={(e) => { e.stopPropagation(); onRemove(entry.puuid) }}
-          title="Remove from recents"
-        >
-          ×
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            className="lb-sync-btn"
+            onClick={handleSync}
+            disabled={syncing}
+            title="Sync player"
+          >
+            {syncing ? '…' : '↻'}
+          </button>
+          <button
+            className="lb-remove-btn"
+            onClick={(e) => { e.stopPropagation(); onRemove(entry.puuid) }}
+            title="Remove from recents"
+          >
+            ×
+          </button>
+        </div>
+        {stats && stats.syncedAt > 0 && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{timeAgo(stats.syncedAt)}</span>
+        )}
       </div>
     </div>
   )
@@ -339,84 +354,88 @@ function PlayerList({
     <div>
       <h1 className="page-title">Players</h1>
 
-      <div style={{ position: 'relative', marginBottom: 12 }}>
-        <input
-          className="player-search"
-          style={{ marginBottom: 0 }}
-          placeholder="Search players…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true) }}
-          onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
-        />
-        {showSearchDropdown && (
-          <div className="recent-dropdown">
-            {searchResults.length > 0
-              ? searchResults.map((r) => (
-                  <div
-                    key={r.puuid}
-                    className="recent-item"
-                    onMouseDown={() => {
-                      const placeholder: PlayerStats = {
-                        puuid: r.puuid, summonerName: r.summonerName,
-                        games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-                        avgDpm: 0, avgGold: 0, syncedFull: false,
-                      }
-                      const next = [{ riotId: r.summonerName, puuid: r.puuid }, ...recents.filter(e => e.puuid !== r.puuid)].slice(0, MAX_RECENT)
-                      setRecents(next)
-                      persistRecents(next)
-                      setSearchQuery('')
-                      setShowSearchDropdown(false)
-                      onSelect(r.puuid, placeholder)
-                    }}
-                  >
-                    {r.summonerName}
-                  </div>
-                ))
-              : <div className="recent-label" style={{ padding: '8px 10px' }}>No players found</div>
-            }
-          </div>
-        )}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16, padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Add a player by Riot ID</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+        <div className="card" style={{ flex: 2, padding: '12px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Search players</div>
+          <div style={{ position: 'relative' }}>
             <input
               style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', padding: '6px 12px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }}
-              placeholder="Name#TAG"
-              value={addInput}
-              onChange={(e) => { setAddInput(e.target.value); setAddError('') }}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
-              onFocus={() => setShowRecents(true)}
-              onBlur={() => setTimeout(() => setShowRecents(false), 150)}
+              placeholder="Search by name…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true) }}
+              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
             />
-            {showRecents && recents.length > 0 && (
+            {showSearchDropdown && (
               <div className="recent-dropdown">
-                <div className="recent-label">Recent</div>
-                {recents.map((r) => (
-                  <div
-                    key={r.puuid}
-                    className="recent-item"
-                    onMouseDown={() => { setAddInput(r.riotId); setShowRecents(false) }}
-                  >
-                    {r.riotId}
-                  </div>
-                ))}
+                {searchResults.length > 0
+                  ? searchResults.map((r) => (
+                      <div
+                        key={r.puuid}
+                        className="recent-item"
+                        onMouseDown={() => {
+                          const placeholder: PlayerStats = {
+                            puuid: r.puuid, summonerName: r.summonerName,
+                            games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+                            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
+                          }
+                          const next = [{ riotId: r.summonerName, puuid: r.puuid }, ...recents.filter(e => e.puuid !== r.puuid)].slice(0, MAX_RECENT)
+                          setRecents(next)
+                          persistRecents(next)
+                          setSearchQuery('')
+                          setShowSearchDropdown(false)
+                          onSelect(r.puuid, placeholder)
+                        }}
+                      >
+                        {r.summonerName}
+                      </div>
+                    ))
+                  : <div className="recent-label" style={{ padding: '8px 10px' }}>No players found</div>
+                }
               </div>
             )}
           </div>
-          <button
-            onClick={handleAddPlayer}
-            disabled={addLoading || syncing || !addInput.trim()}
-            style={{ padding: '6px 16px', background: 'var(--blue)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: (addLoading || syncing) ? 0.5 : 1, flexShrink: 0 }}
-          >
-            {addLoading ? 'Looking up…' : syncing ? 'Syncing…' : 'Add & Sync'}
-          </button>
         </div>
-        {addError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{addError}</div>}
-        {syncMsg && <div style={{ color: 'var(--green)', fontSize: 12, marginTop: 6 }}>{syncMsg}</div>}
+
+        <div className="card" style={{ flex: 1, padding: '12px 16px' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Add a player by Riot ID</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <input
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', padding: '6px 12px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                placeholder="Name#TAG"
+                value={addInput}
+                onChange={(e) => { setAddInput(e.target.value); setAddError('') }}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddPlayer()}
+                onFocus={() => setShowRecents(true)}
+                onBlur={() => setTimeout(() => setShowRecents(false), 150)}
+              />
+              {showRecents && recents.length > 0 && (
+                <div className="recent-dropdown">
+                  <div className="recent-label">Recent</div>
+                  {recents.map((r) => (
+                    <div
+                      key={r.puuid}
+                      className="recent-item"
+                      onMouseDown={() => { setAddInput(r.riotId); setShowRecents(false) }}
+                    >
+                      {r.riotId}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleAddPlayer}
+              disabled={addLoading || syncing || !addInput.trim()}
+              style={{ padding: '6px 16px', background: 'var(--blue)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: (addLoading || syncing) ? 0.5 : 1, flexShrink: 0 }}
+            >
+              {addLoading ? 'Looking up…' : syncing ? 'Syncing…' : 'Add & Sync'}
+            </button>
+          </div>
+          {addError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{addError}</div>}
+          {syncMsg && <div style={{ color: 'var(--green)', fontSize: 12, marginTop: 6 }}>{syncMsg}</div>}
+        </div>
       </div>
 
       {recents.length === 0 ? (
@@ -472,7 +491,7 @@ function PlayerList({
 
 // ─── Individual player view ───────────────────────────────────────────────────
 
-function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; onAugmentClick?: (augmentId: number) => void }) {
+function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick, onPlayerClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; onAugmentClick?: (augmentId: number) => void; onPlayerClick?: (puuid: string, name: string) => void }) {
   const [tab, setTab] = useState<Tab>('matches')
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [matches, setMatches] = useState<MatchView[]>([])
@@ -482,6 +501,8 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
   const [coplayerStats, setCoplayerStats] = useState<CoplayerStat[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   useEffect(() => {
     if (selectedPatches === null) return
@@ -514,6 +535,21 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
     }
   }, [tab, puuid, selectedPatches, championStats.length, augmentStats.length, coplayerStats.length])
 
+  const handleDetailSync = useCallback(async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const result = await api.lcu.syncPlayer(puuid)
+      setSyncMsg(`${result.imported} new game${result.imported !== 1 ? 's' : ''}`)
+      const fresh = await api.db.playerOneStats(puuid, selectedPatches ?? undefined)
+      if (fresh) setStats(fresh)
+    } catch {
+      setSyncMsg('sync failed')
+    }
+    setSyncing(false)
+    setTimeout(() => setSyncMsg(''), 4000)
+  }, [puuid, selectedPatches])
+
   const backBtn = (
     <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}>
       ← Back
@@ -541,6 +577,19 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         {backBtn}
         <h1 className="page-title" style={{ margin: 0 }}>{player.summonerName}</h1>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {(stats?.syncedAt ?? 0) > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>synced {timeAgo(stats!.syncedAt)}</span>
+          )}
+          <button
+            onClick={handleDetailSync}
+            disabled={syncing}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', padding: '5px 12px', fontSize: 12, cursor: 'pointer', opacity: syncing ? 0.5 : 1 }}
+          >
+            {syncing ? '…' : '↻ Sync'}
+          </button>
+          {syncMsg && <span style={{ fontSize: 11, color: 'var(--green)' }}>{syncMsg}</span>}
+        </div>
       </div>
 
       {stats && (
@@ -600,7 +649,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {matches.map((match) => (
-              <MatchCard key={match.gameId} match={match} selectedPuuid={puuid} augments={augmentCache} />
+              <MatchCard key={match.gameId} match={match} selectedPuuid={puuid} augments={augmentCache} onPlayerClick={onPlayerClick} />
             ))}
           </div>
         )
@@ -626,7 +675,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick }
         coplayerStats.length === 0 ? (
           <div className="card"><div className="empty-state"><div>No coplayer data</div></div></div>
         ) : (
-          <CoplayerTable data={coplayerStats} />
+          <CoplayerTable data={coplayerStats} onPlayerClick={onPlayerClick} />
         )
       )}
     </div>
@@ -803,7 +852,7 @@ export function AugmentTable({ data, augmentCache, onAugmentClick }: { data: Aug
 
 // ─── Match components (migrated from Dashboard.tsx) ──────────────────────────
 
-function MatchCard({ match, selectedPuuid, augments }: { match: MatchView; selectedPuuid: string | null; augments: Record<number, AugmentInfo> }) {
+export function MatchCard({ match, selectedPuuid, augments, onPlayerClick }: { match: MatchView; selectedPuuid: string | null; augments: Record<number, AugmentInfo>; onPlayerClick?: (puuid: string, name: string) => void }) {
   const blue = match.participants.filter((p) => p.teamId === 100)
   const red = match.participants.filter((p) => p.teamId === 200)
   const blueWon = blue[0]?.win ?? false
@@ -819,15 +868,15 @@ function MatchCard({ match, selectedPuuid, augments }: { match: MatchView; selec
         <span className="match-meta time-ago">{timeAgo(match.gameCreation)}</span>
       </div>
       <div className="match-teams">
-        <TeamTable participants={teamA} won={teamAWon} selectedPuuid={selectedPuuid} augments={augments} />
+        <TeamTable participants={teamA} won={teamAWon} selectedPuuid={selectedPuuid} augments={augments} onPlayerClick={onPlayerClick} />
         <div className="team-divider" />
-        <TeamTable participants={teamB} won={!teamAWon} selectedPuuid={selectedPuuid} augments={augments} />
+        <TeamTable participants={teamB} won={!teamAWon} selectedPuuid={selectedPuuid} augments={augments} onPlayerClick={onPlayerClick} />
       </div>
     </div>
   )
 }
 
-function TeamTable({ participants, selectedPuuid, augments }: { participants: MatchParticipant[]; won: boolean; selectedPuuid: string | null; augments: Record<number, AugmentInfo> }) {
+function TeamTable({ participants, selectedPuuid, augments, onPlayerClick }: { participants: MatchParticipant[]; won: boolean; selectedPuuid: string | null; augments: Record<number, AugmentInfo>; onPlayerClick?: (puuid: string, name: string) => void }) {
   return (
     <table className="team-table">
       <tbody>
@@ -841,7 +890,16 @@ function TeamTable({ participants, selectedPuuid, augments }: { participants: Ma
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
             </td>
-            <td className="summoner-name" style={{ minWidth: 90, maxWidth: 120 }}>{p.summonerName}</td>
+            <td className="summoner-name" style={{ minWidth: 90, maxWidth: 120 }}>
+              {onPlayerClick && p.puuid !== selectedPuuid ? (
+                <span
+                  style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--text-muted)' }}
+                  onClick={() => onPlayerClick(p.puuid, p.summonerName)}
+                >
+                  {p.summonerName}
+                </span>
+              ) : p.summonerName}
+            </td>
             <td>
               <div style={{ display: 'flex', gap: 2 }}>
                 {p.augments.map((id) => <AugmentIcon key={id} id={id} augments={augments} size={18} />)}
@@ -860,7 +918,7 @@ function TeamTable({ participants, selectedPuuid, augments }: { participants: Ma
 
 // ─── Coplayer sub-tab table ───────────────────────────────────────────────────
 
-export function CoplayerTable({ data }: { data: CoplayerStat[] }) {
+export function CoplayerTable({ data, onPlayerClick }: { data: CoplayerStat[]; onPlayerClick?: (puuid: string, name: string) => void }) {
   const [sortKey, setSortKey] = useState<CoplayerSortKey>('games')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
@@ -892,7 +950,16 @@ export function CoplayerTable({ data }: { data: CoplayerStat[] }) {
             const wr = r.games > 0 ? r.wins / r.games : 0
             return (
               <tr key={r.puuid}>
-                <td style={{ fontWeight: 500 }}>{r.summonerName}</td>
+                <td style={{ fontWeight: 500 }}>
+                  {onPlayerClick ? (
+                    <span
+                      style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--text-muted)' }}
+                      onClick={() => onPlayerClick(r.puuid, r.summonerName)}
+                    >
+                      {r.summonerName}
+                    </span>
+                  ) : r.summonerName}
+                </td>
                 <td>{r.games}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

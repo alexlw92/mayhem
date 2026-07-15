@@ -14,7 +14,9 @@ import {
   getGroupSummary,
   searchPlayers,
   getItemBuilds,
+  getItemBuildsForArchetypes,
   getItemPickRates,
+  getBootsByOpener,
   AugmentInfo
 } from '../db'
 
@@ -120,6 +122,29 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const rawPatches = parsePatches(req.query.patches)
     const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
     res.json(await getItemPickRates(championId, patches))
+  })
+
+  router.get('/items/builds-archetypes', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    const bootIds = typeof req.query.boots === 'string' && req.query.boots
+      ? req.query.boots.split(',').map(Number).filter(Boolean) : []
+    res.json(await getItemBuildsForArchetypes(championId, patches, bootIds))
+  })
+
+  router.get('/items/boots-by-opener', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const openerIds = typeof req.query.openers === 'string' && req.query.openers
+      ? req.query.openers.split(',').map(Number).filter(Boolean) : []
+    const bootIds = typeof req.query.boots === 'string' && req.query.boots
+      ? req.query.boots.split(',').map(Number).filter(Boolean) : []
+    if (openerIds.length === 0 || bootIds.length === 0) return res.json([])
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    res.json(await getBootsByOpener(championId, openerIds, bootIds, patches))
   })
 
   return router

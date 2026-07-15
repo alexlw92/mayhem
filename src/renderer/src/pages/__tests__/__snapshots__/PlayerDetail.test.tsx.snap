@@ -2407,3 +2407,481 @@ exports[`CoplayerTable > default render — sorted by games descending 1`] = `
   </div>
 </div>
 `;
+
+exports[`CoplayerTable > renders names as clickable spans when onPlayerClick is provided 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Player
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            <span
+              style="cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted);"
+            >
+              Alice#NA1
+            </span>
+          </td>
+          <td>
+            12
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                67
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            <span
+              style="cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted);"
+            >
+              Carol#NA1
+            </span>
+          </td>
+          <td>
+            9
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                33
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="font-weight: 500;"
+          >
+            <span
+              style="cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted);"
+            >
+              Bob#NA1
+            </span>
+          </td>
+          <td>
+            5
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+              >
+                <div
+                  style="width: 80%; height: 100%; background: var(--green); border-radius: 3px;"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                80
+                %
+              </span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`MatchCard > renders with onPlayerClick — other players have clickable spans 1`] = `
+<div>
+  <div
+    class="card match-card"
+  >
+    <div
+      class="match-header"
+    >
+      <span
+        class="result-badge win"
+      >
+        WIN
+      </span>
+      <span
+        class="match-meta"
+      >
+        20:00
+      </span>
+      <span
+        class="match-meta time-ago"
+      >
+        1h ago
+      </span>
+    </div>
+    <div
+      class="match-teams"
+    >
+      <table
+        class="team-table"
+      >
+        <tbody>
+          <tr
+            class="selected-player"
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Annie"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/1.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              Me#NA1
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              5
+              /
+              1
+              /
+              3
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              30.0
+              k
+            </td>
+          </tr>
+          <tr
+            class=""
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Teemo"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/2.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              <span
+                style="cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted);"
+              >
+                Ally#NA1
+              </span>
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              3
+              /
+              2
+              /
+              6
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              20.0
+              k
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="team-divider"
+      />
+      <table
+        class="team-table"
+      >
+        <tbody>
+          <tr
+            class=""
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Lux"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/3.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              <span
+                style="cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted);"
+              >
+                Foe#NA1
+              </span>
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              1
+              /
+              4
+              /
+              0
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              15.0
+              k
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`MatchCard > renders without onPlayerClick — names are plain text 1`] = `
+<div>
+  <div
+    class="card match-card"
+  >
+    <div
+      class="match-header"
+    >
+      <span
+        class="result-badge win"
+      >
+        WIN
+      </span>
+      <span
+        class="match-meta"
+      >
+        20:00
+      </span>
+      <span
+        class="match-meta time-ago"
+      >
+        1h ago
+      </span>
+    </div>
+    <div
+      class="match-teams"
+    >
+      <table
+        class="team-table"
+      >
+        <tbody>
+          <tr
+            class="selected-player"
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Annie"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/1.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              Me#NA1
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              5
+              /
+              1
+              /
+              3
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              30.0
+              k
+            </td>
+          </tr>
+          <tr
+            class=""
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Teemo"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/2.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              Ally#NA1
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              3
+              /
+              2
+              /
+              6
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              20.0
+              k
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="team-divider"
+      />
+      <table
+        class="team-table"
+      >
+        <tbody>
+          <tr
+            class=""
+          >
+            <td
+              class="champ-cell"
+              style="width: 28px;"
+            >
+              <img
+                alt="Lux"
+                class="champ-icon"
+                src="mayhem-asset://champion-icons/3.png"
+              />
+            </td>
+            <td
+              class="summoner-name"
+              style="min-width: 90px; max-width: 120px;"
+            >
+              Foe#NA1
+            </td>
+            <td>
+              <div
+                style="display: flex; gap: 2px;"
+              />
+            </td>
+            <td
+              class="kda"
+              style="white-space: nowrap;"
+            >
+              1
+              /
+              4
+              /
+              0
+            </td>
+            <td
+              style="color: var(--text-muted); font-size: 12px; white-space: nowrap;"
+            >
+              15.0
+              k
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;

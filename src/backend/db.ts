@@ -1609,7 +1609,7 @@ export interface ItemPickRatesResult {
 }
 
 export async function getItemPickRates(championId: number, patches?: string[]): Promise<ItemPickRatesResult> {
-  const [itemRows, countRows] = await Promise.all([
+  const [itemRows, countRows, bootsRows] = await Promise.all([
     patches?.length
       ? sql_`
           SELECT u.item_id AS "itemId", m.name, m."iconPath", m.category,
@@ -1650,17 +1650,48 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
           FROM champion_stats_cache
           WHERE "championId" = ${championId}
         `,
+    patches?.length
+      ? sql_`
+          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
+                 COUNT(*)::int AS picks,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          JOIN meta_items m ON m.id = pi."itemId"
+            AND m.category = 'Boots'
+            AND m.name IS NOT NULL
+            AND m.name != ''
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+          GROUP BY pi."itemId", m.name, m."iconPath", m.category
+          ORDER BY picks DESC
+        `
+      : sql_`
+          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
+                 COUNT(*)::int AS picks,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          JOIN meta_items m ON m.id = pi."itemId"
+            AND m.category = 'Boots'
+            AND m.name IS NOT NULL
+            AND m.name != ''
+          WHERE p."championId" = ${championId}
+          GROUP BY pi."itemId", m.name, m."iconPath", m.category
+          ORDER BY picks DESC
+        `,
   ])
+  const toRow = (r: any) => ({
+    itemId: r.itemId,
+    picks: r.picks,
+    wins: r.wins,
+    name: r.name ?? null,
+    iconPath: r.iconPath ?? null,
+    category: r.category ?? null,
+  })
   return {
     totalGames: (countRows[0] as any)?.total ?? 0,
-    items: itemRows.map((r: any) => ({
-      itemId: r.itemId,
-      picks: r.picks,
-      wins: r.wins,
-      name: r.name ?? null,
-      iconPath: r.iconPath ?? null,
-      category: r.category ?? null,
-    })),
+    items: [...(bootsRows as any[]).map(toRow), ...(itemRows as any[]).map(toRow)],
   }
 }
 

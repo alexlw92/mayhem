@@ -75,25 +75,6 @@ exports[`Items > renders all three sections with full data (archetypes default c
               </div>
             </span>
             <span
-              style="display: flex; align-items: center; gap: 6px;"
-            >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
-              <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
-                title="Void Staff"
-              >
-                <img
-                  alt="Void Staff"
-                  src="mayhem-asset://items/3135.png"
-                  style="width: 100%; height: 100%; object-fit: cover;"
-                />
-              </div>
-            </span>
-            <span
               style="font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); border-radius: 3px; padding: 1px 5px; margin-left: 2px;"
             >
               Tank
@@ -171,25 +152,6 @@ exports[`Items > renders all three sections with full data (archetypes default c
                 <img
                   alt="Void Staff"
                   src="mayhem-asset://items/3135.png"
-                  style="width: 100%; height: 100%; object-fit: cover;"
-                />
-              </div>
-            </span>
-            <span
-              style="display: flex; align-items: center; gap: 6px;"
-            >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
-              <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
-                title="Zhonya's Hourglass"
-              >
-                <img
-                  alt="Zhonya's Hourglass"
-                  src="mayhem-asset://items/3157.png"
                   style="width: 100%; height: 100%; object-fit: cover;"
                 />
               </div>

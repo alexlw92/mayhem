@@ -22,7 +22,8 @@ export interface Archetype {
   variants: BuildRow[]
   games: number
   wins: number
-  orGroups: ItemMeta[][]
+  boots: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
+  flexPairs: { items: [ItemMeta, ItemMeta]; picks: number; pickRate: number; wins: number }[]
 }
 
 const ITEM_ARCHETYPES: Record<string, string[]> = {
@@ -38,7 +39,6 @@ const ITEM_ARCHETYPES: Record<string, string[]> = {
 }
 
 const FIRST_ITEM_LOOKUP = new Map<string, string[]>()
-// Priority: lower number = higher priority (position within archetype list)
 const STARTER_PRIORITY = new Map<string, number>()
 for (const [label, names] of Object.entries(ITEM_ARCHETYPES)) {
   for (let i = 0; i < names.length; i++) {
@@ -51,31 +51,13 @@ for (const [label, names] of Object.entries(ITEM_ARCHETYPES)) {
   }
 }
 
-function edgeKey(a: number, b: number): string {
-  return a < b ? `${a}_${b}` : `${b}_${a}`
+function tripleKey(a: number, b: number, c: number): string {
+  const s = [a, b, c].sort((x, y) => x - y)
+  return `${s[0]}_${s[1]}_${s[2]}`
 }
 
-function buildGraph(
-  pool: BuildRow[],
-  componentIds: Set<number>,
-): { edges: Map<string, number>; strength: Map<number, number> } {
-  const edges = new Map<string, number>()
-  const strength = new Map<number, number>()
-  for (const b of pool) {
-    const ids = b.items
-      .filter(i => i.category !== 'Boots' && !componentIds.has(i.id) && i.name)
-      .map(i => i.id)
-    for (let x = 0; x < ids.length - 1; x++) {
-      for (let y = x + 1; y < ids.length; y++) {
-        const k = edgeKey(ids[x], ids[y])
-        const w = b.games
-        edges.set(k, (edges.get(k) ?? 0) + w)
-        strength.set(ids[x], (strength.get(ids[x]) ?? 0) + w)
-        strength.set(ids[y], (strength.get(ids[y]) ?? 0) + w)
-      }
-    }
-  }
-  return { edges, strength }
+function pairKey(a: number, b: number): string {
+  return a < b ? `${a}_${b}` : `${b}_${a}`
 }
 
 function findStarterId(pool: BuildRow[]): number | null {
@@ -103,6 +85,9 @@ export function clusterByCooccurrence(
 ): Archetype[] {
   if (builds.length === 0) return []
 
+  const totalGames = builds.reduce((s, b) => s + b.games, 0)
+  const threshold = Math.max(totalGames * 0.02, 3)
+
   const itemById = new Map<number, ItemMeta>()
   for (const b of builds) {
     for (const item of b.items) {
@@ -110,117 +95,148 @@ export function clusterByCooccurrence(
     }
   }
 
-  const archetypes: Archetype[] = []
-  let remaining = [...builds]
+  interface TripleEntry {
+    ids: [number, number, number]
+    games: number
+    wins: number
+    builds: BuildRow[]
+  }
 
-  while (remaining.length > 0 && archetypes.length < 20) {
-    const { edges, strength } = buildGraph(remaining, componentIds)
-    if (strength.size === 0) break
+  // Phase 1: enumerate all triples and pairs from non-boot, non-component items
+  const tripleMap = new Map<string, TripleEntry>()
+  const pairGames = new Map<string, number>()
 
-    // Seed with the highest-strength node (most central item across remaining builds)
-    const seedId = [...strength.entries()].sort((a, b) => b[1] - a[1])[0][0]
-    const archIds: number[] = [seedId]
+  for (const b of builds) {
+    const ids = b.items
+      .filter(i => i.category !== 'Boots' && !componentIds.has(i.id) && i.name)
+      .map(i => i.id)
 
-    // Greedily extend to 4 items: each step adds the candidate most connected to current archIds
-    for (let step = 0; step < 3; step++) {
-      let bestId = -1
-      let bestScore = -1
-      for (const [nodeId] of strength) {
-        if (archIds.includes(nodeId)) continue
-        const score = archIds.reduce((s, a) => s + (edges.get(edgeKey(nodeId, a)) ?? 0), 0)
-        if (score > bestScore) { bestScore = score; bestId = nodeId }
+    for (let x = 0; x < ids.length - 1; x++) {
+      for (let y = x + 1; y < ids.length; y++) {
+        const pk = pairKey(ids[x], ids[y])
+        pairGames.set(pk, (pairGames.get(pk) ?? 0) + b.games)
       }
-      if (bestId === -1 || bestScore === 0) break
-      archIds.push(bestId)
     }
 
-    if (archIds.length < 2) break
-
-    const archIdSet = new Set(archIds)
-    // ≥50% overlap: for 4-item archetypes requires 2 matching items
-    const threshold = 2
-
-    const isMatch = (b: BuildRow) => {
-      const ids = b.items.filter(i => i.category !== 'Boots' && !componentIds.has(i.id) && i.name).map(i => i.id)
-      return ids.filter(id => archIdSet.has(id)).length >= threshold
+    for (let x = 0; x < ids.length - 2; x++) {
+      for (let y = x + 1; y < ids.length - 1; y++) {
+        for (let z = y + 1; z < ids.length; z++) {
+          const tk = tripleKey(ids[x], ids[y], ids[z])
+          if (!tripleMap.has(tk)) {
+            tripleMap.set(tk, { ids: [ids[x], ids[y], ids[z]], games: 0, wins: 0, builds: [] })
+          }
+          const entry = tripleMap.get(tk)!
+          entry.games += b.games
+          entry.wins += b.wins
+          entry.builds.push(b)
+        }
+      }
     }
+  }
 
-    const claimed = remaining.filter(isMatch)
-    if (claimed.length === 0) break
+  // Phase 2: iterate pairs descending by games, collect up to 3 triples per pair
+  const sortedPairs = [...pairGames.entries()].sort((a, b) => b[1] - a[1])
+  const seenTriples = new Set<string>()
+  const candidates: TripleEntry[] = []
 
-    remaining = remaining.filter(b => !isMatch(b))
+  for (const [pk] of sortedPairs) {
+    const parts = pk.split('_')
+    const pA = parseInt(parts[0])
+    const pB = parseInt(parts[1])
 
-    const games = claimed.reduce((s, b) => s + b.games, 0)
-    const wins  = claimed.reduce((s, b) => s + b.wins,  0)
-    const archMetas = archIds.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
+    const pairTriples: TripleEntry[] = []
+    for (const entry of tripleMap.values()) {
+      if (entry.ids.includes(pA) && entry.ids.includes(pB)) pairTriples.push(entry)
+    }
+    pairTriples.sort((a, b) => b.games - a.games)
+
+    let added = 0
+    for (const triple of pairTriples) {
+      if (added >= 3) break
+      const tk = tripleKey(triple.ids[0], triple.ids[1], triple.ids[2])
+      if (seenTriples.has(tk)) continue
+      if (triple.games < threshold) continue
+      const hasStarter = triple.ids.some(id => {
+        const meta = itemById.get(id)
+        return meta ? FIRST_ITEM_LOOKUP.has(meta.name.toLowerCase()) : false
+      })
+      if (!hasStarter) continue
+      seenTriples.add(tk)
+      candidates.push(triple)
+      added++
+    }
+  }
+
+  candidates.sort((a, b) => b.games - a.games)
+  const top = candidates.slice(0, 8)
+
+  // Phase 3: enrich each triple with boots + flex pair stats (all conditioned on full triple)
+  return top.map(triple => {
+    const coreIdSet = new Set<number>(triple.ids)
+    const totalFullTriple = triple.games
+
+    // Boots
+    const bootMap = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
+    for (const b of triple.builds) {
+      for (const item of b.items) {
+        if (item.category !== 'Boots' || !item.name) continue
+        const e = bootMap.get(item.id) ?? { item, picks: 0, wins: 0 }
+        e.picks += b.games
+        e.wins += b.wins
+        bootMap.set(item.id, e)
+      }
+    }
+    const boots = [...bootMap.values()]
+      .sort((a, b) => b.picks - a.picks)
+      .map(e => ({ ...e, pickRate: totalFullTriple > 0 ? e.picks / totalFullTriple : 0 }))
+
+    // Flex pairs: non-core, non-boot, non-component items in each full-triple build
+    const flexPairMap = new Map<string, { items: [ItemMeta, ItemMeta]; picks: number; wins: number }>()
+    for (const b of triple.builds) {
+      const flex = b.items.filter(
+        i => !coreIdSet.has(i.id) && i.category !== 'Boots' && !componentIds.has(i.id) && i.name
+      )
+      for (let x = 0; x < flex.length - 1; x++) {
+        for (let y = x + 1; y < flex.length; y++) {
+          const fk = pairKey(flex[x].id, flex[y].id)
+          const e = flexPairMap.get(fk) ?? { items: [flex[x], flex[y]] as [ItemMeta, ItemMeta], picks: 0, wins: 0 }
+          e.picks += b.games
+          e.wins += b.wins
+          flexPairMap.set(fk, e)
+        }
+      }
+    }
+    const flexPairs = [...flexPairMap.values()]
+      .sort((a, b) => b.picks - a.picks)
+      .map(e => ({ ...e, pickRate: totalFullTriple > 0 ? e.picks / totalFullTriple : 0 }))
+
+    const archMetas = triple.ids.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
     const archetypeLabel = archMetas.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
+    const starterId = findStarterId(triple.builds)
 
-    archetypes.push({
-      openingId: archIds[0],
-      openingItem: archMetas[0],
+    // Reorder so detected starter is first
+    let orderedIds = [...triple.ids] as number[]
+    let orderedMetas = [...archMetas]
+    if (starterId !== null) {
+      const idx = orderedIds.indexOf(starterId)
+      if (idx > 0) {
+        orderedIds = [orderedIds[idx], ...orderedIds.filter((_, i) => i !== idx)]
+        orderedMetas = [orderedMetas[idx], ...orderedMetas.filter((_, i) => i !== idx)]
+      }
+    }
+
+    return {
+      openingId: orderedIds[0],
+      openingItem: orderedMetas[0],
       archetypeLabel,
-      starterId: findStarterId(claimed),
-      coreIds: archIds.slice(1),
-      coreItems: archMetas.slice(1),
-      variants: claimed.sort((a, b) => b.games - a.games),
-      games, wins,
-      orGroups: [],
-    })
-  }
-
-  // OR-item detection: within each archetype, identify mutually-exclusive flex items
-  // (items that are frequently built but almost never co-occur, e.g. LDR vs Mortal Reminder)
-  for (const arch of archetypes) {
-    const archIdSet = new Set([arch.openingId, ...arch.coreIds])
-    const { edges: archEdges } = buildGraph(arch.variants, componentIds)
-
-    const flexFreq = new Map<number, { item: ItemMeta; games: number }>()
-    for (const v of arch.variants) {
-      for (const item of v.items) {
-        if (archIdSet.has(item.id) || item.category === 'Boots' || !item.name) continue
-        const s = flexFreq.get(item.id) ?? { item, games: 0 }
-        s.games += v.games
-        flexFreq.set(item.id, s)
-      }
+      starterId,
+      coreIds: orderedIds.slice(1),
+      coreItems: orderedMetas.slice(1),
+      variants: triple.builds.slice().sort((a, b) => b.games - a.games),
+      games: triple.games,
+      wins: triple.wins,
+      boots,
+      flexPairs,
     }
-
-    const minFlexGames = arch.games * 0.20
-    const highFreqFlex = [...flexFreq.entries()]
-      .filter(([, s]) => s.games >= minFlexGames)
-      .map(([id, s]) => ({ id, item: s.item, games: s.games }))
-
-    if (highFreqFlex.length < 2) continue
-
-    const parent = new Map<number, number>()
-    const find = (x: number): number => {
-      const p = parent.get(x) ?? x
-      if (p === x) return x
-      const root = find(p)
-      parent.set(x, root)
-      return root
-    }
-    const union = (a: number, b: number) => parent.set(find(a), find(b))
-
-    for (let i = 0; i < highFreqFlex.length - 1; i++) {
-      for (let j = i + 1; j < highFreqFlex.length; j++) {
-        const A = highFreqFlex[i]
-        const B = highFreqFlex[j]
-        const gamesWithBoth = archEdges.get(edgeKey(A.id, B.id)) ?? 0
-        const mutualRate = gamesWithBoth / Math.min(A.games, B.games)
-        if (mutualRate < 0.15) union(A.id, B.id)
-      }
-    }
-
-    const groupMap = new Map<number, ItemMeta[]>()
-    for (const { id, item } of highFreqFlex) {
-      const root = find(id)
-      const g = groupMap.get(root) ?? []
-      g.push(item)
-      groupMap.set(root, g)
-    }
-
-    arch.orGroups = [...groupMap.values()].filter(g => g.length > 1)
-  }
-
-  return archetypes.sort((a, b) => b.games - a.games)
+  }).sort((a, b) => b.games - a.games)
 }

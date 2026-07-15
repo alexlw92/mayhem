@@ -26,7 +26,8 @@ interface Archetype {
   variants: BuildRow[]
   games: number
   wins: number
-  orGroups?: ItemMeta[][]
+  boots: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
+  flexPairs: { items: [ItemMeta, ItemMeta]; picks: number; pickRate: number; wins: number }[]
 }
 
 interface PickRow {
@@ -194,28 +195,19 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
           const idx = archetypeItems.findIndex(i => i.id === arch.starterId)
           if (idx > 0) return [archetypeItems[idx], ...archetypeItems.filter((_, i) => i !== idx)]
           if (idx === -1) {
-            // Starter detected in variants but not in the core 4 — find and prepend it
+            // Starter detected in variants but not in the core 3 — find and prepend it
             const starterMeta = arch.variants.flatMap(v => v.items).find(i => i.id === arch.starterId)
             if (starterMeta) return [starterMeta, ...archetypeItems.slice(0, 3)]
           }
           return archetypeItems
         })()
 
-        // Top boot from variants
-        const bootFreq = new Map<number, { item: ItemMeta; picks: number }>()
-        for (const v of arch.variants) {
-          for (const item of v.items) {
-            if (item.category !== 'Boots') continue
-            const s = bootFreq.get(item.id) ?? { item, picks: 0 }
-            s.picks += v.games
-            bootFreq.set(item.id, s)
-          }
-        }
-        const topBoot = [...bootFreq.values()].sort((a, b) => b.picks - a.picks)[0]?.item ?? null
+        const boots = arch.boots ?? []
+        const flexPairs = arch.flexPairs ?? []
+        const topBoot = boots[0]?.item ?? null
 
-        // 5-slot sequence: [starter/arch1] → [boots] → [arch2] → [arch3] → [arch4]
-        const archIds = new Set(archetypeItems.map(i => i.id))
-        const displayItems = [orderedArch[0], topBoot, orderedArch[1], orderedArch[2], orderedArch[3]]
+        // 4-slot sequence: [starter/core1] → [boots] → [core2] → [core3]
+        const displayItems = [orderedArch[0], topBoot, orderedArch[1], orderedArch[2]]
           .filter((x): x is ItemMeta => x != null)
 
         return (
@@ -249,70 +241,52 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
               </span>
             </div>
 
-            {isOpen && (() => {
-              const flexStats = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
-              for (const v of arch.variants) {
-                for (const fi of v.items.filter(i => !archIds.has(i.id) && i.category !== 'Boots' && i.name !== '')) {
-                  const s = flexStats.get(fi.id) ?? { item: fi, picks: 0, wins: 0 }
-                  s.picks += v.games
-                  s.wins += v.wins
-                  flexStats.set(fi.id, s)
-                }
-              }
-              const minFlexPicks = Math.max(arch.games * 0.01, 2)
-              const sortedFlex = [...flexStats.values()]
-                .sort((a, b) => b.picks - a.picks)
-                .filter(f => f.picks >= minFlexPicks)
-              if (sortedFlex.length === 0 && arch.orGroups.length === 0) return null
-              const orItemIds = new Set((arch.orGroups ?? []).flatMap(g => g.map(i => i.id)))
-              const nonOrFlex = sortedFlex.filter(f => !orItemIds.has(f.item.id))
-              return (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <tbody>
-                    {(arch.orGroups ?? []).map((group, gi) => {
-                      const members = group
-                        .map(item => flexStats.get(item.id))
-                        .filter((s): s is { item: ItemMeta; picks: number; wins: number } => s != null)
-                        .sort((a, b) => b.picks - a.picks)
-                      if (members.length < 2) return null
-                      return (
-                        <tr key={`or-${gi}`} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td colSpan={3} style={{ padding: '6px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              {members.map((s, si) => (
-                                <span key={s.item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  {si > 0 && <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>or</span>}
-                                  <ItemIcon iconPath={s.item.iconPath} name={s.item.name} size={22} />
-                                  <span style={{ fontSize: 12 }}>{s.item.name}</span>
-                                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                    ({s.picks} · {s.picks > 0 ? `${((s.wins / s.picks) * 100).toFixed(0)}%` : '—'})
-                                  </span>
-                                </span>
-                              ))}
+            {isOpen && (boots.length > 0 || flexPairs.length > 0) && (
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+                {boots.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <tbody>
+                      {boots.slice(0, 3).map(({ item, picks, pickRate, wins }) => (
+                        <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td style={{ padding: '6px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <ItemIcon iconPath={item.iconPath} name={item.name} size={26} />
+                              <span style={{ fontSize: 12 }}>{item.name}</span>
                             </div>
                           </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                            {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
+                          </td>
                         </tr>
-                      )
-                    })}
-                    {nonOrFlex.map(({ item: fi, picks, wins }) => (
-                      <tr key={fi.id} style={{ borderTop: '1px solid var(--border)' }}>
-                        <td style={{ padding: '6px 12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 12 }}>+</span>
-                            <ItemIcon iconPath={fi.iconPath} name={fi.name} size={26} />
-                            <span style={{ fontSize: 12 }}>{fi.name}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
-                        <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                          {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )
-            })()}
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {flexPairs.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <tbody>
+                      {flexPairs.map(({ items, picks, pickRate, wins }, fi) => (
+                        <tr key={fi} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td style={{ padding: '6px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <ItemIcon iconPath={items[0].iconPath} name={items[0].name} size={26} />
+                              <ItemIcon iconPath={items[1].iconPath} name={items[1].name} size={26} />
+                            </div>
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                            {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
           </div>
         )
       })}

@@ -380,15 +380,16 @@ export async function initDb(url?: string): Promise<void> {
   }).catch((e: Error) => console.warn('[db] item_builds_cache backfill failed:', e.message))
 
   // One-time rename: 16.x → 26.x (Riot adopted calendar-year patch naming in 2026)
-  await sql_`UPDATE matches SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE participants SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE augment_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE player_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE player_champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE augment_champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`UPDATE item_builds_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-  await sql_`TRUNCATE item_archetypes_cache`
+  // Raw tables: UPDATE in place (indexed on gameVersion, fast)
+  // Cache tables: TRUNCATE and let the backfill logic below rebuild them from participants
+  const [{ needs_rename }] = await sql_`SELECT EXISTS(SELECT 1 FROM matches WHERE "gameVersion" LIKE '16.%') AS needs_rename`
+  if (needs_rename) {
+    console.log('[db] renaming 16.x patches to 26.x...')
+    await sql_`UPDATE matches SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+    await sql_`UPDATE participants SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+    await sql_`TRUNCATE champion_stats_cache, augment_stats_cache, player_stats_cache, player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache, item_archetypes_cache`
+    console.log('[db] 16.x → 26.x rename complete — caches will backfill on startup')
+  }
 
   // Prune raw match data older than the 4 most recent patches.
   // Aggregate stats are preserved in cache tables so nothing is lost analytically.

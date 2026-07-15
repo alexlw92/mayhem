@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
-const ARCHETYPE_CACHE_VERSION = 4
+const ARCHETYPE_CACHE_VERSION = 5
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

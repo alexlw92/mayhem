@@ -29,19 +29,25 @@ const ITEM_ARCHETYPES: Record<string, string[]> = {
   Tank:     ['heartsteel', 'sunfire aegis', 'frostfire gauntlet', 'turbo chemtank'],
   Fighter:  ['ravenous hydra', 'divine sunderer', 'trinity force', 'iceborn gauntlet', 'eclipse'],
   Crit:     ['yun tal wildarrows', 'collector', 'essence reaver'],
-  'On-Hit': ['kraken slayer'],
+  'On-Hit': ['kraken slayer', 'blade of the ruined king'],
   AP:       ["luden's tempest", 'blackfire torch', 'malignance', 'rod of ages',
-             "archangel's staff", 'hextech rocketbelt', 'night harvester', 'imperial mandate'],
-  Assassin: ['hubris', 'duskblade of draktharr', 'eclipse'],
+             "archangel's staff", 'hextech rocketbelt', 'night harvester', 'imperial mandate',
+             'lich bane', 'dusk and dawn'],
+  Assassin: ['hubris', 'duskblade of draktharr', 'eclipse', 'dusk and dawn', 'collector'],
   Support:  ['imperial mandate', 'manamune'],
 }
 
 const FIRST_ITEM_LOOKUP = new Map<string, string[]>()
+// Priority: lower number = higher priority (position within archetype list)
+const STARTER_PRIORITY = new Map<string, number>()
 for (const [label, names] of Object.entries(ITEM_ARCHETYPES)) {
-  for (const name of names) {
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i]
     const existing = FIRST_ITEM_LOOKUP.get(name) ?? []
     existing.push(label)
     FIRST_ITEM_LOOKUP.set(name, existing)
+    const prev = STARTER_PRIORITY.get(name) ?? Infinity
+    STARTER_PRIORITY.set(name, Math.min(prev, i))
   }
 }
 
@@ -82,8 +88,13 @@ function findStarterId(pool: BuildRow[]): number | null {
       freq.set(item.id, e)
     }
   }
-  const sorted = [...freq.values()].sort((a, b) => b.games - a.games)
-  return sorted.find(e => FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase()))?.item.id ?? null
+  const candidates = [...freq.values()].filter(e => FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase()))
+  candidates.sort((a, b) => {
+    const pa = STARTER_PRIORITY.get(a.item.name.toLowerCase()) ?? Infinity
+    const pb = STARTER_PRIORITY.get(b.item.name.toLowerCase()) ?? Infinity
+    return pa !== pb ? pa - pb : b.games - a.games
+  })
+  return candidates[0]?.item.id ?? null
 }
 
 export function clusterByCooccurrence(
@@ -126,8 +137,8 @@ export function clusterByCooccurrence(
     if (archIds.length < 2) break
 
     const archIdSet = new Set(archIds)
-    // ≥75% overlap: for 4-item archetypes requires 3 matching items
-    const threshold = Math.max(2, Math.ceil(archIds.length * 0.75))
+    // ≥50% overlap: for 4-item archetypes requires 2 matching items
+    const threshold = 2
 
     const isMatch = (b: BuildRow) => {
       const ids = b.items.filter(i => i.category !== 'Boots' && !componentIds.has(i.id) && i.name).map(i => i.id)

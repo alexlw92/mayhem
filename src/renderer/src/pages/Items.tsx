@@ -189,12 +189,17 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
 
         // Order archetype items: starter (from ITEM_ARCHETYPES) first, then rest in frequency order
         const archetypeItems = [arch.openingItem, ...arch.coreItems].filter(Boolean) as ItemMeta[]
-        const starterIdx = (arch.starterId ?? null) != null
-          ? archetypeItems.findIndex(i => i.id === arch.starterId)
-          : -1
-        const orderedArch = starterIdx > 0
-          ? [archetypeItems[starterIdx], ...archetypeItems.filter((_, i) => i !== starterIdx)]
-          : archetypeItems
+        const orderedArch = (() => {
+          if ((arch.starterId ?? null) == null) return archetypeItems
+          const idx = archetypeItems.findIndex(i => i.id === arch.starterId)
+          if (idx > 0) return [archetypeItems[idx], ...archetypeItems.filter((_, i) => i !== idx)]
+          if (idx === -1) {
+            // Starter detected in variants but not in the core 4 — find and prepend it
+            const starterMeta = arch.variants.flatMap(v => v.items).find(i => i.id === arch.starterId)
+            if (starterMeta) return [starterMeta, ...archetypeItems.slice(0, 3)]
+          }
+          return archetypeItems
+        })()
 
         // Top boot from variants
         const bootFreq = new Map<number, { item: ItemMeta; picks: number }>()

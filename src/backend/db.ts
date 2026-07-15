@@ -548,7 +548,8 @@ const PATCH_DATES: { patch: string; startMs: number }[] = [
   { patch: '16.10', startMs: new Date('2026-05-13T12:00:00Z').getTime() },
   { patch: '16.11', startMs: new Date('2026-05-27T12:00:00Z').getTime() },
   { patch: '16.12', startMs: new Date('2026-06-10T12:00:00Z').getTime() },
-  { patch: '16.13', startMs: new Date('2026-06-24T12:00:00Z').getTime() },
+  { patch: '16.13', startMs: new Date('2026-06-24T20:00:00Z').getTime() },
+  { patch: '16.14', startMs: new Date('2026-07-08T20:00:00Z').getTime() },
 ]
 
 export function inferPatch(gameCreation: number): string | undefined {

@@ -203,6 +203,7 @@ async function refreshMetadata(): Promise<void> {
   console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
   setChampionNames(champions)
   apiClient.syncItemMeta(Object.values(items), componentIds).catch(e => console.warn('[meta] item meta sync failed:', (e as Error).message))
+  itemResultCache.clear()
   sendToWindow('meta-refreshed')
   sendToWindow('assets-ready')
 }
@@ -462,6 +463,9 @@ ipcMain.handle('db:groupSummary', () => apiClient.groupSummary())
 ipcMain.handle('db:championCache', () => apiClient.championCache())
 ipcMain.handle('db:augmentCache', () => getAugmentCache())
 ipcMain.handle('db:itemCache', () => getItemCache())
+
+const itemResultCache = new Map<string, { data: unknown; expires: number }>()
+const ITEM_CACHE_TTL_MS = 5 * 60 * 1000
 ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number, patches?: string[]) => {
   const stats = await apiClient.augmentStats(puuid, championId, patches)
   const cache = getAugmentCache()
@@ -489,23 +493,35 @@ ipcMain.handle('db:itemBuilds', async (_e, championId: number, patches?: string[
 })
 
 ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: string[]) => {
+  const key = `picks:${championId}:${(patches ?? []).slice().sort().join(',')}`
+  const hit = itemResultCache.get(key)
+  if (hit && hit.expires > Date.now()) return hit.data
+
   const result = await apiClient.itemPickRates(championId, patches)
-  const cache = getItemCache()
-  return {
+  const localCache = getItemCache()
+  const enriched = {
     totalGames: result.totalGames,
-    items: (result.items as any[])
-      .filter((p) => cache[p.itemId])
-      .map((p) => ({
-        ...p,
-        name: cache[p.itemId].name,
-        iconPath: cache[p.itemId].iconPath,
-        category: cache[p.itemId].category,
-      })),
+    items: (result.items as any[]).map((p) => ({
+      itemId:   p.itemId,
+      picks:    p.picks,
+      wins:     p.wins,
+      name:     localCache[p.itemId]?.name     ?? p.name     ?? `Item ${p.itemId}`,
+      iconPath: localCache[p.itemId]?.iconPath ?? p.iconPath ?? '',
+      category: localCache[p.itemId]?.category ?? p.category ?? '',
+    })),
   }
+  itemResultCache.set(key, { data: enriched, expires: Date.now() + ITEM_CACHE_TTL_MS })
+  return enriched
 })
 
 ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: string[]) => {
-  return apiClient.itemArchetypes(championId, patches)
+  const key = `archetypes:${championId}:${(patches ?? []).slice().sort().join(',')}`
+  const hit = itemResultCache.get(key)
+  if (hit && hit.expires > Date.now()) return hit.data
+
+  const data = await apiClient.itemArchetypes(championId, patches)
+  itemResultCache.set(key, { data, expires: Date.now() + ITEM_CACHE_TTL_MS })
+  return data
 })
 
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')

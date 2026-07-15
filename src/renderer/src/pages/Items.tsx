@@ -148,7 +148,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
               </tr>
             </thead>
             <tbody>
-              {regularItems.filter(item => item.picks >= Math.max(totalGames * 0.10, 3)).slice(0, 20).map((item) => (
+              {regularItems.filter(item => item.picks >= Math.max(totalGames * 0.01, 2)).slice(0, 20).map((item) => (
                 <tr key={item.itemId} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={{ padding: '6px 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -176,8 +176,8 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
 function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
   const visible = archetypes
     .sort((a, b) => b.games - a.games)
-    .filter(a => a.games >= Math.max(totalGames * 0.05, 5))
-    .slice(0, 5)
+    .filter(a => a.games >= Math.max(totalGames * 0.00, 2))
+    .slice(0, 8)
   if (visible.length === 0) return null
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -203,7 +203,7 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
             flexStats.set(fi.id, s)
           }
         }
-        const minFlexPicks = Math.max(arch.games * 0.10, 3)
+        const minFlexPicks = Math.max(arch.games * 0.01, 2)
         const sortedFlex = [...flexStats.values()]
           .sort((a, b) => b.picks - a.picks)
           .filter(f => f.picks >= minFlexPicks)
@@ -268,8 +268,8 @@ function ItemArchetypes({ archetypes, totalGames }: { archetypes: Archetype[]; t
 }
 
 function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
-  const minGames = Math.max(totalGames * 0.05, 5)
-  const visible = archetypes.filter(a => a.games >= minGames).slice(0, 5)
+  const minGames = Math.max(totalGames * 0.01, 2)
+  const visible = archetypes.filter(a => a.games >= minGames).slice(0, 8)
 
   if (visible.length === 0) return null
 
@@ -347,7 +347,7 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
                   flexStats.set(fi.id, s)
                 }
               }
-              const minFlexPicks = Math.max(arch.games * 0.10, 3)
+              const minFlexPicks = Math.max(arch.games * 0.01, 2)
               const sortedFlex = [...flexStats.values()]
                 .sort((a, b) => b.picks - a.picks)
                 .filter(f => f.picks >= minFlexPicks)

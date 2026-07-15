@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"electron\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"node\")",
+      "Bash(pkill -f \"npm\")"
+    ]
+  }
+}

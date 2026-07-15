@@ -6,6 +6,7 @@ import {
   getChampionsFromDb, getAugmentsFromDb,
   getPatches,
   upsertItemMeta,
+  refreshItemTriples,
 } from './db'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
@@ -76,6 +77,7 @@ async function main() {
   console.log('[db] ready')
   backfillDetailCaches().catch(err => console.warn('[backfill] failed:', (err as Error).message))
   fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
+  refreshItemTriples().catch(err => console.warn('[triples] refresh failed:', (err as Error).message))
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }

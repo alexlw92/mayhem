@@ -379,6 +379,17 @@ export async function initDb(url?: string): Promise<void> {
     `.then(() => console.log('[db] item_builds_cache backfill complete'))
   }).catch((e: Error) => console.warn('[db] item_builds_cache backfill failed:', e.message))
 
+  // One-time rename: 16.x → 26.x (Riot adopted calendar-year patch naming in 2026)
+  await sql_`UPDATE matches SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE participants SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE augment_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE player_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE player_champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE augment_champion_stats_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`UPDATE item_builds_cache SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
+  await sql_`TRUNCATE item_archetypes_cache`
+
   // Prune raw match data older than the 4 most recent patches.
   // Aggregate stats are preserved in cache tables so nothing is lost analytically.
   const allPatchRows = await sql_`
@@ -536,20 +547,20 @@ const PATCH_DATES: { patch: string; startMs: number }[] = [
   { patch: '15.22', startMs: new Date('2025-10-29T12:00:00Z').getTime() },
   { patch: '15.23', startMs: new Date('2025-11-12T12:00:00Z').getTime() },
   { patch: '15.24', startMs: new Date('2025-11-26T12:00:00Z').getTime() },
-  { patch: '16.1',  startMs: new Date('2026-01-07T12:00:00Z').getTime() },
-  { patch: '16.2',  startMs: new Date('2026-01-21T12:00:00Z').getTime() },
-  { patch: '16.3',  startMs: new Date('2026-02-04T12:00:00Z').getTime() },
-  { patch: '16.4',  startMs: new Date('2026-02-18T12:00:00Z').getTime() },
-  { patch: '16.5',  startMs: new Date('2026-03-04T12:00:00Z').getTime() },
-  { patch: '16.6',  startMs: new Date('2026-03-18T12:00:00Z').getTime() },
-  { patch: '16.7',  startMs: new Date('2026-04-01T12:00:00Z').getTime() },
-  { patch: '16.8',  startMs: new Date('2026-04-15T12:00:00Z').getTime() },
-  { patch: '16.9',  startMs: new Date('2026-04-29T12:00:00Z').getTime() },
-  { patch: '16.10', startMs: new Date('2026-05-13T12:00:00Z').getTime() },
-  { patch: '16.11', startMs: new Date('2026-05-27T12:00:00Z').getTime() },
-  { patch: '16.12', startMs: new Date('2026-06-10T12:00:00Z').getTime() },
-  { patch: '16.13', startMs: new Date('2026-06-24T20:00:00Z').getTime() },
-  { patch: '16.14', startMs: new Date('2026-07-08T20:00:00Z').getTime() },
+  { patch: '26.1',  startMs: new Date('2026-01-07T12:00:00Z').getTime() },
+  { patch: '26.2',  startMs: new Date('2026-01-21T12:00:00Z').getTime() },
+  { patch: '26.3',  startMs: new Date('2026-02-04T12:00:00Z').getTime() },
+  { patch: '26.4',  startMs: new Date('2026-02-18T12:00:00Z').getTime() },
+  { patch: '26.5',  startMs: new Date('2026-03-04T12:00:00Z').getTime() },
+  { patch: '26.6',  startMs: new Date('2026-03-18T12:00:00Z').getTime() },
+  { patch: '26.7',  startMs: new Date('2026-04-01T12:00:00Z').getTime() },
+  { patch: '26.8',  startMs: new Date('2026-04-15T12:00:00Z').getTime() },
+  { patch: '26.9',  startMs: new Date('2026-04-29T12:00:00Z').getTime() },
+  { patch: '26.10', startMs: new Date('2026-05-13T12:00:00Z').getTime() },
+  { patch: '26.11', startMs: new Date('2026-05-27T12:00:00Z').getTime() },
+  { patch: '26.12', startMs: new Date('2026-06-10T12:00:00Z').getTime() },
+  { patch: '26.13', startMs: new Date('2026-06-24T20:00:00Z').getTime() },
+  { patch: '26.14', startMs: new Date('2026-07-08T20:00:00Z').getTime() },
 ]
 
 export function inferPatch(gameCreation: number): string | undefined {

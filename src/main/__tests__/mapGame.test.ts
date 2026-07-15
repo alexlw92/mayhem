@@ -58,9 +58,14 @@ describe('mapGame', () => {
     expect(result.gameDuration).toBe(1200)
   })
 
-  it('infers the patch from gameCreation timestamp', () => {
+  it('falls back to inferPatch when LCU gameVersion is absent', () => {
     const result = mapGame(makeGame())
     expect(result.gameVersion).toBe('14.1')
+  })
+
+  it('uses gameVersion from LCU when present, parsed to major.minor', () => {
+    const result = mapGame(makeGame({ gameVersion: '26.13.537.9208' }))
+    expect(result.gameVersion).toBe('26.13')
   })
 
   it('formats summonerName as gameName#tagLine', () => {

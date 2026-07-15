@@ -19,7 +19,7 @@ export function mapGame(game: LCUMatchHistoryGame): Match {
     queueId: game.queueId,
     gameCreation: game.gameCreation,
     gameDuration: game.gameDuration,
-    gameVersion: inferPatch(game.gameCreation),
+    gameVersion: game.gameVersion?.split('.').slice(0, 2).join('.') ?? inferPatch(game.gameCreation),
     participants: game.participants.map((p) => {
       const identity = game.participantIdentities.find(
         (pi) => pi.participantId === p.participantId

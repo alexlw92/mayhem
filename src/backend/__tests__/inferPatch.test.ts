@@ -25,11 +25,11 @@ describe('inferPatch', () => {
     expect(inferPatch(ts('2025-01-10T00:00:00Z'))).toBe('15.1')
   })
 
-  it('handles the season-year rollover (15 → 16)', () => {
-    expect(inferPatch(ts('2026-01-10T00:00:00Z'))).toBe('16.1')
+  it('handles the season-year rollover (15 → 26)', () => {
+    expect(inferPatch(ts('2026-01-10T00:00:00Z'))).toBe('26.1')
   })
 
   it('returns the last known patch for future timestamps', () => {
-    expect(inferPatch(ts('2099-01-01T00:00:00Z'))).toBe('16.14')
+    expect(inferPatch(ts('2099-01-01T00:00:00Z'))).toBe('26.14')
   })
 })

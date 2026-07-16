@@ -30,6 +30,7 @@ export default function App() {
   const [syncProgress, setSyncProgress] = useState<{ playerName: string; gamesAdded: number; playersChecked: number; queueRemaining: number } | null>(null)
   const [patches, setPatches] = useState<string[]>([])
   const [selectedPatches, setSelectedPatches] = useState<string[] | null>(null)
+  const [pendingPatches, setPendingPatches] = useState<string[] | null>(null)
   const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(undefined)
   const [selectedChampionName, setSelectedChampionName] = useState('')
   const [selectedAugmentId, setSelectedAugmentId] = useState<number | undefined>(undefined)
@@ -43,6 +44,7 @@ export default function App() {
   const [assetsReady, setAssetsReady] = useState(false)
   const [assetsProgress, setAssetsProgress] = useState<{ done: number; total: number } | null>(null)
   const [metaKey, setMetaKey] = useState(0)
+  const [backfillPhase, setBackfillPhase] = useState('')
 
 
   const refreshPlayers = useCallback(async () => {
@@ -88,7 +90,8 @@ export default function App() {
     })
     const unsubDbError = api.on('db-error', (msg: string) => setDbError(msg))
     const unsubMeta = api.on('meta-refreshed', () => setMetaKey(k => k + 1))
-    return () => { unsubReady(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError(); unsubMeta() }
+    const unsubBackfill = api.on('backfill-progress', (phase: string) => setBackfillPhase(phase))
+    return () => { unsubReady(); unsubAssetsReady(); unsubAssetsProgress(); unsubDbError(); unsubMeta(); unsubBackfill() }
   }, [])
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function App() {
     api.db.patches().then((p: string[]) => {
       setPatches(p)
       setSelectedPatches(p.slice(0, 1))
+      setPendingPatches(p.slice(0, 1))
     }).catch(() => {})
     api.lcu.syncStatus().then((s: { syncing: boolean }) => setSyncing(s.syncing)).catch(() => {})
 
@@ -141,6 +145,7 @@ export default function App() {
       api.db.patches().then((p: string[]) => {
         setPatches(p)
         setSelectedPatches((cur) => (cur ?? []).length ? cur : p.slice(0, 1))
+        setPendingPatches((cur) => (cur ?? []).length ? cur : p.slice(0, 1))
       }).catch(() => {})
       setTimeout(() => setLastSync(''), 8000)
     })
@@ -189,6 +194,9 @@ export default function App() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12, color: 'var(--text-secondary)', fontFamily: 'inherit' }}>
         <div style={{ fontSize: 18, color: 'var(--text-primary)' }}>MAYHEM</div>
         <div>{label}</div>
+        {backfillPhase && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{backfillPhase}</div>
+        )}
         {progress && (
           <div style={{ width: 240, height: 4, background: 'var(--bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ width: `${(progress.done / progress.total) * 100}%`, height: '100%', background: 'var(--accent)', borderRadius: 2, transition: 'width 0.3s' }} />
@@ -229,12 +237,12 @@ export default function App() {
         <div className="sidebar-patch">
           <div className="sidebar-patch-header">
             <span className="sidebar-patch-label">Patch</span>
-            {patches.length > 0 && selectedPatches !== null && (
+            {patches.length > 0 && pendingPatches !== null && (
               <button
                 className="sidebar-patch-all"
-                onClick={() => setSelectedPatches(selectedPatches.length === patches.length ? patches.slice(0, 2) : patches)}
+                onClick={() => setPendingPatches(pendingPatches.length === patches.length ? patches.slice(0, 2) : patches)}
               >
-                {selectedPatches.length === patches.length ? 'reset' : 'all'}
+                {pendingPatches.length === patches.length ? 'reset' : 'all'}
               </button>
             )}
           </div>
@@ -243,16 +251,16 @@ export default function App() {
           ) : (
             <div className="sidebar-patch-list">
               {patches.slice(0, patchExpanded ? 8 : 4).map((p) => {
-                const checked = selectedPatches?.includes(p) ?? false
+                const checked = pendingPatches?.includes(p) ?? false
                 return (
                   <label key={p} className="sidebar-patch-item">
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => setSelectedPatches(
+                      onChange={() => setPendingPatches(
                         checked
-                          ? (selectedPatches ?? []).filter((x) => x !== p)
-                          : [...(selectedPatches ?? []), p]
+                          ? (pendingPatches ?? []).filter((x) => x !== p)
+                          : [...(pendingPatches ?? []), p]
                       )}
                     />
                     <span>{p}</span>
@@ -269,7 +277,28 @@ export default function App() {
               )}
             </div>
           )}
+          {patches.length > 0 && (() => {
+            const dirty = pendingPatches !== null && selectedPatches !== null &&
+              !(pendingPatches.length === selectedPatches.length &&
+                pendingPatches.every((p) => selectedPatches.includes(p)))
+            return (
+              <button
+                className="sidebar-patch-apply"
+                disabled={!dirty}
+                onClick={() => setSelectedPatches(pendingPatches)}
+              >
+                Apply
+              </button>
+            )
+          })()}
         </div>
+
+        {backfillPhase && (
+          <div className="sidebar-backfill">
+            <span className="sidebar-backfill-dot" />
+            {backfillPhase}
+          </div>
+        )}
 
         <div className="sidebar-footer">
           <div className={`client-status ${clientRunning ? 'online' : 'offline'}`}>

@@ -71,11 +71,15 @@ async function fetchAndStoreItems(): Promise<void> {
   console.log(`[meta] seeded ${items.length} items + ${componentIds.length} components`)
 }
 
+function sendProgress(phase: string): void {
+  ;(process as any).parentPort?.postMessage({ type: 'backfill-progress', phase })
+}
+
 async function main() {
   console.log('[db] initializing...')
-  await initDb()
+  await initDb(undefined, sendProgress)
   console.log('[db] ready')
-  backfillDetailCaches().catch(err => console.warn('[backfill] failed:', (err as Error).message))
+  backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
   fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
   refreshItemTriples().catch(err => console.warn('[triples] refresh failed:', (err as Error).message))
 

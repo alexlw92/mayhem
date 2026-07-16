@@ -86,6 +86,7 @@ function spawnLocalBackend(): void {
   backendProcess.on('exit', (code: number) => console.log(`[backend] exited (${code})`))
   backendProcess.on('message', (msg: unknown) => {
     if ((msg as any)?.type === 'ready') { backendReady = true; maybeSignalReady() }
+    if ((msg as any)?.type === 'backfill-progress') sendToWindow('backfill-progress', (msg as any).phase)
   })
 }
 

@@ -49,7 +49,7 @@ export interface Match {
 
 let sql_: ReturnType<typeof postgres>
 
-export async function initDb(url?: string): Promise<void> {
+export async function initDb(url?: string, onProgress?: (phase: string) => void): Promise<void> {
   const connectionUrl = url ?? process.env.DATABASE_URL
   if (!connectionUrl) throw new Error('DATABASE_URL is not set')
 
@@ -289,6 +289,7 @@ export async function initDb(url?: string): Promise<void> {
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
     console.log('[db] backfilling summary caches...')
+    onProgress?.('Rebuilding champion & augment cache…')
     await sql_`
       INSERT INTO champion_stats_cache ("gameVersion","championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
       SELECT p."gameVersion", p."championId", MIN(p."championName"),
@@ -314,82 +315,106 @@ export async function initDb(url?: string): Promise<void> {
     console.log('[db] backfill complete')
   }
 
-  const [{ count: playerCacheCount }] = await sql_`SELECT COUNT(*) FROM player_stats_cache`
-  if (Number(playerCacheCount) === 0) {
-    console.log('[db] backfilling player stats cache...')
-    await sql_`
-      INSERT INTO player_stats_cache ("gameVersion",puuid,"summonerName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
-      SELECT p."gameVersion", p.puuid, MAX(p."summonerName"),
-        COUNT(*)::int, SUM(p.win::int)::int,
-        SUM(p.kills)::int, SUM(p.deaths)::int, SUM(p.assists)::int,
-        SUM(p."damageDealt")::bigint, SUM(p."gameDuration")::bigint
-      FROM participants p
-      WHERE p."gameVersion" IS NOT NULL AND p.puuid != ''
-      GROUP BY p."gameVersion", p.puuid
-      ON CONFLICT DO NOTHING
-    `
-    console.log('[db] player stats cache backfill complete')
+  {
+    // Per-patch backfill for player caches — avoids huge hash aggregates that spill to disk
+    const pvRows = await sql_`SELECT DISTINCT "gameVersion" FROM participants WHERE "gameVersion" IS NOT NULL ORDER BY 1`
+    const pvList = pvRows.map((r: any) => r.gameVersion as string)
+    const existingPlayerRows = await sql_`SELECT DISTINCT "gameVersion" FROM player_stats_cache`
+    const existingPlayer = new Set(existingPlayerRows.map((r: any) => r.gameVersion as string))
+    const missingPlayer = pvList.filter(gv => !existingPlayer.has(gv))
+    if (missingPlayer.length > 0) {
+      console.log(`[db] backfilling player stats cache (${missingPlayer.length} patches)...`)
+      for (let i = 0; i < missingPlayer.length; i++) {
+        const gv = missingPlayer[i]
+        console.log(`[db] player stats ${gv} (${i + 1}/${missingPlayer.length})...`)
+        onProgress?.(`Rebuilding player cache: ${gv} (${i + 1}/${missingPlayer.length})…`)
+        await sql_`
+          INSERT INTO player_stats_cache ("gameVersion",puuid,"summonerName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+          SELECT ${gv}, p.puuid, MAX(p."summonerName"),
+            COUNT(*)::int, SUM(p.win::int)::int,
+            SUM(p.kills)::int, SUM(p.deaths)::int, SUM(p.assists)::int,
+            SUM(p."damageDealt")::bigint, SUM(p."gameDuration")::bigint
+          FROM participants p
+          WHERE p."gameVersion" = ${gv} AND p.puuid != ''
+          GROUP BY p.puuid
+          ON CONFLICT DO NOTHING
+        `
+      }
+      console.log('[db] player stats cache backfill complete')
+    }
+    const existingPCRows = await sql_`SELECT DISTINCT "gameVersion" FROM player_champion_stats_cache`
+    const existingPC = new Set(existingPCRows.map((r: any) => r.gameVersion as string))
+    const missingPC = pvList.filter(gv => !existingPC.has(gv))
+    if (missingPC.length > 0) {
+      console.log(`[db] backfilling player_champion_stats_cache (${missingPC.length} patches)...`)
+      for (let i = 0; i < missingPC.length; i++) {
+        const gv = missingPC[i]
+        console.log(`[db] player_champion_stats ${gv} (${i + 1}/${missingPC.length})...`)
+        onProgress?.(`Rebuilding player/champion cache: ${gv} (${i + 1}/${missingPC.length})…`)
+        await sql_`
+          INSERT INTO player_champion_stats_cache
+            ("gameVersion",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+          SELECT ${gv},p.puuid,p."championId",MIN(p."championName"),
+            COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
+            SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+          FROM participants p
+          WHERE p."gameVersion" = ${gv} AND p.puuid != ''
+          GROUP BY p.puuid,p."championId"
+          ON CONFLICT DO NOTHING
+        `
+      }
+      console.log('[db] player_champion_stats_cache backfill complete')
+    }
   }
 
-  const [{ count: playerChampCount }] = await sql_`SELECT COUNT(*) FROM player_champion_stats_cache`
-  if (Number(playerChampCount) === 0) {
-    console.log('[db] backfilling player_champion_stats_cache...')
-    await sql_`
-      INSERT INTO player_champion_stats_cache
-        ("gameVersion",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
-      SELECT p."gameVersion",p.puuid,p."championId",MIN(p."championName"),
-        COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
-        SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
-      FROM participants p
-      WHERE p."gameVersion" IS NOT NULL AND p.puuid != ''
-      GROUP BY p."gameVersion",p.puuid,p."championId"
-      ON CONFLICT DO NOTHING
-    `
-    console.log('[db] player_champion_stats_cache backfill complete')
-  }
-
-  sql_`SELECT COUNT(*) FROM item_builds_cache`.then((rows: any[]) => {
-    const count = rows[0]?.count
-    if (Number(count) > 0) return
-    console.log('[db] backfilling item_builds_cache (background)...')
-    return sql_`
-      WITH agg AS (
-        SELECT p."gameVersion", p."championId", p.win::int AS win,
-          array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-        FROM participants p JOIN participant_items pi ON pi."participantId" = p.id
-        WHERE p."gameVersion" IS NOT NULL
-        GROUP BY p.id, p."gameVersion", p."championId", p.win
-        HAVING count(*) >= 5
-      ),
-      combos AS (
-        SELECT agg."gameVersion", agg."championId", agg.win,
-          ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
-        FROM agg,
-          LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
-          LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
-          LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
-          LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
-          LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
-        WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
-      )
-      INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
-      SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
-      FROM combos GROUP BY "gameVersion","championId",build
-      ON CONFLICT DO NOTHING
-    `.then(() => console.log('[db] item_builds_cache backfill complete'))
-  }).catch((e: Error) => console.warn('[db] item_builds_cache backfill failed:', e.message))
-
-  // One-time rename: 16.x → 26.x (Riot adopted calendar-year patch naming in 2026)
-  // Raw tables: UPDATE in place (indexed on gameVersion, fast)
-  // Cache tables: TRUNCATE and let the backfill logic below rebuild them from participants
-  const [{ needs_rename }] = await sql_`SELECT EXISTS(SELECT 1 FROM matches WHERE "gameVersion" LIKE '16.%') AS needs_rename`
-  if (needs_rename) {
-    console.log('[db] renaming 16.x patches to 26.x...')
-    await sql_`UPDATE matches SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-    await sql_`UPDATE participants SET "gameVersion" = REPLACE("gameVersion",'16.','26.') WHERE "gameVersion" LIKE '16.%'`
-    await sql_`TRUNCATE champion_stats_cache, augment_stats_cache, player_stats_cache, player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache, item_archetypes_cache`
-    console.log('[db] 16.x → 26.x rename complete — caches will backfill on startup')
-  }
+  ;(async () => {
+    try {
+      const patches = await getPatches()
+      const todo: string[] = []
+      for (const gv of patches) {
+        const [{ count }] = await sql_`SELECT COUNT(*) FROM item_builds_cache WHERE "gameVersion" = ${gv}`
+        if (Number(count) === 0) todo.push(gv)
+      }
+      if (todo.length === 0) return
+      console.log(`[item-builds] backfilling ${todo.length} patch(es)...`)
+      onProgress?.('Building item builds cache…')
+      for (let i = 0; i < todo.length; i++) {
+        const gv = todo[i]
+        console.log(`[item-builds] ${gv} (${i + 1}/${todo.length})...`)
+        onProgress?.(`Building item builds: ${gv} (${i + 1}/${todo.length})…`)
+        await sql_`
+          WITH agg AS (
+            SELECT p."gameVersion", p."championId", p.win::int AS win,
+              array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+            FROM participants p JOIN participant_items pi ON pi."participantId" = p.id
+            WHERE p."gameVersion" = ${gv}
+            GROUP BY p."gameVersion", p.id, p."championId", p.win
+            HAVING count(*) >= 5
+          ),
+          combos AS (
+            SELECT agg."gameVersion", agg."championId", agg.win,
+              ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+            FROM agg,
+              LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+              LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+              LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+              LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+              LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+            WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+          )
+          INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
+          SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
+          FROM combos GROUP BY "gameVersion","championId",build
+          ON CONFLICT DO NOTHING
+        `
+        console.log(`[item-builds] ${gv} done`)
+      }
+      onProgress?.('')
+      console.log('[item-builds] backfill complete')
+    } catch (e) {
+      console.warn('[item-builds] backfill failed:', (e as Error).message)
+    }
+  })()
 
   // Prune raw match data older than the 4 most recent patches.
   // Aggregate stats are preserved in cache tables so nothing is lost analytically.
@@ -436,13 +461,14 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
   return oldIds.length
 }
 
-export async function backfillDetailCaches(): Promise<void> {
+export async function backfillDetailCaches(onProgress?: (phase: string) => void): Promise<void> {
   const patches = await getPatches()
   if (patches.length === 0) return
   for (const gv of patches) {
     const [{ count }] = await sql_`SELECT COUNT(*) FROM augment_champion_stats_cache WHERE "gameVersion" = ${gv}`
     if (Number(count) > 0) continue
     console.log(`[backfill] augment_champion ${gv}...`)
+    onProgress?.(`Building augment/champion stats for ${gv}…`)
     await sql_`
       INSERT INTO augment_champion_stats_cache
         ("gameVersion","augmentId","championId","championName",pick_count,wins,total_damage,total_duration)
@@ -456,6 +482,7 @@ export async function backfillDetailCaches(): Promise<void> {
     `
     console.log(`[backfill] augment_champion ${gv} done`)
   }
+  onProgress?.('')
   console.log('[backfill] complete')
 }
 

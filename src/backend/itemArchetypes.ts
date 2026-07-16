@@ -137,6 +137,7 @@ export function clusterByCooccurrence(
   // Phase 2: iterate pairs descending by games, collect up to 3 triples per pair
   const sortedPairs = [...pairGames.entries()].sort((a, b) => b[1] - a[1])
   const seenTriples = new Set<string>()
+  const claimedPairs = new Set<string>()
   const candidates: TripleEntry[] = []
 
   for (const [pk] of sortedPairs) {
@@ -155,6 +156,12 @@ export function clusterByCooccurrence(
       if (added >= 3) break
       const tk = tripleKey(triple.ids[0], triple.ids[1], triple.ids[2])
       if (seenTriples.has(tk)) continue
+      const tripleHasClaimedPair = [
+        pairKey(triple.ids[0], triple.ids[1]),
+        pairKey(triple.ids[0], triple.ids[2]),
+        pairKey(triple.ids[1], triple.ids[2]),
+      ].some(pk => claimedPairs.has(pk))
+      if (tripleHasClaimedPair) continue
       if (triple.games < threshold) continue
       const hasStarter = triple.ids.some(id => {
         const meta = itemById.get(id)
@@ -162,6 +169,9 @@ export function clusterByCooccurrence(
       })
       if (!hasStarter) continue
       seenTriples.add(tk)
+      claimedPairs.add(pairKey(triple.ids[0], triple.ids[1]))
+      claimedPairs.add(pairKey(triple.ids[0], triple.ids[2]))
+      claimedPairs.add(pairKey(triple.ids[1], triple.ids[2]))
       candidates.push(triple)
       added++
     }

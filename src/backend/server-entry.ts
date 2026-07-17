@@ -6,7 +6,6 @@ import {
   getChampionsFromDb, getAugmentsFromDb,
   getPatches,
   upsertItemMeta,
-  refreshItemTriples,
 } from './db'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
@@ -79,9 +78,6 @@ async function main() {
   console.log('[db] initializing...')
   await initDb(undefined, sendProgress)
   console.log('[db] ready')
-  backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
-  fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
-  refreshItemTriples().catch(err => console.warn('[triples] refresh failed:', (err as Error).message))
 
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }
@@ -91,16 +87,18 @@ async function main() {
   const patches = await getPatches()
   latestPatchRef.value = patches[0] ?? null
 
-  refreshMetadata(champRef, augRef)
-  setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
-
   createExpressApp({
     getChampions: () => champRef.value,
     getAugments:  () => augRef.value,
     latestPatch:  latestPatchRef,
   }).listen(PORT, () => {
-    console.log(`[server] :${PORT}`)
+    console.log(`[server] ready — listening on :${PORT}`)
     ;(process as any).parentPort?.postMessage({ type: 'ready' })
+
+    backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
+    fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
+    refreshMetadata(champRef, augRef)
+    setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
   })
 }
 

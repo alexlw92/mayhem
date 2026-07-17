@@ -56,6 +56,7 @@ let windowLoaded = false
 
 function maybeSignalReady() {
   if (!backendReady || !windowLoaded) return
+  console.log('[app] ready')
   sendToWindow('db-ready')
   refreshMetadata().catch(() => { sendToWindow('assets-ready') })
   ensureChampionNames()

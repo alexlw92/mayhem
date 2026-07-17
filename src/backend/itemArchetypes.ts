@@ -15,82 +15,39 @@ export interface BuildRow {
 export interface Archetype {
   openingId: number
   openingItem: ItemMeta
-  archetypeLabel: string | null
-  starterId: number | null
   coreIds: number[]
   coreItems: ItemMeta[]
-  variants: BuildRow[]
   games: number
   wins: number
   boots: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
-  flexPairs: { items: [ItemMeta, ItemMeta]; picks: number; pickRate: number; wins: number }[]
+  fifthItems: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
 }
 
-const ITEM_ARCHETYPES: Record<string, string[]> = {
-  Tank:     ['heartsteel', 'fimbulwinter', 'sunfire aegis', 'frostfire gauntlet', 'turbo chemtank'],
-  Fighter:  ['ravenous hydra', 'sundered sky', 'trinity force', 'iceborn gauntlet', 'eclipse'],
-  AD:       ['muramana'],
-  Crit:     ['yun tal wildarrows', 'the collector', 'essence reaver'],
-  'On-Hit': ['statikk shiv', 'kraken slayer', 'blade of the ruined king'],
-  AP:       ["luden's tempest", 'blackfire torch', 'malignance', 'rod of ages',
-             "archangel's staff", 'hextech rocketbelt', 'night harvester', 'imperial mandate',
-             'lich bane', 'dusk and dawn', 'liandrys torment'],
-  Assassin: ['hubris', 'duskblade of draktharr', 'eclipse', 'dusk and dawn', 'the collector'],
-  Support:  ['imperial mandate', 'manamune'],
-}
-
-const FIRST_ITEM_LOOKUP = new Map<string, string[]>()
-const STARTER_PRIORITY = new Map<string, number>()
-for (const [label, names] of Object.entries(ITEM_ARCHETYPES)) {
-  for (let i = 0; i < names.length; i++) {
-    const name = names[i]
-    const existing = FIRST_ITEM_LOOKUP.get(name) ?? []
-    existing.push(label)
-    FIRST_ITEM_LOOKUP.set(name, existing)
-    const prev = STARTER_PRIORITY.get(name) ?? Infinity
-    STARTER_PRIORITY.set(name, Math.min(prev, i))
-  }
-}
-
-function tripleKey(a: number, b: number, c: number): string {
-  const s = [a, b, c].sort((x, y) => x - y)
-  return `${s[0]}_${s[1]}_${s[2]}`
+function quadKey(a: number, b: number, c: number, d: number): string {
+  const s = [a, b, c, d].sort((x, y) => x - y)
+  return `${s[0]}_${s[1]}_${s[2]}_${s[3]}`
 }
 
 function pairKey(a: number, b: number): string {
   return a < b ? `${a}_${b}` : `${b}_${a}`
 }
 
-function findStarterId(pool: BuildRow[], coreIds: number[]): number | null {
-  const freq = new Map<number, { item: ItemMeta; games: number }>()
-  for (const b of pool) {
-    for (const item of b.items) {
-      if (item.category === 'Boots' || !item.name) continue
-      const e = freq.get(item.id) ?? { item, games: 0 }
-      e.games += b.games
-      freq.set(item.id, e)
-    }
-  }
-  const coreIdSet = new Set(coreIds)
-  const candidates = [...freq.values()].filter(
-    e => coreIdSet.has(e.item.id) && FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase())
-  )
-  candidates.sort((a, b) => {
-    const pa = STARTER_PRIORITY.get(a.item.name.toLowerCase()) ?? Infinity
-    const pb = STARTER_PRIORITY.get(b.item.name.toLowerCase()) ?? Infinity
-    return pa !== pb ? pa - pb : b.games - a.games
-  })
-  return candidates[0]?.item.id ?? null
+function allQuadPairs(ids: [number, number, number, number]): string[] {
+  return [
+    pairKey(ids[0], ids[1]), pairKey(ids[0], ids[2]), pairKey(ids[0], ids[3]),
+    pairKey(ids[1], ids[2]), pairKey(ids[1], ids[3]), pairKey(ids[2], ids[3]),
+  ]
 }
 
 export function clusterByCooccurrence(
   builds: BuildRow[],
   componentIds: Set<number>,
+  noItemRatios: Map<number, number>,
 ): Archetype[] {
   if (builds.length === 0) return []
 
   const totalGames = builds.reduce((s, b) => s + b.games, 0)
-  const threshold = Math.max(totalGames * 0.02, 3)
+  const threshold = Math.max(totalGames * 0.01, 2)
 
   const itemById = new Map<number, ItemMeta>()
   for (const b of builds) {
@@ -99,15 +56,15 @@ export function clusterByCooccurrence(
     }
   }
 
-  interface TripleEntry {
-    ids: [number, number, number]
+  interface QuadEntry {
+    ids: [number, number, number, number]
     games: number
     wins: number
     builds: BuildRow[]
   }
 
-  // Phase 1: enumerate all triples and pairs from non-boot, non-component items
-  const tripleMap = new Map<string, TripleEntry>()
+  // Phase 1: enumerate all quads and pairs from non-boot, non-component items
+  const quadMap = new Map<string, QuadEntry>()
   const pairGames = new Map<string, number>()
 
   for (const b of builds) {
@@ -122,61 +79,51 @@ export function clusterByCooccurrence(
       }
     }
 
-    for (let x = 0; x < ids.length - 2; x++) {
-      for (let y = x + 1; y < ids.length - 1; y++) {
-        for (let z = y + 1; z < ids.length; z++) {
-          const tk = tripleKey(ids[x], ids[y], ids[z])
-          if (!tripleMap.has(tk)) {
-            tripleMap.set(tk, { ids: [ids[x], ids[y], ids[z]], games: 0, wins: 0, builds: [] })
+    for (let x = 0; x < ids.length - 3; x++) {
+      for (let y = x + 1; y < ids.length - 2; y++) {
+        for (let z = y + 1; z < ids.length - 1; z++) {
+          for (let w = z + 1; w < ids.length; w++) {
+            const qk = quadKey(ids[x], ids[y], ids[z], ids[w])
+            if (!quadMap.has(qk)) {
+              quadMap.set(qk, { ids: [ids[x], ids[y], ids[z], ids[w]], games: 0, wins: 0, builds: [] })
+            }
+            const entry = quadMap.get(qk)!
+            entry.games += b.games
+            entry.wins += b.wins
+            entry.builds.push(b)
           }
-          const entry = tripleMap.get(tk)!
-          entry.games += b.games
-          entry.wins += b.wins
-          entry.builds.push(b)
         }
       }
     }
   }
 
-  // Phase 2: iterate pairs descending by games, collect up to 3 triples per pair
+  // Phase 2: iterate pairs descending by games, collect up to 3 quads per pair
   const sortedPairs = [...pairGames.entries()].sort((a, b) => b[1] - a[1])
-  const seenTriples = new Set<string>()
+  const seenQuads = new Set<string>()
   const claimedPairs = new Set<string>()
-  const candidates: TripleEntry[] = []
+  const candidates: QuadEntry[] = []
 
   for (const [pk] of sortedPairs) {
     const parts = pk.split('_')
     const pA = parseInt(parts[0])
     const pB = parseInt(parts[1])
 
-    const pairTriples: TripleEntry[] = []
-    for (const entry of tripleMap.values()) {
-      if (entry.ids.includes(pA) && entry.ids.includes(pB)) pairTriples.push(entry)
+    const pairQuads: QuadEntry[] = []
+    for (const entry of quadMap.values()) {
+      if (entry.ids.includes(pA) && entry.ids.includes(pB)) pairQuads.push(entry)
     }
-    pairTriples.sort((a, b) => b.games - a.games)
+    pairQuads.sort((a, b) => b.games - a.games)
 
     let added = 0
-    for (const triple of pairTriples) {
+    for (const quad of pairQuads) {
       if (added >= 3) break
-      const tk = tripleKey(triple.ids[0], triple.ids[1], triple.ids[2])
-      if (seenTriples.has(tk)) continue
-      const tripleHasClaimedPair = [
-        pairKey(triple.ids[0], triple.ids[1]),
-        pairKey(triple.ids[0], triple.ids[2]),
-        pairKey(triple.ids[1], triple.ids[2]),
-      ].some(pk => claimedPairs.has(pk))
-      if (tripleHasClaimedPair) continue
-      if (triple.games < threshold) continue
-      const hasStarter = triple.ids.some(id => {
-        const meta = itemById.get(id)
-        return meta ? FIRST_ITEM_LOOKUP.has(meta.name.toLowerCase()) : false
-      })
-      if (!hasStarter) continue
-      seenTriples.add(tk)
-      claimedPairs.add(pairKey(triple.ids[0], triple.ids[1]))
-      claimedPairs.add(pairKey(triple.ids[0], triple.ids[2]))
-      claimedPairs.add(pairKey(triple.ids[1], triple.ids[2]))
-      candidates.push(triple)
+      const qk = quadKey(quad.ids[0], quad.ids[1], quad.ids[2], quad.ids[3])
+      if (seenQuads.has(qk)) continue
+      if (allQuadPairs(quad.ids).some(p => claimedPairs.has(p))) continue
+      if (quad.games < threshold) continue
+      seenQuads.add(qk)
+      for (const p of allQuadPairs(quad.ids)) claimedPairs.add(p)
+      candidates.push(quad)
       added++
     }
   }
@@ -184,14 +131,14 @@ export function clusterByCooccurrence(
   candidates.sort((a, b) => b.games - a.games)
   const top = candidates.slice(0, 8)
 
-  // Phase 3: enrich each triple with boots + flex pair stats (all conditioned on full triple)
-  return top.map(triple => {
-    const coreIdSet = new Set<number>(triple.ids)
-    const totalFullTriple = triple.games
+  // Phase 3: enrich each quad with boots + fifth items, order by no-item ratio
+  return top.map(quad => {
+    const quadIdSet = new Set<number>(quad.ids)
+    const totalFullQuad = quad.games
 
     // Boots
     const bootMap = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
-    for (const b of triple.builds) {
+    for (const b of quad.builds) {
       for (const item of b.items) {
         if (item.category !== 'Boots' || !item.name) continue
         const e = bootMap.get(item.id) ?? { item, picks: 0, wins: 0 }
@@ -202,55 +149,42 @@ export function clusterByCooccurrence(
     }
     const boots = [...bootMap.values()]
       .sort((a, b) => b.picks - a.picks)
-      .map(e => ({ ...e, pickRate: totalFullTriple > 0 ? e.picks / totalFullTriple : 0 }))
+      .map(e => ({ ...e, pickRate: totalFullQuad > 0 ? e.picks / totalFullQuad : 0 }))
 
-    // Flex pairs: non-core, non-boot, non-component items in each full-triple build
-    const flexPairMap = new Map<string, { items: [ItemMeta, ItemMeta]; picks: number; wins: number }>()
-    for (const b of triple.builds) {
+    // Fifth items: non-quad, non-boot, non-component items in each build
+    const fifthMap = new Map<number, { item: ItemMeta; picks: number; wins: number }>()
+    for (const b of quad.builds) {
       const flex = b.items.filter(
-        i => !coreIdSet.has(i.id) && i.category !== 'Boots' && !componentIds.has(i.id) && i.name
+        i => !quadIdSet.has(i.id) && i.category !== 'Boots' && !componentIds.has(i.id) && i.name
       )
-      for (let x = 0; x < flex.length - 1; x++) {
-        for (let y = x + 1; y < flex.length; y++) {
-          const fk = pairKey(flex[x].id, flex[y].id)
-          const e = flexPairMap.get(fk) ?? { items: [flex[x], flex[y]] as [ItemMeta, ItemMeta], picks: 0, wins: 0 }
-          e.picks += b.games
-          e.wins += b.wins
-          flexPairMap.set(fk, e)
-        }
+      for (const item of flex) {
+        const e = fifthMap.get(item.id) ?? { item, picks: 0, wins: 0 }
+        e.picks += b.games
+        e.wins += b.wins
+        fifthMap.set(item.id, e)
       }
     }
-    const flexPairs = [...flexPairMap.values()]
+    const fifthItems = [...fifthMap.values()]
       .sort((a, b) => b.picks - a.picks)
-      .map(e => ({ ...e, pickRate: totalFullTriple > 0 ? e.picks / totalFullTriple : 0 }))
+      .map(e => ({ ...e, pickRate: totalFullQuad > 0 ? e.picks / totalFullQuad : 0 }))
 
-    const archMetas = triple.ids.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
-    const archetypeLabel = archMetas.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
-    const starterId = findStarterId(triple.builds, triple.ids)
-
-    // Reorder so detected starter is first
-    let orderedIds = [...triple.ids] as number[]
-    let orderedMetas = [...archMetas]
-    if (starterId !== null) {
-      const idx = orderedIds.indexOf(starterId)
-      if (idx > 0) {
-        orderedIds = [orderedIds[idx], ...orderedIds.filter((_, i) => i !== idx)]
-        orderedMetas = [orderedMetas[idx], ...orderedMetas.filter((_, i) => i !== idx)]
-      }
-    }
+    // Order quad items by no-item ratio descending: highest ratio = opener (bought earliest)
+    const orderedIds = [...quad.ids].sort(
+      (a, b) => (noItemRatios.get(b) ?? 0) - (noItemRatios.get(a) ?? 0)
+    )
+    const orderedMetas = orderedIds.map(
+      id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' }
+    )
 
     return {
       openingId: orderedIds[0],
       openingItem: orderedMetas[0],
-      archetypeLabel,
-      starterId,
       coreIds: orderedIds.slice(1),
       coreItems: orderedMetas.slice(1),
-      variants: triple.builds.slice().sort((a, b) => b.games - a.games),
-      games: triple.games,
-      wins: triple.wins,
+      games: quad.games,
+      wins: quad.wins,
       boots,
-      flexPairs,
+      fifthItems,
     }
   }).sort((a, b) => b.games - a.games)
 }

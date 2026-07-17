@@ -9,25 +9,15 @@ interface ItemMeta {
   category: string
 }
 
-interface BuildRow {
-  build: number[]
-  games: number
-  wins: number
-  items: ItemMeta[]
-}
-
 interface Archetype {
   openingId: number
   openingItem: ItemMeta
-  archetypeLabel: string | null
-  starterId?: number | null
   coreIds: number[]
   coreItems: ItemMeta[]
-  variants: BuildRow[]
   games: number
   wins: number
   boots: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
-  flexPairs: { items: [ItemMeta, ItemMeta]; picks: number; pickRate: number; wins: number }[]
+  fifthItems: { item: ItemMeta; picks: number; pickRate: number; wins: number }[]
 }
 
 interface PickRow {
@@ -170,7 +160,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
 }
 
 function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; totalGames: number }) {
-  const minGames = Math.max(totalGames * 0.01, 2)
+  const minGames = Math.max(totalGames * 0.005, 2)
   const visible = archetypes.filter(a => a.games >= minGames).slice(0, 8)
 
   if (visible.length === 0) return null
@@ -188,27 +178,9 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
           return next
         })
 
-        // Order archetype items: starter (from ITEM_ARCHETYPES) first, then rest in frequency order
-        const archetypeItems = [arch.openingItem, ...arch.coreItems].filter(Boolean) as ItemMeta[]
-        const orderedArch = (() => {
-          if ((arch.starterId ?? null) == null) return archetypeItems
-          const idx = archetypeItems.findIndex(i => i.id === arch.starterId)
-          if (idx > 0) return [archetypeItems[idx], ...archetypeItems.filter((_, i) => i !== idx)]
-          if (idx === -1) {
-            // Starter detected in variants but not in the core 3 — find and prepend it
-            const starterMeta = arch.variants.flatMap(v => v.items).find(i => i.id === arch.starterId)
-            if (starterMeta) return [starterMeta, ...archetypeItems.slice(0, 3)]
-          }
-          return archetypeItems
-        })()
-
+        const coreItems = [arch.openingItem, ...arch.coreItems].filter(Boolean) as ItemMeta[]
         const boots = arch.boots ?? []
-        const flexPairs = arch.flexPairs ?? []
-        const topBoot = boots[0]?.item ?? null
-
-        // 4-slot sequence: [starter/core1] → [boots] → [core2] → [core3]
-        const displayItems = [orderedArch[0], topBoot, orderedArch[1], orderedArch[2]]
-          .filter((x): x is ItemMeta => x != null)
+        const fifthItems = arch.fifthItems ?? []
 
         return (
           <div key={ai} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -216,20 +188,12 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
               onClick={toggle}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
             >
-              <>
-                {displayItems.map((item, idx) => (
-                  <span key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {idx > 0 && <Arrow />}
-                    <ItemIcon iconPath={item.iconPath} name={item.name} size={30} />
-                  </span>
-                ))}
-              </>
-
-              {arch.archetypeLabel && (
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-primary)', borderRadius: 3, padding: '1px 5px', marginLeft: 2 }}>
-                  {arch.archetypeLabel}
+              {coreItems.map((item, idx) => (
+                <span key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {idx > 0 && <Arrow />}
+                  <ItemIcon iconPath={item.iconPath} name={item.name} size={30} />
                 </span>
-              )}
+              ))}
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
                 {arch.games} games
               </span>
@@ -241,7 +205,7 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
               </span>
             </div>
 
-            {isOpen && (boots.length > 0 || flexPairs.length > 0) && (
+            {isOpen && (boots.length > 0 || fifthItems.length > 0) && (
               <div style={{ borderTop: '1px solid var(--border)' }}>
                 {boots.length > 0 && (
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -264,15 +228,15 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
                     </tbody>
                   </table>
                 )}
-                {flexPairs.length > 0 && (
+                {fifthItems.length > 0 && (
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <tbody>
-                      {flexPairs.map(({ items, picks, pickRate, wins }, fi) => (
-                        <tr key={fi} style={{ borderTop: '1px solid var(--border)' }}>
+                      {fifthItems.slice(0, 5).map(({ item, picks, pickRate, wins }) => (
+                        <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
                           <td style={{ padding: '6px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <ItemIcon iconPath={items[0].iconPath} name={items[0].name} size={26} />
-                              <ItemIcon iconPath={items[1].iconPath} name={items[1].name} size={26} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <ItemIcon iconPath={item.iconPath} name={item.name} size={26} />
+                              <span style={{ fontSize: 12 }}>{item.name}</span>
                             </div>
                           </td>
                           <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>

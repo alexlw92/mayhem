@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
-const ARCHETYPE_CACHE_VERSION = 5
+const ARCHETYPE_CACHE_VERSION = 7
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -257,36 +257,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       PRIMARY KEY ("championId", patches_key)
     )
   `
-  await sql_`
-    CREATE MATERIALIZED VIEW IF NOT EXISTS item_triples_cache AS
-    SELECT
-      p."championId",
-      p."gameVersion",
-      a."itemId"  AS item1,
-      b."itemId"  AS item2,
-      c."itemId"  AS item3,
-      COUNT(*)::int        AS games,
-      SUM(p.win::int)::int AS wins
-    FROM participants p
-    JOIN participant_items a ON a."participantId" = p.id
-    JOIN participant_items b ON b."participantId" = p.id AND b."itemId" > a."itemId"
-    JOIN participant_items c ON c."participantId" = p.id AND c."itemId" > b."itemId"
-    JOIN meta_items ma ON ma.id = a."itemId" AND ma.is_component = false AND ma.category != 'Boots'
-    JOIN meta_items mb ON mb.id = b."itemId" AND mb.is_component = false AND mb.category != 'Boots'
-    JOIN meta_items mc ON mc.id = c."itemId" AND mc.is_component = false AND mc.category != 'Boots'
-    GROUP BY p."championId", p."gameVersion", a."itemId", b."itemId", c."itemId"
-    WITH NO DATA
-  `
-  await sql_`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_item_triples_pk
-    ON item_triples_cache ("championId", "gameVersion", item1, item2, item3)
-  `
-  await sql_`
-    CREATE INDEX IF NOT EXISTS idx_item_triples_champ_version
-    ON item_triples_cache ("championId", "gameVersion")
-  `
-
-  const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
+const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
     console.log('[db] backfilling summary caches...')
     onProgress?.('Rebuilding champion & augment cache…')
@@ -1624,23 +1595,6 @@ export async function getBootsByOpener(
   return rows.map((r: any) => ({ openerId: r.openerId, bootId: r.bootId, picks: r.picks }))
 }
 
-export async function refreshItemTriples(): Promise<void> {
-  console.log('[triples] refreshing...')
-  let populated = false
-  try {
-    const [row] = await sql_`SELECT COUNT(*)::int AS n FROM item_triples_cache LIMIT 1` as any[]
-    populated = (row as any).n > 0
-  } catch {
-    console.log('[triples] view not yet populated — running initial refresh')
-  }
-  if (populated) {
-    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY item_triples_cache`
-  } else {
-    await sql_`REFRESH MATERIALIZED VIEW item_triples_cache`
-  }
-  console.log('[triples] done')
-}
-
 
 
 export interface ItemPickRatesResult {
@@ -1971,18 +1925,90 @@ async function _computeArchetypes(
         .filter(id => fullMeta.has(id))
         .map(id => fullMeta.get(id)!),
     }))
-    .filter(b => b.items.filter((i: any) => i.category !== 'Boots' && !componentIds.has(i.id)).length >= 3)
+    .filter(b => b.items.filter((i: any) => i.category !== 'Boots' && !componentIds.has(i.id)).length >= 4)
+
+  // Compute no-item ratio per item: high ratio = item appears in games with many empty slots = bought early
+  const noItemRatioRows = patches?.length
+    ? await sql_`
+        SELECT pi."itemId", SUM(6 - cnt.total)::float / COUNT(*) AS ratio
+        FROM participants p
+        JOIN participant_items pi ON pi."participantId" = p.id
+        JOIN meta_items m ON m.id = pi."itemId"
+          AND m.is_component = false
+          AND m.name IS NOT NULL AND m.name != ''
+        JOIN (
+          SELECT "participantId", COUNT(*) AS total
+          FROM participant_items
+          GROUP BY "participantId"
+        ) cnt ON cnt."participantId" = p.id
+        WHERE p."championId" = ${championId}
+          AND p."gameVersion" = ANY(${patches})
+        GROUP BY pi."itemId"
+      `
+    : await sql_`
+        SELECT pi."itemId", SUM(6 - cnt.total)::float / COUNT(*) AS ratio
+        FROM participants p
+        JOIN participant_items pi ON pi."participantId" = p.id
+        JOIN meta_items m ON m.id = pi."itemId"
+          AND m.is_component = false
+          AND m.name IS NOT NULL AND m.name != ''
+        JOIN (
+          SELECT "participantId", COUNT(*) AS total
+          FROM participant_items
+          GROUP BY "participantId"
+        ) cnt ON cnt."participantId" = p.id
+        WHERE p."championId" = ${championId}
+        GROUP BY pi."itemId"
+      `
+  const noItemRatios = new Map<number, number>(
+    (noItemRatioRows as any[]).map(r => [r.itemId as number, parseFloat(r.ratio)])
+  )
 
   const { clusterByCooccurrence } = await import('./itemArchetypes')
-  const archetypes = clusterByCooccurrence(enriched, componentIds)
+  const archetypes = clusterByCooccurrence(enriched, componentIds, noItemRatios)
+
+  // item_builds_cache is C(n,5) inflated: a player with 6 items contributes C(3,2)=3 rows
+  // for any 3-item core triple, so triple.games overcounts real participants. Re-query
+  // participant_items to get the true count for each archetype's core items.
+  const corrected = await Promise.all(archetypes.map(async (arch) => {
+    const allCoreIds = [arch.openingId, ...arch.coreIds]
+    const rows = patches?.length
+      ? await sql_`
+          SELECT COUNT(*)::int AS games,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+            AND (
+              SELECT COUNT(DISTINCT pi."itemId")
+              FROM participant_items pi
+              WHERE pi."participantId" = p.id
+                AND pi."itemId" = ANY(${allCoreIds}::int[])
+            ) = ${allCoreIds.length}
+        `
+      : await sql_`
+          SELECT COUNT(*)::int AS games,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          WHERE p."championId" = ${championId}
+            AND (
+              SELECT COUNT(DISTINCT pi."itemId")
+              FROM participant_items pi
+              WHERE pi."participantId" = p.id
+                AND pi."itemId" = ANY(${allCoreIds}::int[])
+            ) = ${allCoreIds.length}
+        `
+    const row = (rows as any[])[0]
+    return { ...arch, games: row?.games ?? 0, wins: row?.wins ?? 0 }
+  }))
 
   await sql_`
     INSERT INTO item_archetypes_cache ("championId", patches_key, archetypes)
-    VALUES (${championId}, ${patchesKey}, ${sql_.json(archetypes as any)})
+    VALUES (${championId}, ${patchesKey}, ${sql_.json(corrected as any)})
     ON CONFLICT ("championId", patches_key) DO UPDATE SET
       archetypes = EXCLUDED.archetypes,
       computed_at = now()
   `
   console.log(`[db] archetypes cached for champion ${championId}`)
-  return archetypes
+  return corrected
 }

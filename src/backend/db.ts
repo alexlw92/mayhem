@@ -33,7 +33,7 @@ export interface Participant {
   goldEarned: number
   champLevel: number
   augments: number[]
-  items?: number[]
+  items?: Array<{ id: number; slot: number }>
 }
 
 export interface Match {
@@ -101,6 +101,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       "itemId"        INTEGER NOT NULL
     )
   `
+  await sql_`ALTER TABLE participant_items ADD COLUMN IF NOT EXISTS "slot" INTEGER`
   await sql_`
     CREATE TABLE IF NOT EXISTS player_sync_times (
       puuid     TEXT PRIMARY KEY,
@@ -720,12 +721,12 @@ export async function insertMatches(matches: Match[]): Promise<number> {
 
     const itemPairs = newMatches.flatMap(m =>
       m.participants.flatMap(p =>
-        (p.items ?? []).filter(Boolean).map(itemId => [partIdMap.get(`${m.gameId}:${p.puuid}`), itemId])
+        (p.items ?? []).map(item => [partIdMap.get(`${m.gameId}:${p.puuid}`), item.id, item.slot])
       )
-    ).filter((pair): pair is [number, number] => pair[0] != null)
+    ).filter((pair): pair is [number, number, number] => pair[0] != null)
 
     if (itemPairs.length > 0) {
-      await tx`INSERT INTO participant_items ("participantId","itemId") VALUES ${tx(itemPairs)}`
+      await tx`INSERT INTO participant_items ("participantId","itemId","slot") VALUES ${tx(itemPairs)}`
     }
 
     const newGameIdArr = [...newGameIds]
@@ -944,9 +945,9 @@ export async function upsertMatch(match: Match): Promise<void> {
         if (!augId) continue
         await tx`INSERT INTO participant_augments ("participantId","augmentId") VALUES (${row.id},${augId})`
       }
-      for (const itemId of (p.items ?? [])) {
-        if (!itemId) continue
-        await tx`INSERT INTO participant_items ("participantId","itemId") VALUES (${row.id},${itemId})`
+      for (const item of (p.items ?? [])) {
+        if (!item) continue
+        await tx`INSERT INTO participant_items ("participantId","itemId","slot") VALUES (${row.id},${item.id},${item.slot})`
       }
     }
   })
@@ -1999,7 +2000,58 @@ async function _computeArchetypes(
             ) = ${allCoreIds.length}
         `
     const row = (rows as any[])[0]
-    return { ...arch, games: row?.games ?? 0, wins: row?.wins ?? 0 }
+
+    // Reorder all 4 quad items by average slot position (lower slot = bought earlier)
+    const slotRows = patches?.length
+      ? await sql_`
+          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+            AND pi."itemId" = ANY(${allCoreIds}::int[])
+            AND pi."slot" IS NOT NULL
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+            AND (
+              SELECT COUNT(DISTINCT pi2."itemId")
+              FROM participant_items pi2
+              WHERE pi2."participantId" = p.id
+                AND pi2."itemId" = ANY(${allCoreIds}::int[])
+            ) = ${allCoreIds.length}
+          GROUP BY pi."itemId"
+        `
+      : await sql_`
+          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+            AND pi."itemId" = ANY(${allCoreIds}::int[])
+            AND pi."slot" IS NOT NULL
+          WHERE p."championId" = ${championId}
+            AND (
+              SELECT COUNT(DISTINCT pi2."itemId")
+              FROM participant_items pi2
+              WHERE pi2."participantId" = p.id
+                AND pi2."itemId" = ANY(${allCoreIds}::int[])
+            ) = ${allCoreIds.length}
+          GROUP BY pi."itemId"
+        `
+    const slotMap = new Map<number, number>(
+      (slotRows as any[]).map(r => [r.itemId as number, parseFloat(r.avg_slot)])
+    )
+
+    let orderedIds = allCoreIds
+    if (slotMap.size > 0) {
+      orderedIds = [...allCoreIds].sort((a, b) => (slotMap.get(a) ?? 99) - (slotMap.get(b) ?? 99))
+    }
+
+    return {
+      ...arch,
+      games: row?.games ?? 0,
+      wins: row?.wins ?? 0,
+      openingId: orderedIds[0],
+      openingItem: fullMeta.get(orderedIds[0]) ?? arch.openingItem,
+      coreIds: orderedIds.slice(1),
+      coreItems: orderedIds.slice(1).map(id => fullMeta.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' }),
+    }
   }))
 
   await sql_`

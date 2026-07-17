@@ -775,6 +775,7 @@ const ITEM_CHAMP_ID = 55
 const ITEMS_CORE = [3001, 3003, 3089, 3135, 3157]
 const ITEMS_ALT =  [3001, 3003, 3089, 3165, 3157]
 const ITEMS_ALLOWED = [3001, 3003, 3089, 3135, 3157, 3165]
+const toSlotItems = (ids: number[]) => ids.map((id, slot) => ({ id, slot }))
 
 const matchWithItems: Match = {
   gameId: 9001,
@@ -787,13 +788,13 @@ const matchWithItems: Match = {
       puuid: 'item-puuid-1', summonerName: 'Mage#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
       teamId: 100, win: true, kills: 5, deaths: 1, assists: 3,
       damageDealt: 50000, damageTaken: 12000, goldEarned: 11000, champLevel: 15, augments: [],
-      items: ITEMS_CORE,
+      items: toSlotItems(ITEMS_CORE),
     },
     {
       puuid: 'item-puuid-2', summonerName: 'Other#NA1', championId: 99, championName: 'Lux',
       teamId: 200, win: false, kills: 1, deaths: 4, assists: 2,
       damageDealt: 20000, damageTaken: 25000, goldEarned: 7000, champLevel: 11, augments: [],
-      items: [3006, 3031, 3033, 3034, 3035],
+      items: toSlotItems([3006, 3031, 3033, 3034, 3035]),
     }
   ]
 }
@@ -809,7 +810,7 @@ const matchWithItemsAlt: Match = {
       puuid: 'item-puuid-3', summonerName: 'Mage2#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
       teamId: 100, win: false, kills: 2, deaths: 3, assists: 4,
       damageDealt: 35000, damageTaken: 18000, goldEarned: 9000, champLevel: 14, augments: [],
-      items: ITEMS_ALT,
+      items: toSlotItems(ITEMS_ALT),
     }
   ]
 }
@@ -825,7 +826,7 @@ const matchWithItemsOldPatch: Match = {
       puuid: 'item-puuid-4', summonerName: 'Mage3#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
       teamId: 100, win: true, kills: 3, deaths: 1, assists: 5,
       damageDealt: 45000, damageTaken: 10000, goldEarned: 10500, champLevel: 15, augments: [],
-      items: ITEMS_CORE,
+      items: toSlotItems(ITEMS_CORE),
     }
   ]
 }

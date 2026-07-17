@@ -79,6 +79,11 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
 
   return (
     <div>
+      <style>{`
+        .item-wr-bar { display: inline-block; width: 48px; height: 5px; background: var(--bg-primary); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 6px; }
+        .item-wr-fill { height: 100%; border-radius: 3px; }
+      `}</style>
+
       {archetypes.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Build Paths</div>
@@ -89,7 +94,13 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
       {boots.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Boots Stats</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col />
+              <col style={{ width: 56 }} />
+              <col style={{ width: 56 }} />
+              <col style={{ width: 110 }} />
+            </colgroup>
             <thead>
               <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
                 <th style={{ padding: '4px 8px', fontWeight: 400 }}>Item</th>
@@ -111,8 +122,15 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>
                     {totalGames > 0 ? `${((b.picks / totalGames) * 100).toFixed(0)}%` : '—'}
                   </td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', color: b.picks > 0 ? wrColor(b.wins / b.picks) : 'var(--text-secondary)' }}>
-                    {b.picks > 0 ? `${((b.wins / b.picks) * 100).toFixed(1)}%` : '—'}
+                  <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {b.picks > 0 ? (
+                      <>
+                        <span className="item-wr-bar" style={{ marginLeft: 0, marginRight: 6 }}>
+                          <span className="item-wr-fill" style={{ width: `${(b.wins / b.picks) * 100}%`, background: b.wins / b.picks >= 0.5 ? 'var(--green)' : 'var(--red)' }} />
+                        </span>
+                        <span style={{ color: wrColor(b.wins / b.picks) }}>{((b.wins / b.picks) * 100).toFixed(1)}%</span>
+                      </>
+                    ) : '—'}
                   </td>
                 </tr>
               ))}
@@ -124,7 +142,13 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
       {regularItems.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Item Stats</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col />
+              <col style={{ width: 56 }} />
+              <col style={{ width: 56 }} />
+              <col style={{ width: 110 }} />
+            </colgroup>
             <thead>
               <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
                 <th style={{ padding: '4px 8px', fontWeight: 400 }}>Item</th>
@@ -146,8 +170,15 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>
                     {totalGames > 0 ? `${((item.picks / totalGames) * 100).toFixed(0)}%` : '—'}
                   </td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', color: item.picks > 0 ? wrColor(item.wins / item.picks) : 'var(--text-secondary)' }}>
-                    {item.picks > 0 ? `${((item.wins / item.picks) * 100).toFixed(1)}%` : '—'}
+                  <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {item.picks > 0 ? (
+                      <>
+                        <span className="item-wr-bar" style={{ marginLeft: 0, marginRight: 6 }}>
+                          <span className="item-wr-fill" style={{ width: `${(item.wins / item.picks) * 100}%`, background: item.wins / item.picks >= 0.5 ? 'var(--green)' : 'var(--red)' }} />
+                        </span>
+                        <span style={{ color: wrColor(item.wins / item.picks) }}>{((item.wins / item.picks) * 100).toFixed(1)}%</span>
+                      </>
+                    ) : '—'}
                   </td>
                 </tr>
               ))}
@@ -178,24 +209,45 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
           return next
         })
 
-        const coreItems = [arch.openingItem, ...arch.coreItems].filter(Boolean) as ItemMeta[]
         const boots = arch.boots ?? []
         const fifthItems = arch.fifthItems ?? []
+        const topBoots = boots[0]?.item ?? null
+        const topFifth = fifthItems[0]?.item ?? null
 
         return (
           <div key={ai} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
             <div
               onClick={toggle}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-secondary)', cursor: 'pointer', userSelect: 'none' }}
             >
-              {coreItems.map((item, idx) => (
-                <span key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {idx > 0 && <Arrow />}
-                  <ItemIcon iconPath={item.iconPath} name={item.name} size={30} />
-                </span>
-              ))}
+              {/* Group 1: Opener */}
+              <ItemIcon iconPath={arch.openingItem.iconPath} name={arch.openingItem.name} size={30} />
+              <Arrow />
+              {/* Group 2: Boots slot */}
+              {topBoots
+                ? <ItemIcon iconPath={topBoots.iconPath} name={topBoots.name} size={30} />
+                : <PlaceholderIcon size={30} />
+              }
+              <Arrow />
+              {/* Group 3: Core items 2–4 */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {arch.coreItems.map((item) => (
+                  <ItemIcon key={item.id} iconPath={item.iconPath} name={item.name} size={30} />
+                ))}
+              </span>
+              <Arrow />
+              {/* Group 4: Top 5th item slot */}
+              {topFifth
+                ? <ItemIcon iconPath={topFifth.iconPath} name={topFifth.name} size={30} />
+                : <PlaceholderIcon size={30} />
+              }
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
                 {arch.games} games
+                {totalGames > 0 && (
+                  <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+                    ({((arch.games / totalGames) * 100).toFixed(0)}%)
+                  </span>
+                )}
               </span>
               <span style={{ fontSize: 12, color: wrColor(wr), marginLeft: 8 }}>
                 {(wr * 100).toFixed(1)}% WR
@@ -206,49 +258,61 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
             </div>
 
             {isOpen && (boots.length > 0 || fifthItems.length > 0) && (
-              <div style={{ borderTop: '1px solid var(--border)' }}>
-                {boots.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <tbody>
-                      {boots.slice(0, 3).map(({ item, picks, pickRate, wins }) => (
-                        <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td style={{ padding: '6px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <ItemIcon iconPath={item.iconPath} name={item.name} size={26} />
-                              <span style={{ fontSize: 12 }}>{item.name}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                            {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {fifthItems.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <tbody>
-                      {fifthItems.slice(0, 5).map(({ item, picks, pickRate, wins }) => (
-                        <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td style={{ padding: '6px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <ItemIcon iconPath={item.iconPath} name={item.name} size={26} />
-                              <span style={{ fontSize: 12 }}>{item.name}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{picks} picks</td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: picks > 0 ? wrColor(wins / picks) : 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                            {picks > 0 ? `${((wins / picks) * 100).toFixed(1)}%` : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div style={{ borderTop: '1px solid var(--border)', display: 'flex' }}>
+                {/* Boots column */}
+                <div style={{ flex: 1, borderRight: boots.length > 0 && fifthItems.length > 0 ? '1px solid var(--border)' : 'none' }}>
+                  {boots.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, padding: '6px 10px 2px' }}>Boots</div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <tbody>
+                          {boots.slice(0, 3).map(({ item, picks, pickRate, wins }) => (
+                            <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
+                              <td style={{ padding: '5px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <ItemIcon iconPath={item.iconPath} name={item.name} size={24} />
+                                  <span style={{ color: 'var(--text-secondary)' }}>{item.name}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{picks}</td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                {picks > 0 ? <span style={{ color: wrColor(wins / picks) }}>{((wins / picks) * 100).toFixed(1)}%</span> : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                </div>
+                {/* 5th Item column */}
+                <div style={{ flex: 1 }}>
+                  {fifthItems.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, padding: '6px 10px 2px' }}>5th Item</div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <tbody>
+                          {fifthItems.slice(0, 5).map(({ item, picks, pickRate, wins }) => (
+                            <tr key={item.id} style={{ borderTop: '1px solid var(--border)' }}>
+                              <td style={{ padding: '5px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <ItemIcon iconPath={item.iconPath} name={item.name} size={24} />
+                                  <span style={{ color: 'var(--text-secondary)' }}>{item.name}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{picks}</td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{(pickRate * 100).toFixed(0)}%</td>
+                              <td style={{ padding: '5px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                {picks > 0 ? <span style={{ color: wrColor(wins / picks) }}>{((wins / picks) * 100).toFixed(1)}%</span> : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -260,13 +324,19 @@ function BuildPaths({ archetypes, totalGames }: { archetypes: Archetype[]; total
 
 function Arrow() {
   return (
-    <span style={{ fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>›</span>
+    <span style={{ fontSize: 16, color: 'var(--text-secondary)', flexShrink: 0 }}>›</span>
   )
 }
 
-function ItemIcon({ iconPath, name, size }: { iconPath: string; name: string; size: number }) {
+function PlaceholderIcon({ size }: { size: number }) {
   return (
-    <div title={name} style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
+    <div style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, background: 'var(--bg-primary)', border: '1px dashed var(--border)' }} />
+  )
+}
+
+function ItemIcon({ iconPath, name, size, accentBorder }: { iconPath: string; name: string; size: number; accentBorder?: boolean }) {
+  return (
+    <div title={name} style={{ width: size, height: size, flexShrink: 0, borderRadius: 4, overflow: 'hidden', background: 'var(--bg-secondary)', boxSizing: 'border-box', border: accentBorder ? '2px solid var(--accent)' : 'none' }}>
       {iconPath ? (
         <img
           src={iconPath}

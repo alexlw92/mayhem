@@ -27,14 +27,15 @@ export interface Archetype {
 }
 
 const ITEM_ARCHETYPES: Record<string, string[]> = {
-  Tank:     ['heartsteel', 'sunfire aegis', 'frostfire gauntlet', 'turbo chemtank'],
-  Fighter:  ['ravenous hydra', 'divine sunderer', 'trinity force', 'iceborn gauntlet', 'eclipse'],
-  Crit:     ['yun tal wildarrows', 'collector', 'essence reaver'],
-  'On-Hit': ['kraken slayer', 'blade of the ruined king'],
+  Tank:     ['heartsteel', 'fimbulwinter', 'sunfire aegis', 'frostfire gauntlet', 'turbo chemtank'],
+  Fighter:  ['ravenous hydra', 'sundered sky', 'trinity force', 'iceborn gauntlet', 'eclipse'],
+  AD:       ['muramana'],
+  Crit:     ['yun tal wildarrows', 'the collector', 'essence reaver'],
+  'On-Hit': ['statikk shiv', 'kraken slayer', 'blade of the ruined king'],
   AP:       ["luden's tempest", 'blackfire torch', 'malignance', 'rod of ages',
              "archangel's staff", 'hextech rocketbelt', 'night harvester', 'imperial mandate',
-             'lich bane', 'dusk and dawn'],
-  Assassin: ['hubris', 'duskblade of draktharr', 'eclipse', 'dusk and dawn', 'collector'],
+             'lich bane', 'dusk and dawn', 'liandrys torment'],
+  Assassin: ['hubris', 'duskblade of draktharr', 'eclipse', 'dusk and dawn', 'the collector'],
   Support:  ['imperial mandate', 'manamune'],
 }
 
@@ -60,7 +61,7 @@ function pairKey(a: number, b: number): string {
   return a < b ? `${a}_${b}` : `${b}_${a}`
 }
 
-function findStarterId(pool: BuildRow[]): number | null {
+function findStarterId(pool: BuildRow[], coreIds: number[]): number | null {
   const freq = new Map<number, { item: ItemMeta; games: number }>()
   for (const b of pool) {
     for (const item of b.items) {
@@ -70,7 +71,10 @@ function findStarterId(pool: BuildRow[]): number | null {
       freq.set(item.id, e)
     }
   }
-  const candidates = [...freq.values()].filter(e => FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase()))
+  const coreIdSet = new Set(coreIds)
+  const candidates = [...freq.values()].filter(
+    e => coreIdSet.has(e.item.id) && FIRST_ITEM_LOOKUP.has(e.item.name.toLowerCase())
+  )
   candidates.sort((a, b) => {
     const pa = STARTER_PRIORITY.get(a.item.name.toLowerCase()) ?? Infinity
     const pb = STARTER_PRIORITY.get(b.item.name.toLowerCase()) ?? Infinity
@@ -222,7 +226,7 @@ export function clusterByCooccurrence(
 
     const archMetas = triple.ids.map(id => itemById.get(id) ?? { id, name: `Item ${id}`, iconPath: '', category: '' })
     const archetypeLabel = archMetas.map(i => FIRST_ITEM_LOOKUP.get(i.name.toLowerCase())).find(Boolean)?.join(' / ') ?? null
-    const starterId = findStarterId(triple.builds)
+    const starterId = findStarterId(triple.builds, triple.ids)
 
     // Reorder so detected starter is first
     let orderedIds = [...triple.ids] as number[]

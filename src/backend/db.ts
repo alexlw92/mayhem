@@ -1652,30 +1652,34 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
   const [itemRows, countRows, bootsRows] = await Promise.all([
     patches?.length
       ? sql_`
-          SELECT u.item_id AS "itemId", m.name, m."iconPath", m.category,
-                 SUM(ibc.games)::int AS picks, SUM(ibc.wins)::int AS wins
-          FROM item_builds_cache ibc,
-               unnest(ibc.build) AS u(item_id)
-          JOIN meta_items m ON m.id = u.item_id
+          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
+                 COUNT(*)::int AS picks,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          JOIN meta_items m ON m.id = pi."itemId"
             AND m.is_component = false
+            AND m.category != 'Boots'
             AND m.name IS NOT NULL
             AND m.name != ''
-          WHERE ibc."championId" = ${championId}
-            AND ibc."gameVersion" = ANY(${patches})
-          GROUP BY u.item_id, m.name, m."iconPath", m.category
+          WHERE p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+          GROUP BY pi."itemId", m.name, m."iconPath", m.category
           ORDER BY picks DESC
         `
       : sql_`
-          SELECT u.item_id AS "itemId", m.name, m."iconPath", m.category,
-                 SUM(ibc.games)::int AS picks, SUM(ibc.wins)::int AS wins
-          FROM item_builds_cache ibc,
-               unnest(ibc.build) AS u(item_id)
-          JOIN meta_items m ON m.id = u.item_id
+          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
+                 COUNT(*)::int AS picks,
+                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
+          FROM participants p
+          JOIN participant_items pi ON pi."participantId" = p.id
+          JOIN meta_items m ON m.id = pi."itemId"
             AND m.is_component = false
+            AND m.category != 'Boots'
             AND m.name IS NOT NULL
             AND m.name != ''
-          WHERE ibc."championId" = ${championId}
-          GROUP BY u.item_id, m.name, m."iconPath", m.category
+          WHERE p."championId" = ${championId}
+          GROUP BY pi."itemId", m.name, m."iconPath", m.category
           ORDER BY picks DESC
         `,
     patches?.length

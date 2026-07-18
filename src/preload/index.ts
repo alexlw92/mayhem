@@ -14,7 +14,8 @@ const api = {
       ipcRenderer.invoke('lcu:lookupPlayer', gameName, tagLine),
     currentGame: () => ipcRenderer.invoke('lcu:currentGame'),
     syncCurrentGame: (puuids: string[]) => ipcRenderer.invoke('lcu:syncCurrentGame', puuids),
-    captureScreen: () => ipcRenderer.invoke('overlay:captureScreen')
+    captureScreen: () => ipcRenderer.invoke('overlay:captureScreen'),
+    ocrScreen: () => ipcRenderer.invoke('overlay:ocrScreen') as Promise<{ text: string | null; dataUrl: string | null }>
   },
   db: {
     patches: () => ipcRenderer.invoke('db:patches'),
@@ -44,6 +45,9 @@ const api = {
   recents: {
     load: () => ipcRenderer.invoke('recents:load'),
     save: (entries: unknown) => ipcRenderer.invoke('recents:save', entries),
+  },
+  app: {
+    reload: () => ipcRenderer.invoke('app:reload'),
   },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)

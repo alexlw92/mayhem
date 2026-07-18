@@ -1,5 +1,6 @@
 import dotenv from 'dotenv'
 import { join, dirname } from 'path'
+import { createWorker as createTessWorker } from 'tesseract.js'
 if (process.env.NODE_ENV !== 'production') {
   // Dev: load .env.dev from project root
   dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
@@ -43,6 +44,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow: BrowserWindow | null = null
+let tessWorker: Awaited<ReturnType<typeof createTessWorker>> | null = null
 function sendToWindow(channel: string, ...args: unknown[]): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args)
 }
@@ -535,6 +537,11 @@ ipcMain.handle('recents:save', (_e, entries: unknown) => {
   fs.writeFileSync(recentsPath(), JSON.stringify(entries), 'utf-8')
 })
 
+ipcMain.handle('app:reload', () => {
+  app.relaunch()
+  app.exit(0)
+})
+
 ipcMain.handle('lcu:currentGame', async () => {
   if (!isClientRunning()) return null
   const session = await getGameflowSession()
@@ -603,10 +610,51 @@ ipcMain.handle('meta:refresh', async () => {
 })
 
 ipcMain.handle('overlay:captureScreen', async () => {
-  const sources = await desktopCapturer.getSources({
-    types: ['window', 'screen'],
+  const windowSources = await desktopCapturer.getSources({
+    types: ['window'],
     thumbnailSize: { width: 1920, height: 1080 },
   })
-  const lol = sources.find(s => /league.of.legends/i.test(s.name)) ?? sources[0]
-  return lol?.thumbnail.toDataURL() ?? null
+  const lol = windowSources.find(s => /league.of.legends/i.test(s.name))
+  if (lol) return lol.thumbnail.toDataURL()
+
+  const screenSources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 1920, height: 1080 },
+  })
+  return screenSources[0]?.thumbnail.toDataURL() ?? null
 })
+
+ipcMain.handle('overlay:ocrScreen', async () => {
+  // Capture — prefer League window, fall back to primary display
+  const windowSources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 1920, height: 1080 },
+  })
+  const lol = windowSources.find(s => /league.of.legends/i.test(s.name))
+
+  let imageBuffer: Buffer
+  if (lol) {
+    imageBuffer = lol.thumbnail.toPNG()
+  } else {
+    const screenSources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 },
+    })
+    if (!screenSources[0]) return { text: null, dataUrl: null }
+    imageBuffer = screenSources[0].thumbnail.toPNG()
+  }
+
+  // Initialize Tesseract worker once (Node.js version — loads from local disk, no CDN)
+  if (!tessWorker) {
+    tessWorker = await createTessWorker('eng', 1, {
+      logger: () => {},
+      langPath: app.getAppPath(),
+    })
+    await tessWorker.setParameters({ tessedit_pageseg_mode: '11' })
+  }
+
+  const { data: { text } } = await tessWorker.recognize(imageBuffer)
+  const dataUrl = `data:image/png;base64,${imageBuffer.toString('base64')}`
+  return { text: text ?? null, dataUrl }
+})
+

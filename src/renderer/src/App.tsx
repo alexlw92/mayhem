@@ -35,6 +35,7 @@ export default function App() {
   const [selectedChampionName, setSelectedChampionName] = useState('')
   const [selectedAugmentId, setSelectedAugmentId] = useState<number | undefined>(undefined)
   const [augmentDetailOrigin, setAugmentDetailOrigin] = useState<'augments' | 'players'>('augments')
+  const [championDetailOrigin, setChampionDetailOrigin] = useState<Page>('champions')
   const [augmentDetailPuuid, setAugmentDetailPuuid] = useState<string | null>(null)
   const [patchExpanded, setPatchExpanded] = useState(false)
   const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
@@ -319,6 +320,12 @@ export default function App() {
           >
             Full Reload
           </button>
+          <button
+            className="sync-btn sync-btn--full"
+            onClick={() => window.api.app.reload()}
+          >
+            Reload App
+          </button>
           {syncing && syncProgress && (
             <div className="sync-progress">
               <div className="sync-progress-player">↳ {syncProgress.playerName}</div>
@@ -348,6 +355,7 @@ export default function App() {
             onChampionClick={(championId, championName) => {
               setSelectedChampionId(championId)
               setSelectedChampionName(championName)
+              setChampionDetailOrigin('champions')
               setPage('champion-detail')
             }}
           />
@@ -369,7 +377,15 @@ export default function App() {
           )}
         </div>
         <div style={{ display: page === 'current-game' ? 'block' : 'none' }}>
-          <CurrentGame selectedPatches={selectedPatches} />
+          <CurrentGame
+            selectedPatches={selectedPatches}
+            onChampionClick={(championId, championName) => {
+              setSelectedChampionId(championId)
+              setSelectedChampionName(championName)
+              setChampionDetailOrigin('current-game')
+              setPage('champion-detail')
+            }}
+          />
         </div>
         <div style={{ display: page === 'champion-detail' ? 'block' : 'none' }}>
           {selectedChampionId !== undefined && (
@@ -378,7 +394,7 @@ export default function App() {
               championName={selectedChampionName}
               selectedPatches={selectedPatches}
               metaKey={metaKey}
-              onBack={() => setPage('champions')}
+              onBack={() => setPage(championDetailOrigin)}
               onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
             />
           )}

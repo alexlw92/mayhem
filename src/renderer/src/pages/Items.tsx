@@ -33,6 +33,7 @@ interface Props {
   championId: number
   selectedPatches: string[] | null
   metaKey?: number
+  buildsOnly?: boolean
 }
 
 const sectionLabel: React.CSSProperties = {
@@ -43,7 +44,7 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 8,
 }
 
-export default function Items({ championId, selectedPatches, metaKey }: Props) {
+export default function Items({ championId, selectedPatches, metaKey, buildsOnly }: Props) {
   const [archetypes, setArchetypes] = useState<Archetype[]>([])
   const [picks, setPicks] = useState<PickRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -91,7 +92,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
         </section>
       )}
 
-      {boots.length > 0 && (
+      {!buildsOnly && boots.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Boots Stats</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
@@ -139,7 +140,7 @@ export default function Items({ championId, selectedPatches, metaKey }: Props) {
         </section>
       )}
 
-      {regularItems.length > 0 && (
+      {!buildsOnly && regularItems.length > 0 && (
         <section style={{ marginBottom: 28 }}>
           <div style={sectionLabel}>Item Stats</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>

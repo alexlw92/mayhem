@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
-import { matchAugments } from './ocrUtils'
+import { matchAugments, normalizeOcr } from './ocrUtils'
+import Items from './Items'
 import './Dashboard.css'
 
 const api = (window as any).api
@@ -52,6 +53,7 @@ interface GlobalChampStat {
 
 interface Props {
   selectedPatches: string[] | null
+  onChampionClick?: (championId: number, championName: string) => void
 }
 
 type AugmentCache = Record<number, AugmentInfo>
@@ -61,6 +63,31 @@ const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
 const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
 
 const POLL_MS = 3000
+const OCR_POLL_MS = 5000
+
+function preprocessImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const d = imageData.data
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+        const val = gray > 160 ? 255 : 0
+        d[i] = d[i + 1] = d[i + 2] = val
+      }
+      ctx.putImageData(imageData, 0, 0)
+      resolve(canvas.toDataURL())
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
 
 const SELECT_STYLE = {
   background: 'var(--bg-primary)',
@@ -72,7 +99,7 @@ const SELECT_STYLE = {
   outline: 'none',
 }
 
-export default function CurrentGame({ selectedPatches }: Props) {
+export default function CurrentGame({ selectedPatches, onChampionClick }: Props) {
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [playerStats, setPlayerStats] = useState<Record<string, PlayerStats | null>>({})
   const [championStats, setChampionStats] = useState<Record<string, ChampionStat[]>>({})
@@ -84,42 +111,19 @@ export default function CurrentGame({ selectedPatches }: Props) {
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
   const [augSort, setAugSort] = useState<SortKey>('pickCount')
   const [search, setSearch] = useState('')
-  const tesseractRef = useRef<any>(null)
   const [scannedAugIds, setScannedAugIds] = useState<number[]>([])
-  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done'>('idle')
   const [scannedAugStats, setScannedAugStats] = useState<AugmentStat[]>([])
+  const [ocrDebugText, setOcrDebugText] = useState<string | null>(null)
+  const [ocrScreenshot, setOcrScreenshot] = useState<string | null>(null)
+  const champAugStatsRef = useRef(champAugStats)
 
   useEffect(() => {
     api.db.augmentCache().then(setAugmentCache).catch(() => {})
     api.db.championCache().then(setChampionCache).catch(() => {})
     api.lcu.currentSummoner().then((s: any) => { if (s?.puuid) setMyPuuid(s.puuid) }).catch(() => {})
-    return () => { tesseractRef.current?.terminate() }
   }, [])
 
-  async function handleScan() {
-    setScanStatus('scanning')
-    try {
-      const dataUrl = await api.lcu.captureScreen()
-      if (!tesseractRef.current) {
-        const { createWorker } = await import('tesseract.js')
-        tesseractRef.current = await createWorker('eng', 1, { logger: () => {} })
-      }
-      const { data: { text } } = await tesseractRef.current.recognize(dataUrl)
-      const ids = matchAugments(text, augmentCache)
-      setScannedAugIds(ids)
-      if (ids.length > 0) {
-        const allStats: AugmentStat[] = await api.db.augmentStats(undefined, undefined, selectedPatches ?? undefined)
-        setScannedAugStats(allStats.filter((s) => ids.includes(s.augmentId)))
-      } else {
-        setScannedAugStats([])
-      }
-    } catch (e) {
-      console.warn('[scan]', e)
-      setScannedAugStats([])
-    } finally {
-      setScanStatus('done')
-    }
-  }
+  useEffect(() => { champAugStatsRef.current = champAugStats }, [champAugStats])
 
   useEffect(() => {
     if (!selectedPatches?.length) return
@@ -279,6 +283,56 @@ export default function CurrentGame({ selectedPatches }: Props) {
 
   const phase = gameState?.phase
 
+  useEffect(() => {
+    if (phase !== 'InProgress') {
+      setScannedAugIds([])
+      setScannedAugStats([])
+      setOcrDebugText(null)
+      setOcrScreenshot(null)
+      return
+    }
+    let cancelled = false
+
+    async function scan() {
+      if (cancelled) return
+      try {
+        const result = await Promise.race([
+          api.lcu.ocrScreen() as Promise<{ text: string | null; dataUrl: string | null }>,
+          new Promise<{ text: null; dataUrl: null }>((resolve) => setTimeout(() => resolve({ text: null, dataUrl: null }), 15000)),
+        ])
+        if (cancelled) return
+        const { text, dataUrl } = result
+        if (!dataUrl) {
+          setOcrDebugText('(no screen capture — timed out or no display source found)')
+          return
+        }
+        setOcrScreenshot(dataUrl)
+        setOcrDebugText(text || '(no text detected)')
+        if (!text) { setScannedAugStats([]); return }
+        const ids = matchAugments(text, augmentCache)
+        setScannedAugIds(ids)
+        if (ids.length > 0) {
+          const cachedChampStats = champAugStatsRef.current?.data
+          if (cachedChampStats) {
+            setScannedAugStats(cachedChampStats.filter((s) => ids.includes(s.augmentId)))
+          } else {
+            const allStats: AugmentStat[] = await api.db.augmentStats(undefined, undefined, selectedPatches ?? undefined)
+            if (!cancelled) setScannedAugStats(allStats.filter((s) => ids.includes(s.augmentId)))
+          }
+        } else {
+          setScannedAugStats([])
+        }
+      } catch (e) {
+        console.warn('[ocr]', e)
+        if (!cancelled) setOcrDebugText(`(error: ${e})`)
+      }
+    }
+
+    scan()
+    const id = setInterval(scan, OCR_POLL_MS)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [phase, augmentCache, selectedPatches])
+
   if (!phase || phase === 'None' || phase === 'Lobby' || phase === 'Matchmaking' || phase === 'ReadyCheck') {
     return (
       <div>
@@ -358,56 +412,106 @@ export default function CurrentGame({ selectedPatches }: Props) {
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Augments on Screen</span>
-          <button className="aug-btn" onClick={handleScan} disabled={scanStatus === 'scanning'}>
-            {scanStatus === 'scanning' ? 'Scanning…' : 'Scan Screen'}
-          </button>
+          {phase === 'InProgress' && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>auto-scanning</span>
+          )}
         </div>
-        {scanStatus === 'done' && scannedAugIds.length === 0 && (
-          <div className="card"><div className="empty-state">No augments detected</div></div>
-        )}
-        {scannedAugStats.length > 0 && (
+        {scannedAugIds.length > 0 && (
           <div className="card">
             <table>
               <thead>
                 <tr><th>Augment</th><th>Rarity</th><th>Picks</th><th>Win Rate</th><th>Avg DPM</th></tr>
               </thead>
               <tbody>
-                {scannedAugStats.map((a) => {
-                  const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
-                  const rarityColor = RARITY_COLOR[a.rarity] ?? RARITY_COLOR[0]
+                {scannedAugIds.map((id) => {
+                  const a = scannedAugStats.find((s) => Number(s.augmentId) === id)
+                  const info = augmentCache[id]
+                  if (!a && !info) return null
+                  const name = a?.name ?? info?.name ?? `#${id}`
+                  const rarity = a?.rarity ?? info?.rarity ?? 0
+                  const iconPath = a?.iconPath ?? info?.iconPath ?? ''
+                  const rarityColor = RARITY_COLOR[rarity] ?? RARITY_COLOR[0]
+                  const wr = a && a.pickCount > 0 ? a.wins / a.pickCount : null
                   return (
-                    <tr key={a.augmentId}>
+                    <tr key={id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 24, height: 24, borderRadius: 4, border: `1px solid ${rarityColor}`, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-primary)' }}>
-                            {a.iconPath && <img src={a.iconPath} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />}
+                            {iconPath && <img src={iconPath} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />}
                           </div>
-                          {a.name}
+                          {name}
                         </div>
                       </td>
                       <td>
                         <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: rarityColor, border: `1px solid ${rarityColor}`, opacity: 0.9 }}>
-                          {RARITY_LABEL[a.rarity] ?? 'Silver'}
+                          {RARITY_LABEL[rarity] ?? 'Silver'}
                         </span>
                       </td>
-                      <td>{a.pickCount}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
-                          </div>
-                          <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
-                        </div>
-                      </td>
-                      <td>{Math.round(a.avgDpm)}/min</td>
+                      {a ? (
+                        <>
+                          <td>{a.pickCount}</td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${wr! * 100}%`, height: '100%', background: wr! >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
+                              </div>
+                              <span className={wr! >= 0.5 ? 'win' : 'loss'}>{(wr! * 100).toFixed(0)}%</span>
+                            </div>
+                          </td>
+                          <td>{Math.round(a.avgDpm)}/min</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ color: 'var(--text-muted)' }}>—</td>
+                          <td style={{ color: 'var(--text-muted)' }}>—</td>
+                          <td style={{ color: 'var(--text-muted)' }}>—</td>
+                        </>
+                      )}
                     </tr>
                   )
-                })}
+                }).filter(Boolean)}
               </tbody>
             </table>
           </div>
         )}
+        {ocrDebugText !== null && (
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}>OCR debug</summary>
+            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {ocrScreenshot && (
+                <img
+                  src={ocrScreenshot}
+                  alt="captured screen"
+                  style={{ width: '100%', maxWidth: 480, borderRadius: 4, border: '1px solid var(--border)' }}
+                />
+              )}
+              <pre style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 200, whiteSpace: 'pre-wrap', margin: 0 }}>
+                {ocrDebugText || '(no text detected)'}
+              </pre>
+              <pre style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 100, whiteSpace: 'pre-wrap', margin: 0 }}>
+                normalized: {ocrDebugText ? normalizeOcr(ocrDebugText) : ''}
+              </pre>
+              <pre style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 60, whiteSpace: 'pre-wrap', margin: 0 }}>
+                matched: {scannedAugIds.map((id) => augmentCache[id]?.name ?? `#${id}`).join(', ') || '(none)'}
+              </pre>
+            </div>
+          </details>
+        )}
       </div>
+
+      {myChampId !== 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{champName} — Item Builds</span>
+            {onChampionClick && (
+              <button className="aug-btn" onClick={() => onChampionClick(myChampId, champName)}>View Full →</button>
+            )}
+          </div>
+          <div className="card" style={{ padding: '12px 16px' }}>
+            <Items championId={myChampId} selectedPatches={selectedPatches} buildsOnly />
+          </div>
+        </div>
+      )}
 
       {myChampId !== 0 && (
         <div>

@@ -429,10 +429,13 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
             WHERE p."gameVersion" = ${gv}
               AND array_length(pis."itemIds", 1) >= 4
           `
-          // Generate all C(n,4) quads in JS — far fewer intermediate rows than SQL cross join
+          // Generate all C(n,4) quads in JS — yield every 10k rows to keep event loop alive
           type QuadEntry = { championId: number; quad: number[]; games: number; wins: number }
           const quadMap = new Map<string, QuadEntry>()
-          for (const p of partRows as any[]) {
+          const yieldEvery = 10000
+          for (let pi = 0; pi < (partRows as any[]).length; pi++) {
+            if (pi > 0 && pi % yieldEvery === 0) await new Promise(r => setImmediate(r))
+            const p = (partRows as any[])[pi]
             const items: number[] = p.itemIds
             const champ: number = p.championId
             const win: number = p.win

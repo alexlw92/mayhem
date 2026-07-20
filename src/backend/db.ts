@@ -260,11 +260,11 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       quad           INTEGER[] NOT NULL,
       games          INTEGER   NOT NULL DEFAULT 0,
       wins           INTEGER   NOT NULL DEFAULT 0,
-      slot_sums      JSONB     NOT NULL DEFAULT '{}',
-      slot_counts    JSONB     NOT NULL DEFAULT '{}',
       PRIMARY KEY ("gameVersion", "championId", quad)
     )
   `
+  await sql_`ALTER TABLE item_quads_cache DROP COLUMN IF EXISTS slot_sums`
+  await sql_`ALTER TABLE item_quads_cache DROP COLUMN IF EXISTS slot_counts`
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_quads_cache_champ_gv ON item_quads_cache ("championId", "gameVersion")`
   await sql_`
     CREATE TABLE IF NOT EXISTS meta_items (
@@ -423,7 +423,7 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           onProgress?.(`Building item quads: ${gv} (${i + 1}/${todoQuads.length})…`)
           await sql_`
             WITH agg AS (
-              SELECT p."gameVersion", p."championId", p.win::int AS win, p.id,
+              SELECT p."gameVersion", p."championId", p.win::int AS win,
                 pis."itemIds"
               FROM participants p
               JOIN participant_item_sets pis ON pis."participantId" = p.id
@@ -431,7 +431,7 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
                 AND array_length(pis."itemIds", 1) >= 4
             ),
             quads AS (
-              SELECT a."gameVersion", a."championId", a.win, a.id AS part_id,
+              SELECT a."gameVersion", a."championId", a.win,
                 ARRAY[ua.item, ub.item, uc.item, ud.item] AS quad
               FROM agg a,
                 LATERAL unnest(a."itemIds") WITH ORDINALITY AS ua(item, pa),
@@ -439,35 +439,11 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
                 LATERAL unnest(a."itemIds") WITH ORDINALITY AS uc(item, pc),
                 LATERAL unnest(a."itemIds") WITH ORDINALITY AS ud(item, pd)
               WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc
-            ),
-            quad_counts AS (
-              SELECT "gameVersion", "championId", quad,
-                COUNT(*)::int AS games, SUM(win)::int AS wins
-              FROM quads
-              GROUP BY "gameVersion", "championId", quad
-            ),
-            slot_data AS (
-              SELECT q."gameVersion", q."championId", q.quad, pi."itemId",
-                SUM(pi."slot"::int) AS slot_sum,
-                COUNT(pi."slot")::int AS slot_count
-              FROM quads q
-              JOIN participant_items pi ON pi."participantId" = q.part_id
-                AND pi."itemId" = ANY(q.quad)
-                AND pi."slot" IS NOT NULL
-              GROUP BY q."gameVersion", q."championId", q.quad, pi."itemId"
-            ),
-            slot_json AS (
-              SELECT "gameVersion", "championId", quad,
-                jsonb_object_agg("itemId"::text, slot_sum) AS slot_sums,
-                jsonb_object_agg("itemId"::text, slot_count) AS slot_counts
-              FROM slot_data
-              GROUP BY "gameVersion", "championId", quad
             )
-            INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins,slot_sums,slot_counts)
-            SELECT qc."gameVersion", qc."championId", qc.quad, qc.games, qc.wins,
-              COALESCE(sj.slot_sums, '{}'), COALESCE(sj.slot_counts, '{}')
-            FROM quad_counts qc
-            LEFT JOIN slot_json sj USING ("gameVersion", "championId", quad)
+            INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins)
+            SELECT "gameVersion","championId",quad,COUNT(*)::int,SUM(win)::int
+            FROM quads
+            GROUP BY "gameVersion","championId",quad
             ON CONFLICT DO NOTHING
           `
           console.log(`[item-quads] ${gv} done`)
@@ -2110,24 +2086,39 @@ async function _computeArchetypes(
             AND quad = ${sortedQuad}::int[]
         `
     let games = 0, wins = 0
-    const slotSumMap = new Map<number, number>()
-    const slotCountMap = new Map<number, number>()
     for (const r of quadRows as any[]) {
       games += r.games ?? 0
       wins += r.wins ?? 0
-      for (const [id, val] of Object.entries(r.slot_sums ?? {})) {
-        slotSumMap.set(+id, (slotSumMap.get(+id) ?? 0) + (val as number))
-      }
-      for (const [id, val] of Object.entries(r.slot_counts ?? {})) {
-        slotCountMap.set(+id, (slotCountMap.get(+id) ?? 0) + (val as number))
-      }
     }
     const row = { games, wins }
-    const slotMap = new Map<number, number>()
-    for (const [id, sum] of slotSumMap) {
-      const cnt = slotCountMap.get(id) ?? 0
-      if (cnt > 0) slotMap.set(id, sum / cnt)
-    }
+
+    const slotRows = patches?.length
+      ? await sql_`
+          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+          FROM participant_item_sets pis
+          JOIN participants p ON p.id = pis."participantId"
+          JOIN participant_items pi ON pi."participantId" = p.id
+            AND pi."itemId" = ANY(${sortedQuad}::int[])
+            AND pi."slot" IS NOT NULL
+          WHERE pis."itemIds" @> ${sortedQuad}::int[]
+            AND p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
+          GROUP BY pi."itemId"
+        `
+      : await sql_`
+          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+          FROM participant_item_sets pis
+          JOIN participants p ON p.id = pis."participantId"
+          JOIN participant_items pi ON pi."participantId" = p.id
+            AND pi."itemId" = ANY(${sortedQuad}::int[])
+            AND pi."slot" IS NOT NULL
+          WHERE pis."itemIds" @> ${sortedQuad}::int[]
+            AND p."championId" = ${championId}
+          GROUP BY pi."itemId"
+        `
+    const slotMap = new Map<number, number>(
+      (slotRows as any[]).map(r => [r.itemId as number, parseFloat(r.avg_slot)])
+    )
 
     let orderedIds = allCoreIds
     if (slotMap.size > 0) {

@@ -2073,14 +2073,14 @@ async function _computeArchetypes(
     const sortedQuad = [...allCoreIds].sort((a, b) => a - b)
     const quadRows = patches?.length
       ? await sql_`
-          SELECT games, wins, slot_sums, slot_counts
+          SELECT games, wins
           FROM item_quads_cache
           WHERE "championId" = ${championId}
             AND "gameVersion" = ANY(${patches})
             AND quad = ${sortedQuad}::int[]
         `
       : await sql_`
-          SELECT games, wins, slot_sums, slot_counts
+          SELECT games, wins
           FROM item_quads_cache
           WHERE "championId" = ${championId}
             AND quad = ${sortedQuad}::int[]

@@ -421,31 +421,47 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           const gv = todoQuads[i]
           console.log(`[item-quads] ${gv} (${i + 1}/${todoQuads.length})...`)
           onProgress?.(`Building item quads: ${gv} (${i + 1}/${todoQuads.length})…`)
-          await sql_`
-            WITH agg AS (
-              SELECT p."gameVersion", p."championId", p.win::int AS win,
-                pis."itemIds"
-              FROM participants p
-              JOIN participant_item_sets pis ON pis."participantId" = p.id
-              WHERE p."gameVersion" = ${gv}
-                AND array_length(pis."itemIds", 1) >= 4
-            ),
-            quads AS (
-              SELECT a."gameVersion", a."championId", a.win,
-                ARRAY[ua.item, ub.item, uc.item, ud.item] AS quad
-              FROM agg a,
-                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ua(item, pa),
-                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ub(item, pb),
-                LATERAL unnest(a."itemIds") WITH ORDINALITY AS uc(item, pc),
-                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ud(item, pd)
-              WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc
-            )
-            INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins)
-            SELECT "gameVersion","championId",quad,COUNT(*)::int,SUM(win)::int
-            FROM quads
-            GROUP BY "gameVersion","championId",quad
-            ON CONFLICT DO NOTHING
+          // Fetch participants for this patch with their sorted item sets
+          const partRows = await sql_`
+            SELECT p."championId", p.win::int AS win, pis."itemIds"
+            FROM participants p
+            JOIN participant_item_sets pis ON pis."participantId" = p.id
+            WHERE p."gameVersion" = ${gv}
+              AND array_length(pis."itemIds", 1) >= 4
           `
+          // Generate all C(n,4) quads in JS — far fewer intermediate rows than SQL cross join
+          type QuadEntry = { championId: number; quad: number[]; games: number; wins: number }
+          const quadMap = new Map<string, QuadEntry>()
+          for (const p of partRows as any[]) {
+            const items: number[] = p.itemIds
+            const champ: number = p.championId
+            const win: number = p.win
+            for (let a = 0; a < items.length - 3; a++)
+              for (let b = a + 1; b < items.length - 2; b++)
+                for (let c = b + 1; c < items.length - 1; c++)
+                  for (let d = c + 1; d < items.length; d++) {
+                    const key = `${champ}:${items[a]},${items[b]},${items[c]},${items[d]}`
+                    const e = quadMap.get(key)
+                    if (e) { e.games++; e.wins += win }
+                    else quadMap.set(key, { championId: champ, quad: [items[a], items[b], items[c], items[d]], games: 1, wins: win })
+                  }
+          }
+          // Bulk insert via UNNEST — one round-trip per chunk
+          const entries = [...quadMap.values()]
+          const chunkSize = 50000
+          for (let ci = 0; ci < entries.length; ci += chunkSize) {
+            const chunk = entries.slice(ci, ci + chunkSize)
+            const gvArr = chunk.map(() => gv)
+            const champArr = chunk.map(e => e.championId)
+            const quadArr = chunk.map(e => e.quad)
+            const gamesArr = chunk.map(e => e.games)
+            const winsArr = chunk.map(e => e.wins)
+            await sql_`
+              INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins)
+              SELECT * FROM unnest(${gvArr}::text[], ${champArr}::int[], ${quadArr}::int[][], ${gamesArr}::int[], ${winsArr}::int[])
+              ON CONFLICT DO NOTHING
+            `
+          }
           console.log(`[item-quads] ${gv} done`)
         }
         console.log('[item-quads] backfill complete')

@@ -254,6 +254,19 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_build ON item_builds_cache USING gin(build)`
   await sql_`
+    CREATE TABLE IF NOT EXISTS item_quads_cache (
+      "gameVersion"  TEXT      NOT NULL,
+      "championId"   INTEGER   NOT NULL,
+      quad           INTEGER[] NOT NULL,
+      games          INTEGER   NOT NULL DEFAULT 0,
+      wins           INTEGER   NOT NULL DEFAULT 0,
+      slot_sums      JSONB     NOT NULL DEFAULT '{}',
+      slot_counts    JSONB     NOT NULL DEFAULT '{}',
+      PRIMARY KEY ("gameVersion", "championId", quad)
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_item_quads_cache_champ_gv ON item_quads_cache ("championId", "gameVersion")`
+  await sql_`
     CREATE TABLE IF NOT EXISTS meta_items (
       id           int  PRIMARY KEY,
       name         text NOT NULL,
@@ -356,49 +369,116 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
   ;(async () => {
     try {
       const patches = await getPatches()
-      const todo: string[] = []
+      const todoBuilds: string[] = []
+      const todoQuads: string[] = []
       for (const gv of patches) {
-        const [{ count }] = await sql_`SELECT COUNT(*) FROM item_builds_cache WHERE "gameVersion" = ${gv}`
-        if (Number(count) === 0) todo.push(gv)
+        const [{ count: bc }] = await sql_`SELECT COUNT(*) FROM item_builds_cache WHERE "gameVersion" = ${gv}`
+        if (Number(bc) === 0) todoBuilds.push(gv)
+        const [{ count: qc }] = await sql_`SELECT COUNT(*) FROM item_quads_cache WHERE "gameVersion" = ${gv}`
+        if (Number(qc) === 0) todoQuads.push(gv)
       }
-      if (todo.length === 0) return
-      console.log(`[item-builds] backfilling ${todo.length} patch(es)...`)
-      onProgress?.('Building item builds cache…')
-      for (let i = 0; i < todo.length; i++) {
-        const gv = todo[i]
-        console.log(`[item-builds] ${gv} (${i + 1}/${todo.length})...`)
-        onProgress?.(`Building item builds: ${gv} (${i + 1}/${todo.length})…`)
-        await sql_`
-          WITH agg AS (
-            SELECT p."gameVersion", p."championId", p.win::int AS win,
-              array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-            FROM participants p JOIN participant_items pi ON pi."participantId" = p.id
-            WHERE p."gameVersion" = ${gv}
-            GROUP BY p."gameVersion", p.id, p."championId", p.win
-            HAVING count(*) >= 5
-          ),
-          combos AS (
-            SELECT agg."gameVersion", agg."championId", agg.win,
-              ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
-            FROM agg,
-              LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
-              LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
-              LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
-              LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
-              LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
-            WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
-          )
-          INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
-          SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
-          FROM combos GROUP BY "gameVersion","championId",build
-          ON CONFLICT DO NOTHING
-        `
-        console.log(`[item-builds] ${gv} done`)
+      if (todoBuilds.length === 0 && todoQuads.length === 0) return
+      if (todoBuilds.length > 0) {
+        console.log(`[item-builds] backfilling ${todoBuilds.length} patch(es)...`)
+        onProgress?.('Building item builds cache…')
+        for (let i = 0; i < todoBuilds.length; i++) {
+          const gv = todoBuilds[i]
+          console.log(`[item-builds] ${gv} (${i + 1}/${todoBuilds.length})...`)
+          onProgress?.(`Building item builds: ${gv} (${i + 1}/${todoBuilds.length})…`)
+          await sql_`
+            WITH agg AS (
+              SELECT p."gameVersion", p."championId", p.win::int AS win,
+                array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+              FROM participants p JOIN participant_items pi ON pi."participantId" = p.id
+              WHERE p."gameVersion" = ${gv}
+              GROUP BY p."gameVersion", p.id, p."championId", p.win
+              HAVING count(*) >= 5
+            ),
+            combos AS (
+              SELECT agg."gameVersion", agg."championId", agg.win,
+                ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+              FROM agg,
+                LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+                LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+                LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+                LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+                LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+              WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+            )
+            INSERT INTO item_builds_cache ("gameVersion","championId",build,games,wins)
+            SELECT "gameVersion","championId",build,COUNT(*)::int,SUM(win)::int
+            FROM combos GROUP BY "gameVersion","championId",build
+            ON CONFLICT DO NOTHING
+          `
+          console.log(`[item-builds] ${gv} done`)
+        }
+        console.log('[item-builds] backfill complete')
+      }
+      if (todoQuads.length > 0) {
+        console.log(`[item-quads] backfilling ${todoQuads.length} patch(es)...`)
+        onProgress?.('Building item quads cache…')
+        for (let i = 0; i < todoQuads.length; i++) {
+          const gv = todoQuads[i]
+          console.log(`[item-quads] ${gv} (${i + 1}/${todoQuads.length})...`)
+          onProgress?.(`Building item quads: ${gv} (${i + 1}/${todoQuads.length})…`)
+          await sql_`
+            WITH agg AS (
+              SELECT p."gameVersion", p."championId", p.win::int AS win, p.id,
+                pis."itemIds"
+              FROM participants p
+              JOIN participant_item_sets pis ON pis."participantId" = p.id
+              WHERE p."gameVersion" = ${gv}
+                AND array_length(pis."itemIds", 1) >= 4
+            ),
+            quads AS (
+              SELECT a."gameVersion", a."championId", a.win, a.id AS part_id,
+                ARRAY[ua.item, ub.item, uc.item, ud.item] AS quad
+              FROM agg a,
+                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ua(item, pa),
+                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ub(item, pb),
+                LATERAL unnest(a."itemIds") WITH ORDINALITY AS uc(item, pc),
+                LATERAL unnest(a."itemIds") WITH ORDINALITY AS ud(item, pd)
+              WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc
+            ),
+            quad_counts AS (
+              SELECT "gameVersion", "championId", quad,
+                COUNT(*)::int AS games, SUM(win)::int AS wins
+              FROM quads
+              GROUP BY "gameVersion", "championId", quad
+            ),
+            slot_data AS (
+              SELECT q."gameVersion", q."championId", q.quad, pi."itemId",
+                SUM(pi."slot"::int) AS slot_sum,
+                COUNT(pi."slot")::int AS slot_count
+              FROM quads q
+              JOIN participant_items pi ON pi."participantId" = q.part_id
+                AND pi."itemId" = ANY(q.quad)
+                AND pi."slot" IS NOT NULL
+              GROUP BY q."gameVersion", q."championId", q.quad, pi."itemId"
+            ),
+            slot_json AS (
+              SELECT "gameVersion", "championId", quad,
+                jsonb_object_agg("itemId"::text, slot_sum) AS slot_sums,
+                jsonb_object_agg("itemId"::text, slot_count) AS slot_counts
+              FROM slot_data
+              GROUP BY "gameVersion", "championId", quad
+            )
+            INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins,slot_sums,slot_counts)
+            SELECT qc."gameVersion", qc."championId", qc.quad, qc.games, qc.wins,
+              COALESCE(sj.slot_sums, '{}'), COALESCE(sj.slot_counts, '{}')
+            FROM quad_counts qc
+            LEFT JOIN slot_json sj USING ("gameVersion", "championId", quad)
+            ON CONFLICT DO NOTHING
+          `
+          console.log(`[item-quads] ${gv} done`)
+        }
+        console.log('[item-quads] backfill complete')
+        // Wipe archetype cache so next request recomputes with fresh quad data
+        await sql_`DELETE FROM item_archetypes_cache`
       }
       onProgress?.('')
-      console.log('[item-builds] backfill complete')
     } catch (e) {
-      console.warn('[item-builds] backfill failed:', (e as Error).message)
+      console.warn('[item-builds/quads] backfill failed:', (e as Error).message)
     }
   })()
 
@@ -447,6 +527,8 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
     `
     await tx`DELETE FROM participants WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
+    await tx`DELETE FROM item_builds_cache WHERE "gameVersion" <> ALL(${keepPatches})`
+    await tx`DELETE FROM item_quads_cache WHERE "gameVersion" <> ALL(${keepPatches})`
   })
 
   return oldIds.length
@@ -791,6 +873,11 @@ export async function insertMatches(matches: Match[]): Promise<number> {
           games = item_builds_cache.games + EXCLUDED.games,
           wins  = item_builds_cache.wins  + EXCLUDED.wins
       `
+      // Invalidate precomputed quad stats for these patches so they're rebuilt on next startup
+      const affectedVersions = [...new Set(newMatches.map(m => m.gameVersion).filter(Boolean) as string[])]
+      if (affectedVersions.length > 0) {
+        await tx`DELETE FROM item_quads_cache WHERE "gameVersion" = ANY(${affectedVersions})`
+      }
     }
 
     // Maintain pre-aggregated summary tables
@@ -2007,60 +2094,39 @@ async function _computeArchetypes(
   // participant_items to get the true count for each archetype's core items.
   const corrected = await Promise.all(archetypes.map(async (arch) => {
     const allCoreIds = [arch.openingId, ...arch.coreIds]
-    const combined = patches?.length
+    const sortedQuad = [...allCoreIds].sort((a, b) => a - b)
+    const quadRows = patches?.length
       ? await sql_`
-          WITH quad_p AS (
-            SELECT p.id, p.win
-            FROM participant_item_sets pis
-            JOIN participants p ON p.id = pis."participantId"
-            WHERE pis."itemIds" @> ${allCoreIds}::int[]
-              AND p."championId" = ${championId}
-              AND p."gameVersion" = ANY(${patches})
-          )
-          SELECT
-            (SELECT COUNT(*)::int FROM quad_p) AS games,
-            (SELECT SUM(CASE WHEN win THEN 1 ELSE 0 END)::int FROM quad_p) AS wins,
-            (
-              SELECT jsonb_object_agg(pi."itemId"::text, avg_slot)
-              FROM (
-                SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-                FROM quad_p qp
-                JOIN participant_items pi ON pi."participantId" = qp.id
-                  AND pi."itemId" = ANY(${allCoreIds}::int[])
-                  AND pi."slot" IS NOT NULL
-                GROUP BY pi."itemId"
-              ) pi
-            ) AS slot_avgs
+          SELECT games, wins, slot_sums, slot_counts
+          FROM item_quads_cache
+          WHERE "championId" = ${championId}
+            AND "gameVersion" = ANY(${patches})
+            AND quad = ${sortedQuad}::int[]
         `
       : await sql_`
-          WITH quad_p AS (
-            SELECT p.id, p.win
-            FROM participant_item_sets pis
-            JOIN participants p ON p.id = pis."participantId"
-            WHERE pis."itemIds" @> ${allCoreIds}::int[]
-              AND p."championId" = ${championId}
-          )
-          SELECT
-            (SELECT COUNT(*)::int FROM quad_p) AS games,
-            (SELECT SUM(CASE WHEN win THEN 1 ELSE 0 END)::int FROM quad_p) AS wins,
-            (
-              SELECT jsonb_object_agg(pi."itemId"::text, avg_slot)
-              FROM (
-                SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-                FROM quad_p qp
-                JOIN participant_items pi ON pi."participantId" = qp.id
-                  AND pi."itemId" = ANY(${allCoreIds}::int[])
-                  AND pi."slot" IS NOT NULL
-                GROUP BY pi."itemId"
-              ) pi
-            ) AS slot_avgs
+          SELECT games, wins, slot_sums, slot_counts
+          FROM item_quads_cache
+          WHERE "championId" = ${championId}
+            AND quad = ${sortedQuad}::int[]
         `
-    const row = (combined as any[])[0]
-    const slotMap = new Map<number, number>()
-    if (row?.slot_avgs) {
-      for (const [idStr, avg] of Object.entries(row.slot_avgs as Record<string, number>)) {
-        slotMap.set(Number(idStr), avg as number)
+    let games = 0, wins = 0
+    const slotSumMap = new Map<number, number>()
+    const slotCountMap = new Map<number, number>()
+    for (const r of quadRows as any[]) {
+      games += r.games ?? 0
+      wins += r.wins ?? 0
+      for (const [id, val] of Object.entries(r.slot_sums ?? {})) {
+        slotSumMap.set(+id, (slotSumMap.get(+id) ?? 0) + (val as number))
       }
+      for (const [id, val] of Object.entries(r.slot_counts ?? {})) {
+        slotCountMap.set(+id, (slotCountMap.get(+id) ?? 0) + (val as number))
+      }
+    }
+    const row = { games, wins }
+    const slotMap = new Map<number, number>()
+    for (const [id, sum] of slotSumMap) {
+      const cnt = slotCountMap.get(id) ?? 0
+      if (cnt > 0) slotMap.set(id, sum / cnt)
     }
 
     let orderedIds = allCoreIds

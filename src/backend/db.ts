@@ -440,6 +440,11 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
         SELECT id FROM participants WHERE "gameId" = ANY(${oldIds})
       )
     `
+    await tx`
+      DELETE FROM participant_item_sets WHERE "participantId" IN (
+        SELECT id FROM participants WHERE "gameId" = ANY(${oldIds})
+      )
+    `
     await tx`DELETE FROM participants WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
   })

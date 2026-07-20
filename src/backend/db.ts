@@ -446,19 +446,21 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
                     else quadMap.set(key, { championId: champ, quad: [items[a], items[b], items[c], items[d]], games: 1, wins: win })
                   }
           }
-          // Bulk insert via UNNEST — one round-trip per chunk
+          // Bulk insert via UNNEST — pass quads as text literals to avoid int[][] flattening
           const entries = [...quadMap.values()]
           const chunkSize = 50000
           for (let ci = 0; ci < entries.length; ci += chunkSize) {
             const chunk = entries.slice(ci, ci + chunkSize)
             const gvArr = chunk.map(() => gv)
             const champArr = chunk.map(e => e.championId)
-            const quadArr = chunk.map(e => e.quad)
+            const quadTextArr = chunk.map(e => `{${e.quad.join(',')}}`)
             const gamesArr = chunk.map(e => e.games)
             const winsArr = chunk.map(e => e.wins)
             await sql_`
               INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins)
-              SELECT * FROM unnest(${gvArr}::text[], ${champArr}::int[], ${quadArr}::int[][], ${gamesArr}::int[], ${winsArr}::int[])
+              SELECT gv, champ, quad::int[], games, wins
+              FROM unnest(${gvArr}::text[], ${champArr}::int[], ${quadTextArr}::text[], ${gamesArr}::int[], ${winsArr}::int[])
+                AS t(gv, champ, quad, games, wins)
               ON CONFLICT DO NOTHING
             `
           }

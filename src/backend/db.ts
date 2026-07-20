@@ -103,6 +103,20 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   `
   await sql_`ALTER TABLE participant_items ADD COLUMN IF NOT EXISTS "slot" INTEGER`
   await sql_`
+    CREATE TABLE IF NOT EXISTS participant_item_sets (
+      "participantId" INTEGER NOT NULL UNIQUE REFERENCES participants(id),
+      "itemIds"       INTEGER[] NOT NULL
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_participant_item_sets_gin ON participant_item_sets USING GIN ("itemIds")`
+  await sql_`
+    INSERT INTO participant_item_sets ("participantId", "itemIds")
+    SELECT "participantId", array_agg("itemId" ORDER BY "itemId")
+    FROM participant_items
+    GROUP BY "participantId"
+    ON CONFLICT ("participantId") DO NOTHING
+  `
+  await sql_`
     CREATE TABLE IF NOT EXISTS player_sync_times (
       puuid     TEXT PRIMARY KEY,
       "syncedAt" BIGINT NOT NULL
@@ -727,6 +741,15 @@ export async function insertMatches(matches: Match[]): Promise<number> {
 
     if (itemPairs.length > 0) {
       await tx`INSERT INTO participant_items ("participantId","itemId","slot") VALUES ${tx(itemPairs)}`
+      const insertedPartIds = [...new Set(itemPairs.map(p => p[0]))]
+      await tx`
+        INSERT INTO participant_item_sets ("participantId", "itemIds")
+        SELECT "participantId", array_agg("itemId" ORDER BY "itemId")
+        FROM participant_items
+        WHERE "participantId" = ANY(${insertedPartIds})
+        GROUP BY "participantId"
+        ON CONFLICT ("participantId") DO UPDATE SET "itemIds" = EXCLUDED."itemIds"
+      `
     }
 
     const newGameIdArr = [...newGameIds]
@@ -949,6 +972,12 @@ export async function upsertMatch(match: Match): Promise<void> {
         if (!item) continue
         await tx`INSERT INTO participant_items ("participantId","itemId","slot") VALUES (${row.id},${item.id},${item.slot})`
       }
+      const sortedIds = [...(p.items ?? [])].map(i => i.id).sort((a, b) => a - b)
+      await tx`
+        INSERT INTO participant_item_sets ("participantId", "itemIds")
+        VALUES (${row.id}, ${sortedIds})
+        ON CONFLICT ("participantId") DO UPDATE SET "itemIds" = EXCLUDED."itemIds"
+      `
     }
   })
 
@@ -1973,70 +2002,61 @@ async function _computeArchetypes(
   // participant_items to get the true count for each archetype's core items.
   const corrected = await Promise.all(archetypes.map(async (arch) => {
     const allCoreIds = [arch.openingId, ...arch.coreIds]
-    const rows = patches?.length
+    const combined = patches?.length
       ? await sql_`
-          SELECT COUNT(*)::int AS games,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-            AND (
-              SELECT COUNT(DISTINCT pi."itemId")
-              FROM participant_items pi
-              WHERE pi."participantId" = p.id
-                AND pi."itemId" = ANY(${allCoreIds}::int[])
-            ) = ${allCoreIds.length}
+          WITH quad_p AS (
+            SELECT p.id, p.win
+            FROM participant_item_sets pis
+            JOIN participants p ON p.id = pis."participantId"
+            WHERE pis."itemIds" @> ${allCoreIds}::int[]
+              AND p."championId" = ${championId}
+              AND p."gameVersion" = ANY(${patches})
+          )
+          SELECT
+            (SELECT COUNT(*)::int FROM quad_p) AS games,
+            (SELECT SUM(CASE WHEN win THEN 1 ELSE 0 END)::int FROM quad_p) AS wins,
+            (
+              SELECT jsonb_object_agg(pi."itemId"::text, avg_slot)
+              FROM (
+                SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+                FROM quad_p qp
+                JOIN participant_items pi ON pi."participantId" = qp.id
+                  AND pi."itemId" = ANY(${allCoreIds}::int[])
+                  AND pi."slot" IS NOT NULL
+                GROUP BY pi."itemId"
+              ) pi
+            ) AS slot_avgs
         `
       : await sql_`
-          SELECT COUNT(*)::int AS games,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          WHERE p."championId" = ${championId}
-            AND (
-              SELECT COUNT(DISTINCT pi."itemId")
-              FROM participant_items pi
-              WHERE pi."participantId" = p.id
-                AND pi."itemId" = ANY(${allCoreIds}::int[])
-            ) = ${allCoreIds.length}
+          WITH quad_p AS (
+            SELECT p.id, p.win
+            FROM participant_item_sets pis
+            JOIN participants p ON p.id = pis."participantId"
+            WHERE pis."itemIds" @> ${allCoreIds}::int[]
+              AND p."championId" = ${championId}
+          )
+          SELECT
+            (SELECT COUNT(*)::int FROM quad_p) AS games,
+            (SELECT SUM(CASE WHEN win THEN 1 ELSE 0 END)::int FROM quad_p) AS wins,
+            (
+              SELECT jsonb_object_agg(pi."itemId"::text, avg_slot)
+              FROM (
+                SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
+                FROM quad_p qp
+                JOIN participant_items pi ON pi."participantId" = qp.id
+                  AND pi."itemId" = ANY(${allCoreIds}::int[])
+                  AND pi."slot" IS NOT NULL
+                GROUP BY pi."itemId"
+              ) pi
+            ) AS slot_avgs
         `
-    const row = (rows as any[])[0]
-
-    // Reorder all 4 quad items by average slot position (lower slot = bought earlier)
-    const slotRows = patches?.length
-      ? await sql_`
-          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-            AND pi."itemId" = ANY(${allCoreIds}::int[])
-            AND pi."slot" IS NOT NULL
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-            AND (
-              SELECT COUNT(DISTINCT pi2."itemId")
-              FROM participant_items pi2
-              WHERE pi2."participantId" = p.id
-                AND pi2."itemId" = ANY(${allCoreIds}::int[])
-            ) = ${allCoreIds.length}
-          GROUP BY pi."itemId"
-        `
-      : await sql_`
-          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-            AND pi."itemId" = ANY(${allCoreIds}::int[])
-            AND pi."slot" IS NOT NULL
-          WHERE p."championId" = ${championId}
-            AND (
-              SELECT COUNT(DISTINCT pi2."itemId")
-              FROM participant_items pi2
-              WHERE pi2."participantId" = p.id
-                AND pi2."itemId" = ANY(${allCoreIds}::int[])
-            ) = ${allCoreIds.length}
-          GROUP BY pi."itemId"
-        `
-    const slotMap = new Map<number, number>(
-      (slotRows as any[]).map(r => [r.itemId as number, parseFloat(r.avg_slot)])
-    )
+    const row = (combined as any[])[0]
+    const slotMap = new Map<number, number>()
+    if (row?.slot_avgs) {
+      for (const [idStr, avg] of Object.entries(row.slot_avgs as Record<string, number>)) {
+        slotMap.set(Number(idStr), avg as number)
+      }
+    }
 
     let orderedIds = allCoreIds
     if (slotMap.size > 0) {

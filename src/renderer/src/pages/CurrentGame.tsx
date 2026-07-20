@@ -112,10 +112,8 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
   const [augSort, setAugSort] = useState<SortKey>('pickCount')
   const [search, setSearch] = useState('')
   const [scannedAugIds, setScannedAugIds] = useState<number[]>([])
-  const [scannedAugStats, setScannedAugStats] = useState<AugmentStat[]>([])
   const [ocrDebugText, setOcrDebugText] = useState<string | null>(null)
   const [ocrScreenshot, setOcrScreenshot] = useState<string | null>(null)
-  const champAugStatsRef = useRef(champAugStats)
 
   useEffect(() => {
     api.db.augmentCache().then(setAugmentCache).catch(() => {})
@@ -123,7 +121,6 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
     api.lcu.currentSummoner().then((s: any) => { if (s?.puuid) setMyPuuid(s.puuid) }).catch(() => {})
   }, [])
 
-  useEffect(() => { champAugStatsRef.current = champAugStats }, [champAugStats])
 
   useEffect(() => {
     if (!selectedPatches?.length) return
@@ -286,7 +283,6 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
   useEffect(() => {
     if (phase !== 'InProgress') {
       setScannedAugIds([])
-      setScannedAugStats([])
       setOcrDebugText(null)
       setOcrScreenshot(null)
       return
@@ -308,20 +304,9 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
         }
         setOcrScreenshot(dataUrl)
         setOcrDebugText(text || '(no text detected)')
-        if (!text) { setScannedAugStats([]); return }
+        if (!text) { setScannedAugIds([]); return }
         const ids = matchAugments(text, augmentCache)
         setScannedAugIds(ids)
-        if (ids.length > 0) {
-          const cachedChampStats = champAugStatsRef.current?.data
-          if (cachedChampStats) {
-            setScannedAugStats(cachedChampStats.filter((s) => ids.includes(s.augmentId)))
-          } else {
-            const allStats: AugmentStat[] = await api.db.augmentStats(undefined, undefined, selectedPatches ?? undefined)
-            if (!cancelled) setScannedAugStats(allStats.filter((s) => ids.includes(s.augmentId)))
-          }
-        } else {
-          setScannedAugStats([])
-        }
       } catch (e) {
         console.warn('[ocr]', e)
         if (!cancelled) setOcrDebugText(`(error: ${e})`)
@@ -424,7 +409,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
               </thead>
               <tbody>
                 {scannedAugIds.map((id) => {
-                  const a = scannedAugStats.find((s) => Number(s.augmentId) === id)
+                  const a = champAugStats?.data?.find((s) => s.augmentId === id)
                   const info = augmentCache[id]
                   if (!a && !info) return null
                   const name = a?.name ?? info?.name ?? `#${id}`

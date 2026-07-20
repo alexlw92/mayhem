@@ -538,8 +538,7 @@ ipcMain.handle('recents:save', (_e, entries: unknown) => {
 })
 
 ipcMain.handle('app:reload', () => {
-  app.relaunch()
-  app.exit(0)
+  mainWindow?.webContents.reload()
 })
 
 ipcMain.handle('lcu:currentGame', async () => {

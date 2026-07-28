@@ -254,19 +254,6 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_build ON item_builds_cache USING gin(build)`
   await sql_`
-    CREATE TABLE IF NOT EXISTS item_quads_cache (
-      "gameVersion"  TEXT      NOT NULL,
-      "championId"   INTEGER   NOT NULL,
-      quad           INTEGER[] NOT NULL,
-      games          INTEGER   NOT NULL DEFAULT 0,
-      wins           INTEGER   NOT NULL DEFAULT 0,
-      PRIMARY KEY ("gameVersion", "championId", quad)
-    )
-  `
-  await sql_`ALTER TABLE item_quads_cache DROP COLUMN IF EXISTS slot_sums`
-  await sql_`ALTER TABLE item_quads_cache DROP COLUMN IF EXISTS slot_counts`
-  await sql_`CREATE INDEX IF NOT EXISTS idx_item_quads_cache_champ_gv ON item_quads_cache ("championId", "gameVersion")`
-  await sql_`
     CREATE TABLE IF NOT EXISTS meta_items (
       id           int  PRIMARY KEY,
       name         text NOT NULL,
@@ -370,14 +357,11 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
     try {
       const patches = await getPatches()
       const todoBuilds: string[] = []
-      const todoQuads: string[] = []
       for (const gv of patches) {
         const [{ count: bc }] = await sql_`SELECT COUNT(*) FROM item_builds_cache WHERE "gameVersion" = ${gv}`
         if (Number(bc) === 0) todoBuilds.push(gv)
-        const [{ count: qc }] = await sql_`SELECT COUNT(*) FROM item_quads_cache WHERE "gameVersion" = ${gv}`
-        if (Number(qc) === 0) todoQuads.push(gv)
       }
-      if (todoBuilds.length === 0 && todoQuads.length === 0) return
+      if (todoBuilds.length === 0) return
       if (todoBuilds.length > 0) {
         console.log(`[item-builds] backfilling ${todoBuilds.length} patch(es)...`)
         onProgress?.('Building item builds cache…')
@@ -413,65 +397,6 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           console.log(`[item-builds] ${gv} done`)
         }
         console.log('[item-builds] backfill complete')
-      }
-      if (todoQuads.length > 0) {
-        console.log(`[item-quads] backfilling ${todoQuads.length} patch(es)...`)
-        onProgress?.('Building item quads cache…')
-        for (let i = 0; i < todoQuads.length; i++) {
-          const gv = todoQuads[i]
-          console.log(`[item-quads] ${gv} (${i + 1}/${todoQuads.length})...`)
-          onProgress?.(`Building item quads: ${gv} (${i + 1}/${todoQuads.length})…`)
-          // Fetch participants for this patch with their sorted item sets
-          const partRows = await sql_`
-            SELECT p."championId", p.win::int AS win, pis."itemIds"
-            FROM participants p
-            JOIN participant_item_sets pis ON pis."participantId" = p.id
-            WHERE p."gameVersion" = ${gv}
-              AND array_length(pis."itemIds", 1) >= 4
-          `
-          // Generate all C(n,4) quads in JS — yield every 10k rows to keep event loop alive
-          type QuadEntry = { championId: number; quad: number[]; games: number; wins: number }
-          const quadMap = new Map<string, QuadEntry>()
-          const yieldEvery = 10000
-          for (let pi = 0; pi < (partRows as any[]).length; pi++) {
-            if (pi > 0 && pi % yieldEvery === 0) await new Promise(r => setImmediate(r))
-            const p = (partRows as any[])[pi]
-            const items: number[] = p.itemIds
-            const champ: number = p.championId
-            const win: number = p.win
-            for (let a = 0; a < items.length - 3; a++)
-              for (let b = a + 1; b < items.length - 2; b++)
-                for (let c = b + 1; c < items.length - 1; c++)
-                  for (let d = c + 1; d < items.length; d++) {
-                    const key = `${champ}:${items[a]},${items[b]},${items[c]},${items[d]}`
-                    const e = quadMap.get(key)
-                    if (e) { e.games++; e.wins += win }
-                    else quadMap.set(key, { championId: champ, quad: [items[a], items[b], items[c], items[d]], games: 1, wins: win })
-                  }
-          }
-          // Bulk insert via UNNEST — pass quads as text literals to avoid int[][] flattening
-          const entries = [...quadMap.values()]
-          const chunkSize = 50000
-          for (let ci = 0; ci < entries.length; ci += chunkSize) {
-            const chunk = entries.slice(ci, ci + chunkSize)
-            const gvArr = chunk.map(() => gv)
-            const champArr = chunk.map(e => e.championId)
-            const quadTextArr = chunk.map(e => `{${e.quad.join(',')}}`)
-            const gamesArr = chunk.map(e => e.games)
-            const winsArr = chunk.map(e => e.wins)
-            await sql_`
-              INSERT INTO item_quads_cache ("gameVersion","championId",quad,games,wins)
-              SELECT gv, champ, quad::int[], games, wins
-              FROM unnest(${gvArr}::text[], ${champArr}::int[], ${quadTextArr}::text[], ${gamesArr}::int[], ${winsArr}::int[])
-                AS t(gv, champ, quad, games, wins)
-              ON CONFLICT DO NOTHING
-            `
-          }
-          console.log(`[item-quads] ${gv} done`)
-        }
-        console.log('[item-quads] backfill complete')
-        // Wipe archetype cache so next request recomputes with fresh quad data
-        await sql_`DELETE FROM item_archetypes_cache`
       }
       onProgress?.('')
     } catch (e) {
@@ -525,7 +450,6 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
     await tx`DELETE FROM participants WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM item_builds_cache WHERE "gameVersion" <> ALL(${keepPatches})`
-    await tx`DELETE FROM item_quads_cache WHERE "gameVersion" <> ALL(${keepPatches})`
   })
 
   return oldIds.length
@@ -870,10 +794,9 @@ export async function insertMatches(matches: Match[]): Promise<number> {
           games = item_builds_cache.games + EXCLUDED.games,
           wins  = item_builds_cache.wins  + EXCLUDED.wins
       `
-      // Invalidate precomputed quad stats for these patches so they're rebuilt on next startup
-      const affectedVersions = [...new Set(newMatches.map(m => m.gameVersion).filter(Boolean) as string[])]
-      if (affectedVersions.length > 0) {
-        await tx`DELETE FROM item_quads_cache WHERE "gameVersion" = ANY(${affectedVersions})`
+      const affectedChamps = [...new Set(newMatches.flatMap(m => m.participants.map(p => p.championId)))]
+      if (affectedChamps.length > 0) {
+        await tx`DELETE FROM item_archetypes_cache WHERE "championId" = ANY(${affectedChamps})`
       }
     }
 
@@ -1722,7 +1645,7 @@ export interface ItemPickRatesResult {
 }
 
 export async function getItemPickRates(championId: number, patches?: string[]): Promise<ItemPickRatesResult> {
-  const [itemRows, countRows, bootsRows] = await Promise.all([
+  const [itemRows, countRows] = await Promise.all([
     patches?.length
       ? sql_`
           SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
@@ -1732,13 +1655,12 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
           JOIN participant_items pi ON pi."participantId" = p.id
           JOIN meta_items m ON m.id = pi."itemId"
             AND m.is_component = false
-            AND m.category != 'Boots'
             AND m.name IS NOT NULL
             AND m.name != ''
           WHERE p."championId" = ${championId}
             AND p."gameVersion" = ANY(${patches})
           GROUP BY pi."itemId", m.name, m."iconPath", m.category
-          ORDER BY picks DESC
+          ORDER BY CASE WHEN m.category = 'Boots' THEN 0 ELSE 1 END, picks DESC
         `
       : sql_`
           SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
@@ -1748,12 +1670,11 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
           JOIN participant_items pi ON pi."participantId" = p.id
           JOIN meta_items m ON m.id = pi."itemId"
             AND m.is_component = false
-            AND m.category != 'Boots'
             AND m.name IS NOT NULL
             AND m.name != ''
           WHERE p."championId" = ${championId}
           GROUP BY pi."itemId", m.name, m."iconPath", m.category
-          ORDER BY picks DESC
+          ORDER BY CASE WHEN m.category = 'Boots' THEN 0 ELSE 1 END, picks DESC
         `,
     patches?.length
       ? sql_`
@@ -1767,36 +1688,6 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
           FROM champion_stats_cache
           WHERE "championId" = ${championId}
         `,
-    patches?.length
-      ? sql_`
-          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
-                 COUNT(*)::int AS picks,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          JOIN meta_items m ON m.id = pi."itemId"
-            AND m.category = 'Boots'
-            AND m.name IS NOT NULL
-            AND m.name != ''
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-          GROUP BY pi."itemId", m.name, m."iconPath", m.category
-          ORDER BY picks DESC
-        `
-      : sql_`
-          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
-                 COUNT(*)::int AS picks,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          JOIN meta_items m ON m.id = pi."itemId"
-            AND m.category = 'Boots'
-            AND m.name IS NOT NULL
-            AND m.name != ''
-          WHERE p."championId" = ${championId}
-          GROUP BY pi."itemId", m.name, m."iconPath", m.category
-          ORDER BY picks DESC
-        `,
   ])
   const toRow = (r: any) => ({
     itemId: r.itemId,
@@ -1808,7 +1699,7 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
   })
   return {
     totalGames: (countRows[0] as any)?.total ?? 0,
-    items: [...(bootsRows as any[]).map(toRow), ...(itemRows as any[]).map(toRow)],
+    items: (itemRows as any[]).map(toRow),
   }
 }
 
@@ -2056,9 +1947,12 @@ async function _computeArchetypes(
           AND m.is_component = false
           AND m.name IS NOT NULL AND m.name != ''
         JOIN (
-          SELECT "participantId", COUNT(*) AS total
-          FROM participant_items
-          GROUP BY "participantId"
+          SELECT pi2."participantId", COUNT(*) AS total
+          FROM participant_items pi2
+          JOIN participants p2 ON p2.id = pi2."participantId"
+            AND p2."championId" = ${championId}
+            AND p2."gameVersion" = ANY(${patches})
+          GROUP BY pi2."participantId"
         ) cnt ON cnt."participantId" = p.id
         WHERE p."championId" = ${championId}
           AND p."gameVersion" = ANY(${patches})
@@ -2072,9 +1966,11 @@ async function _computeArchetypes(
           AND m.is_component = false
           AND m.name IS NOT NULL AND m.name != ''
         JOIN (
-          SELECT "participantId", COUNT(*) AS total
-          FROM participant_items
-          GROUP BY "participantId"
+          SELECT pi2."participantId", COUNT(*) AS total
+          FROM participant_items pi2
+          JOIN participants p2 ON p2.id = pi2."participantId"
+            AND p2."championId" = ${championId}
+          GROUP BY pi2."participantId"
         ) cnt ON cnt."participantId" = p.id
         WHERE p."championId" = ${championId}
         GROUP BY pi."itemId"
@@ -2085,33 +1981,29 @@ async function _computeArchetypes(
 
   const { clusterByCooccurrence } = await import('./itemArchetypes')
   const archetypes = clusterByCooccurrence(enriched, componentIds, noItemRatios)
+  console.log(`[db] archetype candidates for ${championId}: enriched=${enriched.length} clusters=${archetypes.length}`)
 
-  // item_builds_cache is C(n,5) inflated: a player with 6 items contributes C(3,2)=3 rows
-  // for any 3-item core triple, so triple.games overcounts real participants. Re-query
-  // participant_items to get the true count for each archetype's core items.
+  // item_builds_cache is C(n,5) inflated — query participant_item_sets directly for accurate counts.
   const corrected = await Promise.all(archetypes.map(async (arch) => {
     const allCoreIds = [arch.openingId, ...arch.coreIds]
     const sortedQuad = [...allCoreIds].sort((a, b) => a - b)
     const quadRows = patches?.length
       ? await sql_`
-          SELECT games, wins
-          FROM item_quads_cache
-          WHERE "championId" = ${championId}
-            AND "gameVersion" = ANY(${patches})
-            AND quad = ${sortedQuad}::int[]
+          SELECT COUNT(*)::int AS games, SUM(p.win::int)::int AS wins
+          FROM participant_item_sets pis
+          JOIN participants p ON p.id = pis."participantId"
+          WHERE pis."itemIds" @> ${sortedQuad}::int[]
+            AND p."championId" = ${championId}
+            AND p."gameVersion" = ANY(${patches})
         `
       : await sql_`
-          SELECT games, wins
-          FROM item_quads_cache
-          WHERE "championId" = ${championId}
-            AND quad = ${sortedQuad}::int[]
+          SELECT COUNT(*)::int AS games, SUM(p.win::int)::int AS wins
+          FROM participant_item_sets pis
+          JOIN participants p ON p.id = pis."participantId"
+          WHERE pis."itemIds" @> ${sortedQuad}::int[]
+            AND p."championId" = ${championId}
         `
-    let games = 0, wins = 0
-    for (const r of quadRows as any[]) {
-      games += r.games ?? 0
-      wins += r.wins ?? 0
-    }
-    const row = { games, wins }
+    const row = { games: (quadRows[0]?.games ?? 0) as number, wins: (quadRows[0]?.wins ?? 0) as number }
 
     const slotRows = patches?.length
       ? await sql_`
@@ -2148,8 +2040,8 @@ async function _computeArchetypes(
 
     return {
       ...arch,
-      games: row?.games ?? 0,
-      wins: row?.wins ?? 0,
+      games: row.games > 0 ? row.games : arch.games,
+      wins: row.wins > 0 ? row.wins : arch.wins,
       openingId: orderedIds[0],
       openingItem: fullMeta.get(orderedIds[0]) ?? arch.openingItem,
       coreIds: orderedIds.slice(1),

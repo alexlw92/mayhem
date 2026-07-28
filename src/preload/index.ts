@@ -37,7 +37,8 @@ const api = {
     itemCache: () => ipcRenderer.invoke('db:itemCache'),
     itemBuilds: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemBuilds', championId, patches),
     itemPickRates: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemPickRates', championId, patches),
-    itemArchetypes: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemArchetypes', championId, patches)
+    itemArchetypes: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemArchetypes', championId, patches),
+    itemSummary: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemSummary', championId, patches)
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

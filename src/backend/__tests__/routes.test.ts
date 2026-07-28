@@ -904,6 +904,67 @@ describe('GET /api/items/picks', () => {
   })
 })
 
+describe('GET /api/items/summary', () => {
+  beforeAll(async () => {
+    await request(app).post('/api/meta/items').send({
+      items: [
+        { id: 3001, name: 'Evenshroud',        iconPath: '', category: 'Armor' },
+        { id: 3003, name: "Archangel's Staff",  iconPath: '', category: 'AP'   },
+        { id: 3089, name: "Rabadon's Deathcap", iconPath: '', category: 'AP'   },
+        { id: 3135, name: 'Void Staff',         iconPath: '', category: 'AP'   },
+        { id: 3157, name: "Zhonya's Hourglass", iconPath: '', category: 'AP'   },
+        { id: 3165, name: 'Morellonomicon',     iconPath: '', category: 'AP'   },
+        { id: 3006, name: "Berserker's Greaves",iconPath: '', category: 'Boots'},
+      ],
+      componentIds: [],
+    })
+  })
+
+  it('returns 400 when championId is missing', async () => {
+    const res = await request(app).get('/api/items/summary')
+    expect(res.status).toBe(400)
+  })
+
+  it('returns correct shape with zero data when champion has no matches', async () => {
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}`)
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body.archetypes)).toBe(true)
+    expect(Array.isArray(res.body.items)).toBe(true)
+    expect(typeof res.body.totalGames).toBe('number')
+    expect(res.body.archetypes).toHaveLength(0)
+    expect(res.body.items).toHaveLength(0)
+    expect(res.body.totalGames).toBe(0)
+  })
+
+  it('totalGames and items match the /items/picks response', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const [summary, picks] = await Promise.all([
+      request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}`),
+      request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`),
+    ])
+    expect(summary.status).toBe(200)
+    expect(summary.body.totalGames).toBe(picks.body.totalGames)
+    expect(summary.body.items).toEqual(picks.body.items)
+  })
+
+  it('filters by patch — returns empty for non-matching patch', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=99.99`)
+    expect(res.status).toBe(200)
+    expect(res.body.archetypes).toEqual([])
+    expect(res.body.items).toEqual([])
+    expect(res.body.totalGames).toBe(0)
+  })
+
+  it('does not return data for other champions', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get('/api/items/summary?championId=999')
+    expect(res.status).toBe(200)
+    expect(res.body.items).toEqual([])
+    expect(res.body.totalGames).toBe(0)
+  })
+})
+
 describe('GET /api/items/builds', () => {
   it('returns 400 when championId is missing', async () => {
     const res = await request(app).get('/api/items/builds')

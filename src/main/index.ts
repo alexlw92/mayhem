@@ -243,79 +243,88 @@ function startSyncWorker(): void {
 async function syncWorker(): Promise<void> {
   const draining = syncInProgress
 
-  while (true) {
-    if (syncCancelled) {
-      syncCancelled = false
-      syncInProgress = false
-      sendToWindow('sync-complete', { ...syncAccum, reason: 'cancelled' })
-      return
-    }
-    if (!isClientRunning()) {
-      if (draining && syncInProgress) {
-        syncInProgress = false
-        sendToWindow('sync-complete', { ...syncAccum, reason: 'client-offline' })
-      }
-      return
-    }
-    ensureChampionNames()
+  const offlinePoller = setInterval(() => {
+    if (!isClientRunning()) syncCancelled = true
+  }, 5_000)
 
-    let puuid: string | null = null
-    let claimed = false
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        ;({ puuid } = await apiClient.claimNextJob(CLIENT_ID))
-        claimed = true
-        break
-      } catch (err) {
-        if (attempt < 2) {
-          await new Promise(r => setTimeout(r, 5_000))
-        } else {
-          console.warn('[sync] backend unreachable after retries, stopping worker:', (err as Error).message)
-          if (draining && syncInProgress) {
-            syncInProgress = false
-            sendToWindow('sync-complete', { ...syncAccum, reason: 'error' })
+  try {
+    while (true) {
+      if (syncCancelled) {
+        syncCancelled = false
+        syncInProgress = false
+        const reason = !isClientRunning() ? 'client-offline' : 'cancelled'
+        if (draining) sendToWindow('sync-complete', { ...syncAccum, reason })
+        return
+      }
+      if (!isClientRunning()) {
+        if (draining && syncInProgress) {
+          syncInProgress = false
+          sendToWindow('sync-complete', { ...syncAccum, reason: 'client-offline' })
+        }
+        return
+      }
+      ensureChampionNames()
+
+      let puuid: string | null = null
+      let claimed = false
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          ;({ puuid } = await apiClient.claimNextJob(CLIENT_ID))
+          claimed = true
+          break
+        } catch (err) {
+          if (attempt < 2) {
+            await new Promise(r => setTimeout(r, 5_000))
+          } else {
+            console.warn('[sync] backend unreachable after retries, stopping worker:', (err as Error).message)
+            if (draining && syncInProgress) {
+              syncInProgress = false
+              sendToWindow('sync-complete', { ...syncAccum, reason: 'error' })
+            }
+            return
           }
-          return
         }
       }
-    }
-    if (!claimed) return
+      if (!claimed) return
 
-    if (!puuid) {
-      if (draining && syncInProgress) {
-        syncInProgress = false
-        sendToWindow('sync-complete', syncAccum)
-      }
-      return
-    }
-
-    const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
-
-    try {
-      const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
-      if (fetchFailed) {
-        console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
-        await apiClient.completeJob(puuid)
-      } else {
-        await apiClient.completeJob(puuid)
-        if (draining) {
-          syncAccum.playerssynced++
-          if (imported > 0) syncAccum.imported += imported
+      if (!puuid) {
+        if (draining && syncInProgress) {
+          syncInProgress = false
+          sendToWindow('sync-complete', syncAccum)
         }
-        const { total: queueRemaining } = await apiClient.queueStatus()
-        console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${queueRemaining} remaining in queue)`)
-        sendToWindow('sync-progress', {
-          puuid,
-          playerName,
-          gamesAdded: syncAccum.imported,
-          playersChecked: syncAccum.playerssynced,
-          queueRemaining,
-        })
+        return
       }
-    } catch (err) {
-      console.error(`[sync] error syncing ${playerName}:`, err)
-      await apiClient.failJob(puuid).catch(() => {})
+
+      const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
+
+      try {
+        const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
+        if (fetchFailed) {
+          console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
+          await apiClient.completeJob(puuid)
+        } else {
+          await apiClient.completeJob(puuid)
+          if (draining) {
+            syncAccum.playerssynced++
+            if (imported > 0) syncAccum.imported += imported
+          }
+          const { total: queueRemaining } = await apiClient.queueStatus()
+          console.log(`[sync] ${playerName}: ${imported} new game${imported !== 1 ? 's' : ''} (${queueRemaining} remaining in queue)`)
+          sendToWindow('sync-progress', {
+            puuid,
+            playerName,
+            gamesAdded: syncAccum.imported,
+            playersChecked: syncAccum.playerssynced,
+            queueRemaining,
+          })
+        }
+      } catch (err) {
+        console.error(`[sync] error syncing ${playerName}:`, err)
+        await apiClient.failJob(puuid).catch(() => {})
+      }
     }
+  } finally {
+    clearInterval(offlinePoller)
   }
 }
 
@@ -528,6 +537,16 @@ ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: str
   return data
 })
 
+ipcMain.handle('db:itemSummary', async (_e, championId: number, patches?: string[]) => {
+  const key = `summary:${championId}:${(patches ?? []).slice().sort().join(',')}`
+  const hit = itemResultCache.get(key)
+  if (hit && hit.expires > Date.now()) return hit.data
+
+  const data = await apiClient.itemSummary(championId, patches)
+  itemResultCache.set(key, { data, expires: Date.now() + ITEM_CACHE_TTL_MS })
+  return data
+})
+
 const recentsPath = () => join(app.getPath('userData'), 'mayhem-recents.json')
 ipcMain.handle('recents:load', () => {
   try { return JSON.parse(fs.readFileSync(recentsPath(), 'utf-8')) }
@@ -589,6 +608,12 @@ ipcMain.handle('lcu:currentGame', async () => {
 ipcMain.handle('lcu:syncCurrentGame', async (_e, puuids: string[]) => {
   if (!Array.isArray(puuids) || puuids.length === 0) return { ok: false }
   await apiClient.enqueuePriority(puuids)
+  if (!workerRunning) {
+    syncCancelled = false
+    syncInProgress = true
+    syncAccum = { imported: 0, playerssynced: 0 }
+    sendToWindow('sync-started')
+  }
   startSyncWorker()
   return { ok: true }
 })

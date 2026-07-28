@@ -133,6 +133,18 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     res.json(await getOrComputeArchetypes(championId, patches))
   })
 
+  router.get('/items/summary', async (req, res) => {
+    const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
+    if (!championId) return res.status(400).json({ error: 'championId required' })
+    const rawPatches = parsePatches(req.query.patches)
+    const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
+    const [archetypes, picks] = await Promise.all([
+      getOrComputeArchetypes(championId, patches),
+      getItemPickRates(championId, patches),
+    ])
+    res.json({ archetypes, totalGames: picks.totalGames, items: picks.items })
+  })
+
   router.post('/meta/items', async (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : []
     const componentIds = Array.isArray(req.body?.componentIds) ? req.body.componentIds : []

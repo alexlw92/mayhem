@@ -122,6 +122,12 @@ export const apiClient = {
       timeout: 60_000,
     }).then((r) => r.data),
 
+  itemSummary: (championId: number, patches?: string[]) =>
+    http.get('/api/items/summary', {
+      params: { championId, patches: patches?.join(',') },
+      timeout: 60_000,
+    }).then((r) => r.data),
+
   syncItemMeta: (items: Array<{ id: number; name: string; iconPath: string; category: string }>, componentIds: number[]) =>
     http.post('/api/meta/items', { items, componentIds }, { timeout: 15_000 }),
 

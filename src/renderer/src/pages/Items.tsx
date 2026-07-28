@@ -53,15 +53,13 @@ export default function Items({ championId, selectedPatches, metaKey, buildsOnly
   useEffect(() => {
     if (selectedPatches === null) return
     setLoading(true)
-    Promise.all([
-      api.db.itemArchetypes(championId, selectedPatches),
-      api.db.itemPickRates(championId, selectedPatches),
-    ]).then(([a, pr]: [Archetype[], { totalGames: number; items: PickRow[] }]) => {
-      setArchetypes(a)
-      setPicks(pr.items)
-      setTotalGames(pr.totalGames)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    api.db.itemSummary(championId, selectedPatches)
+      .then((r: { archetypes: Archetype[]; totalGames: number; items: PickRow[] }) => {
+        setArchetypes(r.archetypes)
+        setPicks(r.items)
+        setTotalGames(r.totalGames)
+        setLoading(false)
+      }).catch(() => setLoading(false))
   }, [championId, selectedPatches, metaKey])
 
   if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13, padding: '16px 0' }}>Loading…</div>

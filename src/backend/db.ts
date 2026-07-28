@@ -369,11 +369,14 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
     try {
       const patches = await getPatches()
       const todoBuilds: string[] = []
+      const todoPicks: string[] = []
       for (const gv of patches) {
         const [{ count: bc }] = await sql_`SELECT COUNT(*) FROM item_builds_cache WHERE "gameVersion" = ${gv}`
         if (Number(bc) === 0) todoBuilds.push(gv)
+        const [{ count: pc }] = await sql_`SELECT COUNT(*) FROM item_picks_cache WHERE "gameVersion" = ${gv}`
+        if (Number(pc) === 0) todoPicks.push(gv)
       }
-      if (todoBuilds.length === 0) return
+      if (todoBuilds.length === 0 && todoPicks.length === 0) return
       if (todoBuilds.length > 0) {
         console.log(`[item-builds] backfilling ${todoBuilds.length} patch(es)...`)
         onProgress?.('Building item builds cache…')
@@ -410,9 +413,31 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
         }
         console.log('[item-builds] backfill complete')
       }
+      if (todoPicks.length > 0) {
+        console.log(`[item-picks] backfilling ${todoPicks.length} patch(es)...`)
+        onProgress?.('Building item picks cache…')
+        for (let i = 0; i < todoPicks.length; i++) {
+          const gv = todoPicks[i]
+          console.log(`[item-picks] ${gv} (${i + 1}/${todoPicks.length})...`)
+          onProgress?.(`Building item picks: ${gv} (${i + 1}/${todoPicks.length})…`)
+          await sql_`
+            INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins)
+            SELECT p."gameVersion", p."championId", pi."itemId",
+                   COUNT(*)::int,
+                   SUM(p.win::int)::int
+            FROM participants p
+            JOIN participant_items pi ON pi."participantId" = p.id
+            WHERE p."gameVersion" = ${gv}
+            GROUP BY p."gameVersion", p."championId", pi."itemId"
+            ON CONFLICT DO NOTHING
+          `
+          console.log(`[item-picks] ${gv} done`)
+        }
+        console.log('[item-picks] backfill complete')
+      }
       onProgress?.('')
     } catch (e) {
-      console.warn('[item-builds/quads] backfill failed:', (e as Error).message)
+      console.warn('[item-builds/picks] backfill failed:', (e as Error).message)
     }
   })()
 

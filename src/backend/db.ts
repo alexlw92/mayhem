@@ -147,6 +147,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   await sql_`CREATE INDEX IF NOT EXISTS idx_augments_participantId_augmentId ON participant_augments("participantId", "augmentId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_items_participantId ON participant_items("participantId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_items_itemId        ON participant_items("itemId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_items_participantId_itemId_slot ON participant_items("participantId", "itemId", "slot")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_champid_gameid ON participants("championId", "gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion        ON participants("gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameVersion_champ  ON participants("gameVersion", "championId")`
@@ -1940,38 +1941,25 @@ async function _computeArchetypes(
   // Compute no-item ratio per item: high ratio = item appears in games with many empty slots = bought early
   const noItemRatioRows = patches?.length
     ? await sql_`
-        SELECT pi."itemId", SUM(6 - cnt.total)::float / COUNT(*) AS ratio
+        SELECT pi."itemId", SUM(6 - array_length(pis."itemIds", 1))::float / COUNT(*) AS ratio
         FROM participants p
+        JOIN participant_item_sets pis ON pis."participantId" = p.id
         JOIN participant_items pi ON pi."participantId" = p.id
         JOIN meta_items m ON m.id = pi."itemId"
           AND m.is_component = false
           AND m.name IS NOT NULL AND m.name != ''
-        JOIN (
-          SELECT pi2."participantId", COUNT(*) AS total
-          FROM participant_items pi2
-          JOIN participants p2 ON p2.id = pi2."participantId"
-            AND p2."championId" = ${championId}
-            AND p2."gameVersion" = ANY(${patches})
-          GROUP BY pi2."participantId"
-        ) cnt ON cnt."participantId" = p.id
         WHERE p."championId" = ${championId}
           AND p."gameVersion" = ANY(${patches})
         GROUP BY pi."itemId"
       `
     : await sql_`
-        SELECT pi."itemId", SUM(6 - cnt.total)::float / COUNT(*) AS ratio
+        SELECT pi."itemId", SUM(6 - array_length(pis."itemIds", 1))::float / COUNT(*) AS ratio
         FROM participants p
+        JOIN participant_item_sets pis ON pis."participantId" = p.id
         JOIN participant_items pi ON pi."participantId" = p.id
         JOIN meta_items m ON m.id = pi."itemId"
           AND m.is_component = false
           AND m.name IS NOT NULL AND m.name != ''
-        JOIN (
-          SELECT pi2."participantId", COUNT(*) AS total
-          FROM participant_items pi2
-          JOIN participants p2 ON p2.id = pi2."participantId"
-            AND p2."championId" = ${championId}
-          GROUP BY pi2."participantId"
-        ) cnt ON cnt."participantId" = p.id
         WHERE p."championId" = ${championId}
         GROUP BY pi."itemId"
       `
@@ -1987,50 +1975,52 @@ async function _computeArchetypes(
   const corrected = await Promise.all(archetypes.map(async (arch) => {
     const allCoreIds = [arch.openingId, ...arch.coreIds]
     const sortedQuad = [...allCoreIds].sort((a, b) => a - b)
-    const quadRows = patches?.length
+    const combinedRows = patches?.length
       ? await sql_`
-          SELECT COUNT(*)::int AS games, SUM(p.win::int)::int AS wins
-          FROM participant_item_sets pis
-          JOIN participants p ON p.id = pis."participantId"
-          WHERE pis."itemIds" @> ${sortedQuad}::int[]
-            AND p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-        `
-      : await sql_`
-          SELECT COUNT(*)::int AS games, SUM(p.win::int)::int AS wins
-          FROM participant_item_sets pis
-          JOIN participants p ON p.id = pis."participantId"
-          WHERE pis."itemIds" @> ${sortedQuad}::int[]
-            AND p."championId" = ${championId}
-        `
-    const row = { games: (quadRows[0]?.games ?? 0) as number, wins: (quadRows[0]?.wins ?? 0) as number }
-
-    const slotRows = patches?.length
-      ? await sql_`
-          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-          FROM participant_item_sets pis
-          JOIN participants p ON p.id = pis."participantId"
-          JOIN participant_items pi ON pi."participantId" = p.id
+          WITH base AS (
+            SELECT p.id, p.win
+            FROM participant_item_sets pis
+            JOIN participants p ON p.id = pis."participantId"
+            WHERE pis."itemIds" @> ${sortedQuad}::int[]
+              AND p."championId" = ${championId}
+              AND p."gameVersion" = ANY(${patches})
+          )
+          SELECT
+            (SELECT COUNT(*)::int      FROM base) AS games,
+            (SELECT SUM(win::int)::int FROM base) AS wins,
+            pi."itemId",
+            AVG(pi."slot"::float) AS avg_slot
+          FROM base b
+          LEFT JOIN participant_items pi ON pi."participantId" = b.id
             AND pi."itemId" = ANY(${sortedQuad}::int[])
             AND pi."slot" IS NOT NULL
-          WHERE pis."itemIds" @> ${sortedQuad}::int[]
-            AND p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
           GROUP BY pi."itemId"
         `
       : await sql_`
-          SELECT pi."itemId", AVG(pi."slot"::float) AS avg_slot
-          FROM participant_item_sets pis
-          JOIN participants p ON p.id = pis."participantId"
-          JOIN participant_items pi ON pi."participantId" = p.id
+          WITH base AS (
+            SELECT p.id, p.win
+            FROM participant_item_sets pis
+            JOIN participants p ON p.id = pis."participantId"
+            WHERE pis."itemIds" @> ${sortedQuad}::int[]
+              AND p."championId" = ${championId}
+          )
+          SELECT
+            (SELECT COUNT(*)::int      FROM base) AS games,
+            (SELECT SUM(win::int)::int FROM base) AS wins,
+            pi."itemId",
+            AVG(pi."slot"::float) AS avg_slot
+          FROM base b
+          LEFT JOIN participant_items pi ON pi."participantId" = b.id
             AND pi."itemId" = ANY(${sortedQuad}::int[])
             AND pi."slot" IS NOT NULL
-          WHERE pis."itemIds" @> ${sortedQuad}::int[]
-            AND p."championId" = ${championId}
           GROUP BY pi."itemId"
         `
+    const row = {
+      games: (combinedRows[0]?.games ?? 0) as number,
+      wins: (combinedRows[0]?.wins ?? 0) as number,
+    }
     const slotMap = new Map<number, number>(
-      (slotRows as any[]).map(r => [r.itemId as number, parseFloat(r.avg_slot)])
+      (combinedRows as any[]).filter(r => r.itemId != null).map(r => [r.itemId as number, parseFloat(r.avg_slot)])
     )
 
     let orderedIds = allCoreIds

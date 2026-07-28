@@ -613,8 +613,9 @@ describe('GET /api/players/:puuid/trend', () => {
 
   it('returns daily win rate entries when days covers match dates', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
-    // Sample matches are from 2025-06-15..17; use days=400 to reach them from the test run date
-    const res = await request(app).get('/api/players/test-puuid-1/trend?days=400')
+    const oldestMs = Math.min(sampleMatch.gameCreation, sampleMatch2.gameCreation, sampleMatch3.gameCreation)
+    const days = Math.ceil((Date.now() - oldestMs) / (24 * 60 * 60 * 1000)) + 2
+    const res = await request(app).get(`/api/players/test-puuid-1/trend?days=${days}`)
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
     const entry = res.body[0]
@@ -962,6 +963,65 @@ describe('GET /api/items/summary', () => {
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
     expect(res.body.totalGames).toBe(0)
+  })
+
+  it('returns archetypes with valid structure when enough games share a core', async () => {
+    // Two games sharing 4 items ([3001,3003,3089,3157]) are enough to form an archetype
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
+    expect(res.status).toBe(200)
+    expect(res.body.archetypes.length).toBeGreaterThan(0)
+    for (const arch of res.body.archetypes) {
+      expect(typeof arch.openingId).toBe('number')
+      expect(Array.isArray(arch.coreIds)).toBe(true)
+      expect(arch.coreIds.length).toBeGreaterThan(0)
+      expect(typeof arch.games).toBe('number')
+      expect(typeof arch.wins).toBe('number')
+      expect(arch.games).toBeGreaterThan(0)
+      expect(arch.games).toBeLessThanOrEqual(res.body.totalGames)
+    }
+  })
+
+  it('corrects archetype game count via participant_item_sets (not inflated build cache)', async () => {
+    // 1 player with 6 items → C(6,5)=6 entries in item_builds_cache; each 4-item quad appears in
+    // 2 of those builds, so the raw quad.games from the cache = 2. The CTE must correct it to 1.
+    const sixItemMatch: Match = {
+      gameId: 9010,
+      queueId: 2400,
+      gameCreation: new Date('2025-06-22T10:00:00Z').getTime(),
+      gameDuration: 1400,
+      gameVersion: '15.12',
+      participants: [{
+        puuid: 'item-puuid-6', summonerName: 'Heavy#NA1', championId: ITEM_CHAMP_ID, championName: 'Syndra',
+        teamId: 100, win: true, kills: 7, deaths: 0, assists: 5,
+        damageDealt: 60000, damageTaken: 8000, goldEarned: 12000, champLevel: 16, augments: [],
+        items: toSlotItems([3001, 3003, 3089, 3135, 3157, 3165]),
+      }]
+    }
+    await request(app).post('/api/matches/bulk').send({ matches: [sixItemMatch] })
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
+    expect(res.status).toBe(200)
+    expect(res.body.archetypes.length).toBeGreaterThan(0)
+    for (const arch of res.body.archetypes) {
+      expect(arch.games).toBe(1)
+      expect(arch.wins).toBe(1)
+    }
+  })
+
+  it('orders archetype items by average purchase slot ascending', async () => {
+    // matchWithItems: ITEMS_CORE slots 0-4; matchWithItemsAlt: ITEMS_ALT slots 0-4
+    // Shared core [3001,3003,3089,3157] has avg slots 0,1,2,4 — so openingId must be 3001
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
+    expect(res.status).toBe(200)
+    expect(res.body.archetypes.length).toBeGreaterThan(0)
+    const arch = res.body.archetypes[0]
+    expect(arch.openingId).toBe(3001)
+    const allIds = [arch.openingId, ...arch.coreIds]
+    expect(allIds).toContain(3001)
+    expect(allIds).toContain(3003)
+    expect(allIds).toContain(3089)
+    expect(allIds).toContain(3157)
   })
 })
 

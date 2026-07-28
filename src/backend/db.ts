@@ -255,6 +255,17 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_champ_gv ON item_builds_cache ("championId", "gameVersion")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_builds_cache_build ON item_builds_cache USING gin(build)`
   await sql_`
+    CREATE TABLE IF NOT EXISTS item_picks_cache (
+      "gameVersion"  TEXT    NOT NULL,
+      "championId"   INTEGER NOT NULL,
+      "itemId"       INTEGER NOT NULL,
+      picks          INTEGER NOT NULL DEFAULT 0,
+      wins           INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY ("gameVersion", "championId", "itemId")
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_item_picks_cache_champ_gv ON item_picks_cache ("championId", "gameVersion")`
+  await sql_`
     CREATE TABLE IF NOT EXISTS meta_items (
       id           int  PRIMARY KEY,
       name         text NOT NULL,
@@ -451,6 +462,7 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
     await tx`DELETE FROM participants WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM item_builds_cache WHERE "gameVersion" <> ALL(${keepPatches})`
+    await tx`DELETE FROM item_picks_cache WHERE "gameVersion" <> ALL(${keepPatches})`
   })
 
   return oldIds.length
@@ -794,6 +806,20 @@ export async function insertMatches(matches: Match[]): Promise<number> {
         ON CONFLICT ("gameVersion","championId",build) DO UPDATE SET
           games = item_builds_cache.games + EXCLUDED.games,
           wins  = item_builds_cache.wins  + EXCLUDED.wins
+      `
+      await tx`
+        INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins)
+        SELECT p."gameVersion", p."championId", pi."itemId",
+               COUNT(*)::int,
+               SUM(p.win::int)::int
+        FROM participants p
+        JOIN participant_items pi ON pi."participantId" = p.id
+        WHERE p."gameId" = ANY(${newGameIdArr})
+          AND p."gameVersion" IS NOT NULL
+        GROUP BY p."gameVersion", p."championId", pi."itemId"
+        ON CONFLICT ("gameVersion","championId","itemId") DO UPDATE SET
+          picks = item_picks_cache.picks + EXCLUDED.picks,
+          wins  = item_picks_cache.wins  + EXCLUDED.wins
       `
       const affectedChamps = [...new Set(newMatches.flatMap(m => m.participants.map(p => p.championId)))]
       if (affectedChamps.length > 0) {
@@ -1649,32 +1675,30 @@ export async function getItemPickRates(championId: number, patches?: string[]): 
   const [itemRows, countRows] = await Promise.all([
     patches?.length
       ? sql_`
-          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
-                 COUNT(*)::int AS picks,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          JOIN meta_items m ON m.id = pi."itemId"
+          SELECT ipc."itemId", m.name, m."iconPath", m.category,
+                 SUM(ipc.picks)::int AS picks,
+                 SUM(ipc.wins)::int  AS wins
+          FROM item_picks_cache ipc
+          JOIN meta_items m ON m.id = ipc."itemId"
             AND m.is_component = false
             AND m.name IS NOT NULL
             AND m.name != ''
-          WHERE p."championId" = ${championId}
-            AND p."gameVersion" = ANY(${patches})
-          GROUP BY pi."itemId", m.name, m."iconPath", m.category
+          WHERE ipc."championId" = ${championId}
+            AND ipc."gameVersion" = ANY(${patches})
+          GROUP BY ipc."itemId", m.name, m."iconPath", m.category
           ORDER BY CASE WHEN m.category = 'Boots' THEN 0 ELSE 1 END, picks DESC
         `
       : sql_`
-          SELECT pi."itemId" AS "itemId", m.name, m."iconPath", m.category,
-                 COUNT(*)::int AS picks,
-                 SUM(CASE WHEN p.win THEN 1 ELSE 0 END)::int AS wins
-          FROM participants p
-          JOIN participant_items pi ON pi."participantId" = p.id
-          JOIN meta_items m ON m.id = pi."itemId"
+          SELECT ipc."itemId", m.name, m."iconPath", m.category,
+                 SUM(ipc.picks)::int AS picks,
+                 SUM(ipc.wins)::int  AS wins
+          FROM item_picks_cache ipc
+          JOIN meta_items m ON m.id = ipc."itemId"
             AND m.is_component = false
             AND m.name IS NOT NULL
             AND m.name != ''
-          WHERE p."championId" = ${championId}
-          GROUP BY pi."itemId", m.name, m."iconPath", m.category
+          WHERE ipc."championId" = ${championId}
+          GROUP BY ipc."itemId", m.name, m."iconPath", m.category
           ORDER BY CASE WHEN m.category = 'Boots' THEN 0 ELSE 1 END, picks DESC
         `,
     patches?.length

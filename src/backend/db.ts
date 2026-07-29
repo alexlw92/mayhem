@@ -265,6 +265,8 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     )
   `
   await sql_`CREATE INDEX IF NOT EXISTS idx_item_picks_cache_champ_gv ON item_picks_cache ("championId", "gameVersion")`
+  await sql_`ALTER TABLE item_picks_cache ADD COLUMN IF NOT EXISTS slot_emptiness_sum FLOAT NOT NULL DEFAULT 0`
+  await sql_`ALTER TABLE item_picks_cache ADD COLUMN IF NOT EXISTS slot_emptiness_count INTEGER NOT NULL DEFAULT 0`
   await sql_`
     CREATE TABLE IF NOT EXISTS meta_items (
       id           int  PRIMARY KEY,
@@ -421,12 +423,15 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           console.log(`[item-picks] ${gv} (${i + 1}/${todoPicks.length})...`)
           onProgress?.(`Building item picks: ${gv} (${i + 1}/${todoPicks.length})…`)
           await sql_`
-            INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins)
+            INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins,slot_emptiness_sum,slot_emptiness_count)
             SELECT p."gameVersion", p."championId", pi."itemId",
                    COUNT(*)::int,
-                   SUM(p.win::int)::int
+                   SUM(p.win::int)::int,
+                   SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float,
+                   COUNT(*)::int
             FROM participants p
             JOIN participant_items pi ON pi."participantId" = p.id
+            LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
             WHERE p."gameVersion" = ${gv}
             GROUP BY p."gameVersion", p."championId", pi."itemId"
             ON CONFLICT DO NOTHING
@@ -520,6 +525,33 @@ export async function backfillDetailCaches(onProgress?: (phase: string) => void)
       ON CONFLICT DO NOTHING
     `
     console.log(`[backfill] augment_champion ${gv} done`)
+  }
+
+  for (const gv of patches) {
+    const [{ count: zc }] = await sql_`SELECT COUNT(*) FROM item_picks_cache WHERE "gameVersion" = ${gv} AND slot_emptiness_count = 0`
+    if (Number(zc) === 0) continue
+    console.log(`[item-picks] backfilling slot_emptiness for ${gv}...`)
+    onProgress?.(`Updating item picks cache: ${gv}…`)
+    await sql_`
+      UPDATE item_picks_cache ipc
+      SET slot_emptiness_sum   = sub.es,
+          slot_emptiness_count = sub.ec
+      FROM (
+        SELECT p."gameVersion", p."championId", pi."itemId",
+          SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float AS es,
+          COUNT(*)::int AS ec
+        FROM participants p
+        JOIN participant_items pi ON pi."participantId" = p.id
+        LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
+        WHERE p."gameVersion" = ${gv}
+        GROUP BY p."gameVersion", p."championId", pi."itemId"
+      ) sub
+      WHERE ipc."gameVersion" = sub."gameVersion"
+        AND ipc."championId" = sub."championId"
+        AND ipc."itemId" = sub."itemId"
+        AND ipc.slot_emptiness_count = 0
+    `
+    console.log(`[item-picks] slot_emptiness backfill for ${gv} done`)
   }
 
   const latestPatch = patches[0]
@@ -857,18 +889,23 @@ export async function insertMatches(matches: Match[]): Promise<number> {
           wins  = item_builds_cache.wins  + EXCLUDED.wins
       `
       await tx`
-        INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins)
+        INSERT INTO item_picks_cache ("gameVersion","championId","itemId",picks,wins,slot_emptiness_sum,slot_emptiness_count)
         SELECT p."gameVersion", p."championId", pi."itemId",
                COUNT(*)::int,
-               SUM(p.win::int)::int
+               SUM(p.win::int)::int,
+               SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float,
+               COUNT(*)::int
         FROM participants p
         JOIN participant_items pi ON pi."participantId" = p.id
+        LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
         WHERE p."gameId" = ANY(${newGameIdArr})
           AND p."gameVersion" IS NOT NULL
         GROUP BY p."gameVersion", p."championId", pi."itemId"
         ON CONFLICT ("gameVersion","championId","itemId") DO UPDATE SET
-          picks = item_picks_cache.picks + EXCLUDED.picks,
-          wins  = item_picks_cache.wins  + EXCLUDED.wins
+          picks                = item_picks_cache.picks + EXCLUDED.picks,
+          wins                 = item_picks_cache.wins  + EXCLUDED.wins,
+          slot_emptiness_sum   = item_picks_cache.slot_emptiness_sum   + EXCLUDED.slot_emptiness_sum,
+          slot_emptiness_count = item_picks_cache.slot_emptiness_count + EXCLUDED.slot_emptiness_count
       `
       const affectedChamps = [...new Set(newMatches.flatMap(m => m.participants.map(p => p.championId)))]
       if (affectedChamps.length > 0) {
@@ -2021,27 +2058,16 @@ async function _computeArchetypes(
   // Compute no-item ratio per item: high ratio = item appears in games with many empty slots = bought early
   const noItemRatioRows = patches?.length
     ? await sql_`
-        SELECT pi."itemId", SUM(6 - array_length(pis."itemIds", 1))::float / COUNT(*) AS ratio
-        FROM participants p
-        JOIN participant_item_sets pis ON pis."participantId" = p.id
-        JOIN participant_items pi ON pi."participantId" = p.id
-        JOIN meta_items m ON m.id = pi."itemId"
-          AND m.is_component = false
-          AND m.name IS NOT NULL AND m.name != ''
-        WHERE p."championId" = ${championId}
-          AND p."gameVersion" = ANY(${patches})
-        GROUP BY pi."itemId"
+        SELECT "itemId", SUM(slot_emptiness_sum) / NULLIF(SUM(slot_emptiness_count), 0) AS ratio
+        FROM item_picks_cache
+        WHERE "championId" = ${championId} AND "gameVersion" = ANY(${patches})
+        GROUP BY "itemId"
       `
     : await sql_`
-        SELECT pi."itemId", SUM(6 - array_length(pis."itemIds", 1))::float / COUNT(*) AS ratio
-        FROM participants p
-        JOIN participant_item_sets pis ON pis."participantId" = p.id
-        JOIN participant_items pi ON pi."participantId" = p.id
-        JOIN meta_items m ON m.id = pi."itemId"
-          AND m.is_component = false
-          AND m.name IS NOT NULL AND m.name != ''
-        WHERE p."championId" = ${championId}
-        GROUP BY pi."itemId"
+        SELECT "itemId", SUM(slot_emptiness_sum) / NULLIF(SUM(slot_emptiness_count), 0) AS ratio
+        FROM item_picks_cache
+        WHERE "championId" = ${championId}
+        GROUP BY "itemId"
       `
   const noItemRatios = new Map<number, number>(
     (noItemRatioRows as any[]).map(r => [r.itemId as number, parseFloat(r.ratio)])
@@ -2057,7 +2083,7 @@ async function _computeArchetypes(
     const sortedQuad = [...allCoreIds].sort((a, b) => a - b)
     const combinedRows = patches?.length
       ? await sql_`
-          WITH base AS (
+          WITH base AS MATERIALIZED (
             SELECT p.id, p.win
             FROM participant_item_sets pis
             JOIN participants p ON p.id = pis."participantId"
@@ -2077,7 +2103,7 @@ async function _computeArchetypes(
           GROUP BY pi."itemId"
         `
       : await sql_`
-          WITH base AS (
+          WITH base AS MATERIALIZED (
             SELECT p.id, p.win
             FROM participant_item_sets pis
             JOIN participants p ON p.id = pis."participantId"

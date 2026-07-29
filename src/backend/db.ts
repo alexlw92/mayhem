@@ -488,6 +488,13 @@ export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
     await tx`DELETE FROM matches WHERE "gameId" = ANY(${oldIds})`
     await tx`DELETE FROM item_builds_cache WHERE "gameVersion" <> ALL(${keepPatches})`
     await tx`DELETE FROM item_picks_cache WHERE "gameVersion" <> ALL(${keepPatches})`
+    const prunedVersions = (await tx`
+      SELECT DISTINCT "gameVersion" AS gv FROM matches
+      WHERE "gameVersion" <> ALL(${keepPatches}) AND "gameVersion" IS NOT NULL
+    `).map((r: any) => r.gv as string)
+    for (const gv of prunedVersions) {
+      await tx`DELETE FROM item_archetypes_cache WHERE patches_key LIKE ${'%' + gv + '%'}`
+    }
   })
 
   return oldIds.length
@@ -514,6 +521,23 @@ export async function backfillDetailCaches(onProgress?: (phase: string) => void)
     `
     console.log(`[backfill] augment_champion ${gv} done`)
   }
+
+  const latestPatch = patches[0]
+  if (latestPatch) {
+    onProgress?.('archetypes')
+    const champs = await sql_`
+      SELECT DISTINCT "championId" FROM item_builds_cache WHERE "gameVersion" = ${latestPatch}
+    `
+    let warmed = 0
+    for (const row of champs as any[]) {
+      await getOrComputeArchetypes(row.championId as number, [latestPatch]).catch((e: Error) =>
+        console.warn(`[archetypes] pre-warm failed for ${row.championId}:`, e.message)
+      )
+      warmed++
+    }
+    if (warmed > 0) console.log(`[archetypes] pre-warmed ${warmed} champions for ${latestPatch}`)
+  }
+
   onProgress?.('')
   console.log('[backfill] complete')
 }
@@ -848,7 +872,7 @@ export async function insertMatches(matches: Match[]): Promise<number> {
       `
       const affectedChamps = [...new Set(newMatches.flatMap(m => m.participants.map(p => p.championId)))]
       if (affectedChamps.length > 0) {
-        await tx`DELETE FROM item_archetypes_cache WHERE "championId" = ANY(${affectedChamps})`
+        await tx`UPDATE item_archetypes_cache SET computed_at = NOW() - INTERVAL '16 minutes' WHERE "championId" = ANY(${affectedChamps})`
       }
     }
 
@@ -1137,7 +1161,7 @@ export async function upsertMatch(match: Match): Promise<void> {
         total_duration  = EXCLUDED.total_duration
     `
     const affectedChampionIds = [...new Set(match.participants.map(p => p.championId))]
-    await sql_`DELETE FROM item_archetypes_cache WHERE "championId" = ANY(${affectedChampionIds}::int[])`
+    await sql_`UPDATE item_archetypes_cache SET computed_at = NOW() - INTERVAL '16 minutes' WHERE "championId" = ANY(${affectedChampionIds}::int[])`
   }
 }
 
@@ -1933,6 +1957,22 @@ export async function getOrComputeArchetypes(
   const patchesKey = `v${ARCHETYPE_CACHE_VERSION}:${(patches ?? []).slice().sort().join(',')}`
   const inflightKey = `${championId}:${patchesKey}`
   if (inflightArchetypes.has(inflightKey)) return inflightArchetypes.get(inflightKey)!
+
+  const cached = await sql_`
+    SELECT archetypes, computed_at FROM item_archetypes_cache
+    WHERE "championId" = ${championId} AND patches_key = ${patchesKey}
+  `
+  if (cached.length > 0) {
+    const ageMs = Date.now() - new Date((cached[0] as any).computed_at).getTime()
+    if (ageMs >= 15 * 60 * 1000 && !inflightArchetypes.has(inflightKey)) {
+      const p = _computeArchetypes(championId, patchesKey, patches)
+      inflightArchetypes.set(inflightKey, p)
+      p.finally(() => inflightArchetypes.delete(inflightKey))
+    }
+    const val = (cached[0] as any).archetypes
+    return (Array.isArray(val) ? val : JSON.parse(val as string)) as any[]
+  }
+
   const promise = _computeArchetypes(championId, patchesKey, patches)
   inflightArchetypes.set(inflightKey, promise)
   promise.finally(() => inflightArchetypes.delete(inflightKey))
@@ -1944,15 +1984,6 @@ async function _computeArchetypes(
   patchesKey: string,
   patches?: string[]
 ): Promise<any[]> {
-  const cached = await sql_`
-    SELECT archetypes FROM item_archetypes_cache
-    WHERE "championId" = ${championId} AND patches_key = ${patchesKey}
-  `
-  if (cached.length > 0) {
-    const val = cached[0].archetypes
-    return (Array.isArray(val) ? val : JSON.parse(val as string)) as any[]
-  }
-
   console.log(`[db] computing archetypes for champion ${championId}...`)
 
   const buildRows = patches?.length

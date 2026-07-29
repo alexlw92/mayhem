@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 
 const api = (window as any).api
 
+const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000
+const summaryCache = new Map<string, { data: { archetypes: Archetype[]; totalGames: number; items: PickRow[] }; expires: number }>()
+
 interface ItemMeta {
   id: number
   name: string
@@ -50,11 +53,22 @@ export default function Items({ championId, selectedPatches, metaKey, buildsOnly
   const [loading, setLoading] = useState(false)
   const [totalGames, setTotalGames] = useState(0)
 
+  useEffect(() => { summaryCache.clear() }, [metaKey])
+
   useEffect(() => {
     if (selectedPatches === null) return
+    const key = `${championId}:${(selectedPatches ?? []).slice().sort().join(',')}`
+    const hit = summaryCache.get(key)
+    if (hit && hit.expires > Date.now()) {
+      setArchetypes(hit.data.archetypes)
+      setPicks(hit.data.items)
+      setTotalGames(hit.data.totalGames)
+      return
+    }
     setLoading(true)
     api.db.itemSummary(championId, selectedPatches)
       .then((r: { archetypes: Archetype[]; totalGames: number; items: PickRow[] }) => {
+        summaryCache.set(key, { data: r, expires: Date.now() + SUMMARY_CACHE_TTL_MS })
         setArchetypes(r.archetypes)
         setPicks(r.items)
         setTotalGames(r.totalGames)

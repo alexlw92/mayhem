@@ -59,10 +59,11 @@ const mockPickRows = [
 
 const mockPickRatesResult = { totalGames: 45, items: mockPickRows }
 
+const mockSummaryResult = { archetypes: [mockArchetype, mockArchetype2], totalGames: 45, items: mockPickRows }
+
 const mockApi = {
   db: {
-    itemArchetypes: vi.fn().mockResolvedValue([mockArchetype, mockArchetype2]),
-    itemPickRates: vi.fn().mockResolvedValue(mockPickRatesResult),
+    itemSummary: vi.fn().mockResolvedValue(mockSummaryResult),
   },
 }
 
@@ -76,15 +77,13 @@ beforeAll(async () => {
 describe('Items', () => {
   it('shows loading state initially', () => {
     // Don't await — capture mid-flight state
-    mockApi.db.itemArchetypes.mockReturnValue(new Promise(() => {}))
-    mockApi.db.itemPickRates.mockReturnValue(new Promise(() => {}))
+    mockApi.db.itemSummary.mockReturnValue(new Promise(() => {}))
     const { container } = render(<Items championId={22} selectedPatches={['15.12']} />)
     expect(container).toMatchSnapshot()
   })
 
   it('shows "no item data" when both APIs return empty', async () => {
-    mockApi.db.itemArchetypes.mockResolvedValue([])
-    mockApi.db.itemPickRates.mockResolvedValue({ totalGames: 0, items: [] })
+    mockApi.db.itemSummary.mockResolvedValue({ archetypes: [], totalGames: 0, items: [] })
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -94,8 +93,7 @@ describe('Items', () => {
   })
 
   it('renders boots and most-built sections when picks exist but no archetypes', async () => {
-    mockApi.db.itemArchetypes.mockResolvedValue([])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
+    mockApi.db.itemSummary.mockResolvedValue({ archetypes: [], totalGames: 45, items: mockPickRows })
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -105,8 +103,7 @@ describe('Items', () => {
   })
 
   it('renders all three sections with full data (archetypes default collapsed)', async () => {
-    mockApi.db.itemArchetypes.mockResolvedValue([mockArchetype, mockArchetype2])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
+    mockApi.db.itemSummary.mockResolvedValue(mockSummaryResult)
     let container!: HTMLElement
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} />)
@@ -116,26 +113,23 @@ describe('Items', () => {
   })
 
   it('does not fetch when selectedPatches is null', () => {
-    mockApi.db.itemArchetypes.mockClear()
-    mockApi.db.itemPickRates.mockClear()
+    mockApi.db.itemSummary.mockClear()
     render(<Items championId={22} selectedPatches={null} />)
-    expect(mockApi.db.itemArchetypes).not.toHaveBeenCalled()
-    expect(mockApi.db.itemPickRates).not.toHaveBeenCalled()
+    expect(mockApi.db.itemSummary).not.toHaveBeenCalled()
   })
 
   it('re-fetches when metaKey changes', async () => {
-    mockApi.db.itemArchetypes.mockResolvedValue([mockArchetype])
-    mockApi.db.itemPickRates.mockResolvedValue(mockPickRatesResult)
-    mockApi.db.itemArchetypes.mockClear()
+    mockApi.db.itemSummary.mockResolvedValue({ archetypes: [mockArchetype], totalGames: 45, items: mockPickRows })
+    mockApi.db.itemSummary.mockClear()
     let rerender!: (ui: React.ReactElement) => void
     await act(async () => {
       const r = render(<Items championId={22} selectedPatches={['15.12']} metaKey={0} />)
       rerender = r.rerender
     })
-    const callsBefore = mockApi.db.itemArchetypes.mock.calls.length
+    const callsBefore = mockApi.db.itemSummary.mock.calls.length
     await act(async () => {
       rerender(<Items championId={22} selectedPatches={['15.12']} metaKey={1} />)
     })
-    expect(mockApi.db.itemArchetypes.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(mockApi.db.itemSummary.mock.calls.length).toBeGreaterThan(callsBefore)
   })
 })

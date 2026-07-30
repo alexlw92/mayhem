@@ -126,13 +126,14 @@ function timeAgo(ms: number): string {
 interface Props {
   onPlayersChange: () => void
   selectedPatches: string[] | null
+  selectedMode?: number
   selectedPuuid: string | null
   onPlayerSelect: (puuid: string, name: string) => void
   onPlayerDeselect: () => void
   onAugmentClick?: (augmentId: number) => void
 }
 
-export default function Players({ onPlayersChange, selectedPatches, selectedPuuid, onPlayerSelect, onPlayerDeselect, onAugmentClick }: Props) {
+export default function Players({ onPlayersChange, selectedPatches, selectedMode, selectedPuuid, onPlayerSelect, onPlayerDeselect, onAugmentClick }: Props) {
   const [selectedPlayerData, setSelectedPlayerData] = useState<PlayerStats | null>(null)
 
   if (selectedPuuid && selectedPlayerData) {
@@ -141,6 +142,7 @@ export default function Players({ onPlayersChange, selectedPatches, selectedPuui
         puuid={selectedPuuid}
         player={selectedPlayerData}
         selectedPatches={selectedPatches}
+        selectedMode={selectedMode}
         onBack={() => { setSelectedPlayerData(null); onPlayerDeselect() }}
         onAugmentClick={onAugmentClick}
         onPlayerClick={(newPuuid, name) => {
@@ -161,6 +163,7 @@ export default function Players({ onPlayersChange, selectedPatches, selectedPuui
       onSelect={(puuid, player) => { setSelectedPlayerData(player); onPlayerSelect(puuid, player.summonerName) }}
       onPlayersChange={onPlayersChange}
       selectedPatches={selectedPatches}
+      selectedMode={selectedMode}
     />
   )
 }
@@ -170,12 +173,14 @@ export default function Players({ onPlayersChange, selectedPatches, selectedPuui
 function RecentPlayerCard({
   entry,
   selectedPatches,
+  selectedMode,
   onSelect,
   onPlayersChange,
   onRemove,
 }: {
   entry: RecentEntry
   selectedPatches: string[] | null
+  selectedMode?: number
   onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
   onRemove: (puuid: string) => void
@@ -186,8 +191,8 @@ function RecentPlayerCard({
 
   useEffect(() => {
     if (selectedPatches === null) return
-    api.db.playerOneStats(entry.puuid, selectedPatches).then(setStats).catch(() => {})
-  }, [entry.puuid, selectedPatches])
+    api.db.playerOneStats(entry.puuid, selectedPatches, selectedMode ?? 2400).then(setStats).catch(() => {})
+  }, [entry.puuid, selectedPatches, selectedMode])
 
   const handleSync = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -196,7 +201,7 @@ function RecentPlayerCard({
     try {
       const result = await api.lcu.syncPlayer(entry.puuid)
       setSyncMsg(`${result.imported} new game${result.imported !== 1 ? 's' : ''}`)
-      const fresh = await api.db.playerOneStats(entry.puuid, selectedPatches ?? undefined)
+      const fresh = await api.db.playerOneStats(entry.puuid, selectedPatches ?? undefined, selectedMode ?? 2400)
       setStats(fresh)
       onPlayersChange()
     } catch {
@@ -204,7 +209,7 @@ function RecentPlayerCard({
     }
     setSyncing(false)
     setTimeout(() => setSyncMsg(''), 4000)
-  }, [entry.puuid, selectedPatches, onPlayersChange])
+  }, [entry.puuid, selectedPatches, selectedMode, onPlayersChange])
 
   const [name, tag] = entry.riotId.split('#')
   const wr = stats ? stats.wins / stats.games : null
@@ -266,10 +271,12 @@ function PlayerList({
   onSelect,
   onPlayersChange,
   selectedPatches,
+  selectedMode,
 }: {
   onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
   selectedPatches: string[] | null
+  selectedMode?: number
 }) {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
@@ -450,6 +457,7 @@ function PlayerList({
               key={r.puuid}
               entry={r}
               selectedPatches={selectedPatches}
+              selectedMode={selectedMode}
               onSelect={handleSelect}
               onPlayersChange={onPlayersChange}
               onRemove={(puuid) => {
@@ -491,7 +499,7 @@ function PlayerList({
 
 // ─── Individual player view ───────────────────────────────────────────────────
 
-function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick, onPlayerClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; onAugmentClick?: (augmentId: number) => void; onPlayerClick?: (puuid: string, name: string) => void }) {
+function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, onAugmentClick, onPlayerClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; selectedMode?: number; onAugmentClick?: (augmentId: number) => void; onPlayerClick?: (puuid: string, name: string) => void }) {
   const [tab, setTab] = useState<Tab>('matches')
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [matches, setMatches] = useState<MatchView[]>([])
@@ -511,8 +519,8 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick, 
     setAugmentStats([])
     setCoplayerStats([])
     Promise.all([
-      api.db.playerOneStats(puuid, selectedPatches),
-      api.db.recentMatches(20, puuid, selectedPatches),
+      api.db.playerOneStats(puuid, selectedPatches, selectedMode ?? 2400),
+      api.db.recentMatches(20, puuid, selectedPatches, selectedMode ?? 2400),
       api.db.augmentCache(),
     ]).then(([s, m, cache]: [PlayerStats | null, MatchView[], Record<number, AugmentInfo>]) => {
       setStats(s)
@@ -520,20 +528,20 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick, 
       setAugmentCache(cache)
       setLoading(false)
     }).catch(() => { setLoading(false); setLoadError(true) })
-  }, [puuid, selectedPatches])
+  }, [puuid, selectedPatches, selectedMode])
 
   useEffect(() => {
     if (selectedPatches === null) return
     if (tab === 'champions' && championStats.length === 0) {
-      api.db.championStats(puuid, selectedPatches).then(setChampionStats).catch(() => {})
+      api.db.championStats(puuid, selectedPatches, selectedMode ?? 2400).then(setChampionStats).catch(() => {})
     }
     if (tab === 'augments' && augmentStats.length === 0) {
-      api.db.augmentStats(puuid, undefined, selectedPatches).then(setAugmentStats).catch(() => {})
+      api.db.augmentStats(puuid, undefined, selectedPatches, selectedMode ?? 2400).then(setAugmentStats).catch(() => {})
     }
     if (tab === 'coplayers' && coplayerStats.length === 0) {
-      api.db.coplayerStats(puuid, selectedPatches ?? undefined).then(setCoplayerStats).catch(() => {})
+      api.db.coplayerStats(puuid, selectedPatches ?? undefined, selectedMode ?? 2400).then(setCoplayerStats).catch(() => {})
     }
-  }, [tab, puuid, selectedPatches, championStats.length, augmentStats.length, coplayerStats.length])
+  }, [tab, puuid, selectedPatches, selectedMode, championStats.length, augmentStats.length, coplayerStats.length])
 
   const handleDetailSync = useCallback(async () => {
     setSyncing(true)
@@ -541,7 +549,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, onAugmentClick, 
     try {
       const result = await api.lcu.syncPlayer(puuid)
       setSyncMsg(`${result.imported} new game${result.imported !== 1 ? 's' : ''}`)
-      const fresh = await api.db.playerOneStats(puuid, selectedPatches ?? undefined)
+      const fresh = await api.db.playerOneStats(puuid, selectedPatches ?? undefined, selectedMode ?? 2400)
       if (fresh) setStats(fresh)
     } catch {
       setSyncMsg('sync failed')

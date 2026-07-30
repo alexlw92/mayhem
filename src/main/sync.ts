@@ -1,6 +1,6 @@
 import { getMatchHistory, getGameDetails, LCUMatchHistoryGame } from './lcu'
 import { apiClient } from './apiClient'
-import type { Match } from '../backend/db'
+import { inferPatch, type Match } from '../backend/db'
 
 let championNames: Record<number, string> = {}
 

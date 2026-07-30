@@ -5,6 +5,12 @@ exports[`Items > renders all three sections with full data (archetypes default c
   <div
     style=""
   >
+    <style>
+      
+        .item-wr-bar { display: inline-block; width: 48px; height: 5px; background: var(--bg-primary); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 6px; }
+        .item-wr-fill { height: 100%; border-radius: 3px; }
+      
+    </style>
     <section
       style="margin-bottom: 28px;"
     >
@@ -20,32 +26,36 @@ exports[`Items > renders all three sections with full data (archetypes default c
           style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"
         >
           <div
-            style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
+            style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
           >
-            <span
-              style="display: flex; align-items: center; gap: 6px;"
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
+              title="Evenshroud"
             >
-              <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
-                title="Evenshroud"
-              >
-                <img
-                  alt="Evenshroud"
-                  src="mayhem-asset://items/3001.png"
-                  style="width: 100%; height: 100%; object-fit: cover;"
-                />
-              </div>
+              <img
+                alt="Evenshroud"
+                src="mayhem-asset://items/3001.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <span
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
+            >
+              ›
+            </span>
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; background: var(--bg-primary); border: 1px dashed var(--border);"
+            />
+            <span
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
+            >
+              ›
             </span>
             <span
-              style="display: flex; align-items: center; gap: 6px;"
+              style="display: flex; align-items: center; gap: 4px;"
             >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
               <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                 title="Archangel's Staff"
               >
                 <img
@@ -54,17 +64,8 @@ exports[`Items > renders all three sections with full data (archetypes default c
                   style="width: 100%; height: 100%; object-fit: cover;"
                 />
               </div>
-            </span>
-            <span
-              style="display: flex; align-items: center; gap: 6px;"
-            >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
               <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                 title="Rabadon's Deathcap"
               >
                 <img
@@ -73,17 +74,37 @@ exports[`Items > renders all three sections with full data (archetypes default c
                   style="width: 100%; height: 100%; object-fit: cover;"
                 />
               </div>
+              <div
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
+                title="Void Staff"
+              >
+                <img
+                  alt="Void Staff"
+                  src="mayhem-asset://items/3135.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
             </span>
             <span
-              style="font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); border-radius: 3px; padding: 1px 5px; margin-left: 2px;"
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
             >
-              Tank
+              ›
             </span>
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; background: var(--bg-primary); border: 1px dashed var(--border);"
+            />
             <span
               style="font-size: 12px; color: var(--text-secondary); margin-left: auto;"
             >
               18
                games
+              <span
+                style="color: var(--text-muted); margin-left: 4px;"
+              >
+                (
+                40
+                %)
+              </span>
             </span>
             <span
               style="font-size: 12px; color: var(--green); margin-left: 8px;"
@@ -102,32 +123,36 @@ exports[`Items > renders all three sections with full data (archetypes default c
           style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;"
         >
           <div
-            style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
+            style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); cursor: pointer; user-select: none;"
           >
-            <span
-              style="display: flex; align-items: center; gap: 6px;"
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
+              title="Morellonomicon"
             >
-              <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
-                title="Morellonomicon"
-              >
-                <img
-                  alt="Morellonomicon"
-                  src="mayhem-asset://items/3165.png"
-                  style="width: 100%; height: 100%; object-fit: cover;"
-                />
-              </div>
+              <img
+                alt="Morellonomicon"
+                src="mayhem-asset://items/3165.png"
+                style="width: 100%; height: 100%; object-fit: cover;"
+              />
+            </div>
+            <span
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
+            >
+              ›
+            </span>
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; background: var(--bg-primary); border: 1px dashed var(--border);"
+            />
+            <span
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
+            >
+              ›
             </span>
             <span
-              style="display: flex; align-items: center; gap: 6px;"
+              style="display: flex; align-items: center; gap: 4px;"
             >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
               <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                 title="Rabadon's Deathcap"
               >
                 <img
@@ -136,17 +161,8 @@ exports[`Items > renders all three sections with full data (archetypes default c
                   style="width: 100%; height: 100%; object-fit: cover;"
                 />
               </div>
-            </span>
-            <span
-              style="display: flex; align-items: center; gap: 6px;"
-            >
-              <span
-                style="font-size: 10px; color: var(--text-secondary); flex-shrink: 0;"
-              >
-                ›
-              </span>
               <div
-                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                 title="Void Staff"
               >
                 <img
@@ -155,12 +171,37 @@ exports[`Items > renders all three sections with full data (archetypes default c
                   style="width: 100%; height: 100%; object-fit: cover;"
                 />
               </div>
+              <div
+                style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
+                title="Zhonya's Hourglass"
+              >
+                <img
+                  alt="Zhonya's Hourglass"
+                  src="mayhem-asset://items/3157.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
             </span>
+            <span
+              style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;"
+            >
+              ›
+            </span>
+            <div
+              style="width: 30px; height: 30px; flex-shrink: 0; border-radius: 4px; background: var(--bg-primary); border: 1px dashed var(--border);"
+            />
             <span
               style="font-size: 12px; color: var(--text-secondary); margin-left: auto;"
             >
               7
                games
+              <span
+                style="color: var(--text-muted); margin-left: 4px;"
+              >
+                (
+                16
+                %)
+              </span>
             </span>
             <span
               style="font-size: 12px; color: var(--green); margin-left: 8px;"
@@ -186,8 +227,20 @@ exports[`Items > renders all three sections with full data (archetypes default c
         Boots Stats
       </div>
       <table
-        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+        style="width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed;"
       >
+        <colgroup>
+          <col />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 110px;"
+          />
+        </colgroup>
         <thead>
           <tr
             style="color: var(--text-secondary); text-align: left;"
@@ -225,7 +278,7 @@ exports[`Items > renders all three sections with full data (archetypes default c
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Berserker's Greaves"
                 >
                   <img
@@ -250,9 +303,23 @@ exports[`Items > renders all three sections with full data (archetypes default c
               100%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--green);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              57.8%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 57.77777777777777%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--green);"
+              >
+                57.8
+                %
+              </span>
             </td>
           </tr>
         </tbody>
@@ -267,8 +334,20 @@ exports[`Items > renders all three sections with full data (archetypes default c
         Item Stats
       </div>
       <table
-        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+        style="width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed;"
       >
+        <colgroup>
+          <col />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 110px;"
+          />
+        </colgroup>
         <thead>
           <tr
             style="color: var(--text-secondary); text-align: left;"
@@ -306,7 +385,7 @@ exports[`Items > renders all three sections with full data (archetypes default c
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Lord Dominik's Regards"
                 >
                   <img
@@ -331,9 +410,23 @@ exports[`Items > renders all three sections with full data (archetypes default c
               89%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--green);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              55.0%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 55.00000000000001%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--green);"
+              >
+                55.0
+                %
+              </span>
             </td>
           </tr>
           <tr
@@ -346,7 +439,7 @@ exports[`Items > renders all three sections with full data (archetypes default c
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Infinity Edge"
                 >
                   <img
@@ -371,9 +464,23 @@ exports[`Items > renders all three sections with full data (archetypes default c
               84%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--text-primary);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              50.0%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 50%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--text-primary);"
+              >
+                50.0
+                %
+              </span>
             </td>
           </tr>
         </tbody>
@@ -388,6 +495,12 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
   <div
     style=""
   >
+    <style>
+      
+        .item-wr-bar { display: inline-block; width: 48px; height: 5px; background: var(--bg-primary); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 6px; }
+        .item-wr-fill { height: 100%; border-radius: 3px; }
+      
+    </style>
     <section
       style="margin-bottom: 28px;"
     >
@@ -397,8 +510,20 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
         Boots Stats
       </div>
       <table
-        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+        style="width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed;"
       >
+        <colgroup>
+          <col />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 110px;"
+          />
+        </colgroup>
         <thead>
           <tr
             style="color: var(--text-secondary); text-align: left;"
@@ -436,7 +561,7 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Berserker's Greaves"
                 >
                   <img
@@ -461,9 +586,23 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
               100%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--green);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              57.8%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 57.77777777777777%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--green);"
+              >
+                57.8
+                %
+              </span>
             </td>
           </tr>
         </tbody>
@@ -478,8 +617,20 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
         Item Stats
       </div>
       <table
-        style="width: 100%; border-collapse: collapse; font-size: 13px;"
+        style="width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed;"
       >
+        <colgroup>
+          <col />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 56px;"
+          />
+          <col
+            style="width: 110px;"
+          />
+        </colgroup>
         <thead>
           <tr
             style="color: var(--text-secondary); text-align: left;"
@@ -517,7 +668,7 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Lord Dominik's Regards"
                 >
                   <img
@@ -542,9 +693,23 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
               89%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--green);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              55.0%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 55.00000000000001%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--green);"
+              >
+                55.0
+                %
+              </span>
             </td>
           </tr>
           <tr
@@ -557,7 +722,7 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary);"
+                  style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--bg-secondary); box-sizing: border-box; border: medium;"
                   title="Infinity Edge"
                 >
                   <img
@@ -582,9 +747,23 @@ exports[`Items > renders boots and most-built sections when picks exist but no a
               84%
             </td>
             <td
-              style="padding: 6px 8px; text-align: right; color: var(--text-primary);"
+              style="padding: 6px 8px; text-align: right; white-space: nowrap;"
             >
-              50.0%
+              <span
+                class="item-wr-bar"
+                style="margin-left: 0px; margin-right: 6px;"
+              >
+                <span
+                  class="item-wr-fill"
+                  style="width: 50%; background: var(--green);"
+                />
+              </span>
+              <span
+                style="color: var(--text-primary);"
+              >
+                50.0
+                %
+              </span>
             </td>
           </tr>
         </tbody>

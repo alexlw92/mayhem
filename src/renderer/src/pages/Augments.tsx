@@ -41,12 +41,13 @@ const SELECT_STYLE = {
 
 interface Props {
   selectedPatches: string[] | null
+  selectedMode?: number
   initialChampionId?: number
   onMounted?: () => void
   onAugmentClick?: (augmentId: number) => void
 }
 
-export default function Augments({ selectedPatches, initialChampionId, onMounted, onAugmentClick }: Props) {
+export default function Augments({ selectedPatches, selectedMode, initialChampionId, onMounted, onAugmentClick }: Props) {
   const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(initialChampionId)
   const [champions, setChampions] = useState<ChampionOption[]>([])
   const [data, setData] = useState<AugmentStat[]>([])
@@ -64,30 +65,30 @@ export default function Augments({ selectedPatches, initialChampionId, onMounted
 
   useEffect(() => {
     if (selectedPatches === null) return
-    const key = selectedPatches.join(',')
+    const key = `${selectedMode ?? 2400}:${selectedPatches.join(',')}`
     const cached = championListCache.get(key)
     if (cached) { setChampions(cached); return }
-    api.db.championStats(undefined, selectedPatches).then((stats: { championId: number; championName: string }[]) => {
+    api.db.championStats(undefined, selectedPatches, selectedMode ?? 2400).then((stats: { championId: number; championName: string }[]) => {
       const sorted = stats
         .map((s) => ({ championId: s.championId, championName: s.championName }))
         .sort((a, b) => a.championName.localeCompare(b.championName))
       championListCache.set(key, sorted)
       setChampions(sorted)
     }).catch(() => {})
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   useEffect(() => {
     if (selectedPatches === null) return
-    const key = `${selectedPatches.join(',')}-${selectedChampionId ?? 'all'}`
+    const key = `${selectedMode ?? 2400}:${selectedPatches.join(',')}-${selectedChampionId ?? 'all'}`
     const cached = augmentStatsCache.get(key)
     if (cached) { setData(cached); setLoading(false); return }
     setLoading(true)
-    api.db.augmentStats(undefined, selectedChampionId, selectedPatches).then((d: AugmentStat[]) => {
+    api.db.augmentStats(undefined, selectedChampionId, selectedPatches, selectedMode ?? 2400).then((d: AugmentStat[]) => {
       augmentStatsCache.set(key, d)
       setData(d)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [selectedChampionId, selectedPatches])
+  }, [selectedChampionId, selectedPatches, selectedMode])
 
   const filtered = data
     .filter((a) => {

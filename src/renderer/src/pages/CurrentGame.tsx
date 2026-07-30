@@ -53,6 +53,7 @@ interface GlobalChampStat {
 
 interface Props {
   selectedPatches: string[] | null
+  selectedMode?: number
   onChampionClick?: (championId: number, championName: string) => void
 }
 
@@ -99,7 +100,7 @@ const SELECT_STYLE = {
   outline: 'none',
 }
 
-export default function CurrentGame({ selectedPatches, onChampionClick }: Props) {
+export default function CurrentGame({ selectedPatches, selectedMode, onChampionClick }: Props) {
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [playerStats, setPlayerStats] = useState<Record<string, PlayerStats | null>>({})
   const [championStats, setChampionStats] = useState<Record<string, ChampionStat[]>>({})
@@ -124,14 +125,14 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
 
   useEffect(() => {
     if (!selectedPatches?.length) return
-    api.db.championStats(undefined, selectedPatches)
+    api.db.championStats(undefined, selectedPatches, selectedMode ?? 2400)
       .then((rows: { championId: number; games: number; wins: number }[]) => {
         const map: Record<number, GlobalChampStat> = {}
         for (const r of rows) map[r.championId] = { games: r.games, wins: r.wins }
         setGlobalChampStats(map)
       })
       .catch(() => {})
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   const prevPhaseRef = useRef<string | null>(null)
   const allPuuidsRef = useRef<string[]>([])
@@ -193,7 +194,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
             for (const puuid of newPuuids) next[puuid] = undefined as any
             return next
           })
-          api.db.playerBulkStats(newPuuids, selectedPatches ?? undefined)
+          api.db.playerBulkStats(newPuuids, selectedPatches ?? undefined, selectedMode ?? 2400)
             .then((map: Record<string, PlayerStats>) => {
               setPlayerStats((prev) => {
                 const next = { ...prev }
@@ -217,7 +218,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
           if (p.championId && p.championId !== 0) {
             setChampionStats((prev) => {
               if (p.puuid in prev) return prev
-              api.db.championStats(p.puuid, selectedPatches ?? undefined)
+              api.db.championStats(p.puuid, selectedPatches ?? undefined, selectedMode ?? 2400)
                 .then((rows: ChampionStat[]) => setChampionStats((cur) => ({ ...cur, [p.puuid]: rows })))
                 .catch(() => setChampionStats((cur) => ({ ...cur, [p.puuid]: [] })))
               return { ...prev, [p.puuid]: undefined as any }
@@ -245,7 +246,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
     const unsub = api.on('sync-progress', ({ puuid }: { puuid: string }) => {
       if (!puuid || !fetchedPuuidsRef.current.has(puuid)) return
 
-      api.db.playerBulkStats([puuid], selectedPatches ?? undefined)
+      api.db.playerBulkStats([puuid], selectedPatches ?? undefined, selectedMode ?? 2400)
         .then((map: Record<string, PlayerStats>) => {
           const s = map[puuid] ?? null
           setPlayerStats((prev) => ({ ...prev, [puuid]: s }))
@@ -253,7 +254,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
         })
         .catch(() => {})
 
-      api.db.championStats(puuid, selectedPatches ?? undefined)
+      api.db.championStats(puuid, selectedPatches ?? undefined, selectedMode ?? 2400)
         .then((rows: ChampionStat[]) => setChampionStats((prev) => ({ ...prev, [puuid]: rows })))
         .catch(() => {})
 
@@ -273,7 +274,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
     if (!champId) return
     if (champAugStats?.championId === champId) return
     setChampAugStats({ data: undefined, championId: champId })
-    api.db.augmentStats(undefined, champId, selectedPatches ?? undefined)
+    api.db.augmentStats(undefined, champId, selectedPatches ?? undefined, selectedMode ?? 2400)
       .then((rows: AugmentStat[]) => setChampAugStats({ data: rows, championId: champId }))
       .catch(() => setChampAugStats({ data: [], championId: champId }))
   }, [myPuuid, gameState, selectedPatches, champAugStats?.championId])
@@ -493,7 +494,7 @@ export default function CurrentGame({ selectedPatches, onChampionClick }: Props)
             )}
           </div>
           <div className="card" style={{ padding: '12px 16px' }}>
-            <Items championId={myChampId} selectedPatches={selectedPatches} buildsOnly />
+            <Items championId={myChampId} selectedPatches={selectedPatches} selectedMode={selectedMode} buildsOnly />
           </div>
         </div>
       )}

@@ -8,12 +8,13 @@ interface Props {
   championId: number
   championName: string
   selectedPatches: string[] | null
+  selectedMode?: number
   metaKey: number
   onBack: () => void
   onAugmentClick: (augmentId: number) => void
 }
 
-export default function ChampionDetail({ championId, championName, selectedPatches, metaKey, onBack, onAugmentClick }: Props) {
+export default function ChampionDetail({ championId, championName, selectedPatches, selectedMode, metaKey, onBack, onAugmentClick }: Props) {
   const [tab, setTab] = useState<Tab>('augments')
 
   return (
@@ -62,6 +63,7 @@ export default function ChampionDetail({ championId, championName, selectedPatch
       {tab === 'augments' && (
         <Augments
           selectedPatches={selectedPatches}
+          selectedMode={selectedMode}
           initialChampionId={championId}
           onMounted={() => {}}
           onAugmentClick={(id) => onAugmentClick(id)}
@@ -69,7 +71,7 @@ export default function ChampionDetail({ championId, championName, selectedPatch
       )}
 
       {tab === 'items' && (
-        <Items championId={championId} selectedPatches={selectedPatches} metaKey={metaKey} />
+        <Items championId={championId} selectedPatches={selectedPatches} selectedMode={selectedMode} metaKey={metaKey} />
       )}
     </div>
   )

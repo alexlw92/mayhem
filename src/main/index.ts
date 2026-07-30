@@ -466,83 +466,31 @@ ipcMain.handle('lcu:lookupPlayer', async (_e, gameName: string, tagLine: string)
 })
 
 ipcMain.handle('db:patches', () => apiClient.patches())
-ipcMain.handle('db:playerStats', (_e, patches?: string[]) => apiClient.playerStats(patches))
-ipcMain.handle('db:playerOneStats', (_e, puuid: string, patches?: string[]) => apiClient.playerOneStats(puuid, patches))
-ipcMain.handle('db:playerBulkStats', (_e, puuids: string[], patches?: string[]) => apiClient.playerBulkStats(puuids, patches))
-ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[]) => apiClient.championStats(puuid, patches))
-ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[]) => apiClient.recentMatches(limit, puuid, patches))
-ipcMain.handle('db:winRateTrend', (_e, puuid?: string, days?: number) => apiClient.winRateTrend(puuid, days))
-ipcMain.handle('db:groupSummary', () => apiClient.groupSummary())
+ipcMain.handle('db:playerStats', (_e, patches?: string[], queueId = 2400) => apiClient.playerStats(patches, queueId))
+ipcMain.handle('db:playerOneStats', (_e, puuid: string, patches?: string[], queueId = 2400) => apiClient.playerOneStats(puuid, patches, queueId))
+ipcMain.handle('db:playerBulkStats', (_e, puuids: string[], patches?: string[], queueId = 2400) => apiClient.playerBulkStats(puuids, patches, queueId))
+ipcMain.handle('db:championStats', (_e, puuid?: string, patches?: string[], queueId = 2400) => apiClient.championStats(puuid, patches, queueId))
+ipcMain.handle('db:recentMatches', (_e, limit?: number, puuid?: string, patches?: string[], queueId?: number) => apiClient.recentMatches(limit, puuid, patches, queueId))
 ipcMain.handle('db:championCache', () => apiClient.championCache())
 ipcMain.handle('db:augmentCache', () => getAugmentCache())
-ipcMain.handle('db:itemCache', () => getItemCache())
 
 const itemResultCache = new Map<string, { data: unknown; expires: number }>()
 const ITEM_CACHE_TTL_MS = 5 * 60 * 1000
-ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number, patches?: string[]) => {
-  const stats = await apiClient.augmentStats(puuid, championId, patches)
+ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number, patches?: string[], queueId = 2400) => {
+  const stats = await apiClient.augmentStats(puuid, championId, patches, queueId)
   const cache = getAugmentCache()
   return stats.map((s: any) => ({ ...s, iconPath: cache[s.augmentId]?.iconPath ?? s.iconPath, rarity: cache[s.augmentId]?.rarity ?? s.rarity }))
 })
-ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[]) => apiClient.augmentChampionStats(augmentId, puuid, patches))
+ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[], queueId = 2400) => apiClient.augmentChampionStats(augmentId, puuid, patches, queueId))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
-ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[]) => apiClient.coplayerStats(puuid, patches))
+ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[], queueId?: number) => apiClient.coplayerStats(puuid, patches, queueId))
 
-ipcMain.handle('db:itemBuilds', async (_e, championId: number, patches?: string[]) => {
-  const cache = getItemCache()
-  const allowedIds = Object.entries(cache)
-    .filter(([, v]) => v.category !== 'Boots')
-    .map(([k]) => Number(k))
-  const builds = await apiClient.itemBuilds(championId, patches, allowedIds)
-  return (builds as any[]).map((b) => ({
-    ...b,
-    items: (b.build as number[]).map((id) => ({
-      id,
-      name: cache[id]?.name ?? `Item ${id}`,
-      iconPath: cache[id]?.iconPath ?? '',
-      category: cache[id]?.category ?? '',
-    }))
-  }))
-})
-
-ipcMain.handle('db:itemPickRates', async (_e, championId: number, patches?: string[]) => {
-  const key = `picks:${championId}:${(patches ?? []).slice().sort().join(',')}`
+ipcMain.handle('db:itemSummary', async (_e, championId: number, patches?: string[], queueId = 2400) => {
+  const key = `summary:${championId}:${queueId}:${(patches ?? []).slice().sort().join(',')}`
   const hit = itemResultCache.get(key)
   if (hit && hit.expires > Date.now()) return hit.data
 
-  const result = await apiClient.itemPickRates(championId, patches)
-  const localCache = getItemCache()
-  const enriched = {
-    totalGames: result.totalGames,
-    items: (result.items as any[]).map((p) => ({
-      itemId:   p.itemId,
-      picks:    p.picks,
-      wins:     p.wins,
-      name:     localCache[p.itemId]?.name     ?? p.name     ?? `Item ${p.itemId}`,
-      iconPath: localCache[p.itemId]?.iconPath ?? p.iconPath ?? '',
-      category: localCache[p.itemId]?.category ?? p.category ?? '',
-    })),
-  }
-  itemResultCache.set(key, { data: enriched, expires: Date.now() + ITEM_CACHE_TTL_MS })
-  return enriched
-})
-
-ipcMain.handle('db:itemArchetypes', async (_e, championId: number, patches?: string[]) => {
-  const key = `archetypes:${championId}:${(patches ?? []).slice().sort().join(',')}`
-  const hit = itemResultCache.get(key)
-  if (hit && hit.expires > Date.now()) return hit.data
-
-  const data = await apiClient.itemArchetypes(championId, patches)
-  itemResultCache.set(key, { data, expires: Date.now() + ITEM_CACHE_TTL_MS })
-  return data
-})
-
-ipcMain.handle('db:itemSummary', async (_e, championId: number, patches?: string[]) => {
-  const key = `summary:${championId}:${(patches ?? []).slice().sort().join(',')}`
-  const hit = itemResultCache.get(key)
-  if (hit && hit.expires > Date.now()) return hit.data
-
-  const data = await apiClient.itemSummary(championId, patches)
+  const data = await apiClient.itemSummary(championId, patches, queueId)
   itemResultCache.set(key, { data, expires: Date.now() + ITEM_CACHE_TTL_MS })
   return data
 })

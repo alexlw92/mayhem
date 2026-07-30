@@ -24,12 +24,13 @@ function kda(kills: number, deaths: number, assists: number): string {
 
 interface Props {
   selectedPatches: string[] | null
+  selectedMode?: number
   onChampionClick?: (championId: number, championName: string) => void
 }
 
 const MIN_GAMES_OPTIONS = [0, 20, 50, 100]
 
-export default function Champions({ selectedPatches, onChampionClick }: Props) {
+export default function Champions({ selectedPatches, selectedMode, onChampionClick }: Props) {
   const [data, setData] = useState<ChampionStat[]>([])
   const [sort, setSort] = useState<SortKey>('games')
   const [search, setSearch] = useState('')
@@ -39,11 +40,11 @@ export default function Champions({ selectedPatches, onChampionClick }: Props) {
   useEffect(() => {
     if (selectedPatches === null) return
     setLoading(true)
-    api.db.championStats(undefined, selectedPatches).then((d: ChampionStat[]) => {
+    api.db.championStats(undefined, selectedPatches, selectedMode ?? 2400).then((d: ChampionStat[]) => {
       setData(d)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   const filtered = data
     .filter((c) => c.games >= minGames && c.championName.toLowerCase().includes(search.toLowerCase()))

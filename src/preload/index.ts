@@ -19,26 +19,19 @@ const api = {
   },
   db: {
     patches: () => ipcRenderer.invoke('db:patches'),
-    playerStats: (patches?: string[]) => ipcRenderer.invoke('db:playerStats', patches),
-    playerOneStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:playerOneStats', puuid, patches),
-    playerBulkStats: (puuids: string[], patches?: string[]) => ipcRenderer.invoke('db:playerBulkStats', puuids, patches),
-    championStats: (puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:championStats', puuid, patches),
-    recentMatches: (limit?: number, puuid?: string, patches?: string[]) =>
-      ipcRenderer.invoke('db:recentMatches', limit, puuid, patches),
-    winRateTrend: (puuid?: string, days?: number) =>
-      ipcRenderer.invoke('db:winRateTrend', puuid, days),
-    groupSummary: () => ipcRenderer.invoke('db:groupSummary'),
+    playerStats: (patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:playerStats', patches, queueId),
+    playerOneStats: (puuid: string, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:playerOneStats', puuid, patches, queueId),
+    playerBulkStats: (puuids: string[], patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:playerBulkStats', puuids, patches, queueId),
+    championStats: (puuid?: string, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:championStats', puuid, patches, queueId),
+    recentMatches: (limit?: number, puuid?: string, patches?: string[], queueId?: number) =>
+      ipcRenderer.invoke('db:recentMatches', limit, puuid, patches, queueId),
     championCache: () => ipcRenderer.invoke('db:championCache'),
     augmentCache: () => ipcRenderer.invoke('db:augmentCache'),
-    augmentStats: (puuid?: string, championId?: number, patches?: string[]) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches),
-    augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[]) => ipcRenderer.invoke('db:augmentChampionStats', augmentId, puuid, patches),
+    augmentStats: (puuid?: string, championId?: number, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:augmentStats', puuid, championId, patches, queueId),
+    augmentChampionStats: (augmentId: number, puuid?: string, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:augmentChampionStats', augmentId, puuid, patches, queueId),
     searchPlayers: (query: string) => ipcRenderer.invoke('db:searchPlayers', query),
-    coplayerStats: (puuid: string, patches?: string[]) => ipcRenderer.invoke('db:coplayerStats', puuid, patches),
-    itemCache: () => ipcRenderer.invoke('db:itemCache'),
-    itemBuilds: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemBuilds', championId, patches),
-    itemPickRates: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemPickRates', championId, patches),
-    itemArchetypes: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemArchetypes', championId, patches),
-    itemSummary: (championId: number, patches?: string[]) => ipcRenderer.invoke('db:itemSummary', championId, patches)
+    coplayerStats: (puuid: string, patches?: string[], queueId?: number) => ipcRenderer.invoke('db:coplayerStats', puuid, patches, queueId),
+    itemSummary: (championId: number, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:itemSummary', championId, patches, queueId)
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

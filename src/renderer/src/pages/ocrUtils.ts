@@ -44,6 +44,7 @@ export function matchAugments(text: string, cache: AugCacheMap): number[] {
       matched.push(Number(idStr))
       // Blank out the matched region (preserves string length so other positions stay valid)
       remaining = remaining.slice(0, from) + ' '.repeat(to - from) + remaining.slice(to)
+      if (matched.length >= 3) break
     }
   }
   return matched

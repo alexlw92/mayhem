@@ -22,6 +22,7 @@ interface Props {
   augmentId: number
   puuid?: string
   selectedPatches: string[] | null
+  selectedMode?: number
   onBack: () => void
 }
 
@@ -30,7 +31,7 @@ type SortKey = 'championName' | 'games' | 'winRate'
 const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
 const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
 
-export default function AugmentDetail({ augmentId, puuid, selectedPatches, onBack }: Props) {
+export default function AugmentDetail({ augmentId, puuid, selectedPatches, selectedMode, onBack }: Props) {
   const [data, setData] = useState<AugmentChampionStat[]>([])
   const [augmentCache, setAugmentCache] = useState<Record<number, AugmentInfo>>({})
   const [loading, setLoading] = useState(true)
@@ -44,10 +45,10 @@ export default function AugmentDetail({ augmentId, puuid, selectedPatches, onBac
   useEffect(() => {
     if (selectedPatches === null) return
     setLoading(true)
-    api.db.augmentChampionStats(augmentId, puuid, selectedPatches)
+    api.db.augmentChampionStats(augmentId, puuid, selectedPatches, selectedMode ?? 2400)
       .then((d: AugmentChampionStat[]) => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [augmentId, puuid, selectedPatches])
+  }, [augmentId, puuid, selectedPatches, selectedMode])
 
   const augment = augmentCache[augmentId]
   const rarityColor = augment ? (RARITY_COLOR[augment.rarity] ?? RARITY_COLOR[0]) : RARITY_COLOR[0]

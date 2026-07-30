@@ -605,27 +605,6 @@ describe('GET /api/players/:puuid/matches', () => {
   })
 })
 
-describe('GET /api/players/:puuid/trend', () => {
-  it('returns empty array when no data', async () => {
-    const res = await request(app).get('/api/players/test-puuid-1/trend')
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual([])
-  })
-
-  it('returns daily win rate entries when days covers match dates', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
-    const oldestMs = Math.min(sampleMatch.gameCreation, sampleMatch2.gameCreation, sampleMatch3.gameCreation)
-    const days = Math.ceil((Date.now() - oldestMs) / (24 * 60 * 60 * 1000)) + 2
-    const res = await request(app).get(`/api/players/test-puuid-1/trend?days=${days}`)
-    expect(res.status).toBe(200)
-    expect(res.body.length).toBeGreaterThan(0)
-    const entry = res.body[0]
-    expect(entry).toHaveProperty('date')
-    expect(entry).toHaveProperty('winRate')
-    expect(entry).toHaveProperty('games')
-  })
-})
-
 describe('GET /api/players/:puuid/name', () => {
   it('returns null for unknown puuid', async () => {
     const res = await request(app).get('/api/players/unknown-puuid/name')
@@ -638,35 +617,6 @@ describe('GET /api/players/:puuid/name', () => {
     const res = await request(app).get('/api/players/test-puuid-1/name')
     expect(res.status).toBe(200)
     expect(res.body).toBe('Foo#NA1')
-  })
-})
-
-// ─── Group summary ─────────────────────────────────────────────────────────────
-
-describe('GET /api/group', () => {
-  it('returns zero stats when no data', async () => {
-    const res = await request(app).get('/api/group')
-    expect(res.status).toBe(200)
-    expect(res.body.totalMatches).toBe(0)
-    expect(res.body.avgWinRate).toBe(0)
-    expect(res.body.avgDpm).toBe(0)
-  })
-
-  it('returns aggregate stats across all players after insert', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
-    const res = await request(app).get('/api/group')
-    expect(res.status).toBe(200)
-    expect(res.body.totalMatches).toBe(2)
-    expect(res.body.avgDpm).toBeGreaterThan(0)
-    expect(typeof res.body.avgWinRate).toBe('number')
-    expect(typeof res.body.avgKda).toBe('number')
-  })
-
-  it('avgWinRate and avgKda are non-zero when there are wins and kills', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
-    const res = await request(app).get('/api/group')
-    expect(res.body.avgWinRate).toBeGreaterThan(0)
-    expect(res.body.avgKda).toBeGreaterThan(0)
   })
 })
 
@@ -1103,5 +1053,144 @@ describe('GET /api/items/builds', () => {
     expect(res.status).toBe(200)
     const total = res.body.reduce((s: number, r: any) => s + r.games, 0)
     expect(total).toBe(1)
+  })
+})
+
+// ─── Queue ID isolation ────────────────────────────────────────────────────────
+
+const classicMatch: Match = {
+  ...sampleMatch,
+  gameId: 8001,
+  queueId: 2450,
+}
+
+const classicMatchWithItems: Match = {
+  ...matchWithItems,
+  gameId: 9100,
+  queueId: 2450,
+}
+
+describe('queueId isolation — champion stats', () => {
+  it('GET /api/champions returns empty for queueId=2450 when only 2400 data exists', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/champions?queueId=2450')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('GET /api/champions returns 2450 data only when queried with queueId=2450', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    const r2400 = await request(app).get('/api/champions?queueId=2400')
+    const r2450 = await request(app).get('/api/champions?queueId=2450')
+    expect(r2400.body.find((c: any) => c.championId === 10).games).toBe(1)
+    expect(r2450.body.find((c: any) => c.championId === 10).games).toBe(1)
+    // totals are separate — each queue has exactly 1 game for champ 10
+    expect(r2400.body.find((c: any) => c.championId === 10).wins).toBe(1)
+    expect(r2450.body.find((c: any) => c.championId === 10).wins).toBe(1)
+  })
+
+  it('GET /api/players/:puuid/champions?queueId=2450 is empty when only 2400 games', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/champions?queueId=2450')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+})
+
+describe('queueId isolation — player stats', () => {
+  it('GET /api/players/:puuid/stats?queueId=2450 returns null when only 2400 data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/players/test-puuid-1/stats?queueId=2450')
+    expect(res.status).toBe(200)
+    expect(res.body).toBeNull()
+  })
+
+  it('POST /api/players/bulk-stats?queueId=2450 returns empty when only 2400 data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).post('/api/players/bulk-stats?queueId=2450').send({ puuids: ['test-puuid-1'] })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({})
+  })
+
+  it('player stats are stored separately — 2400 game count is unaffected by 2450 insert', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    const r2400 = await request(app).get('/api/players/test-puuid-1/stats?queueId=2400')
+    const r2450 = await request(app).get('/api/players/test-puuid-1/stats?queueId=2450')
+    expect(r2400.body.games).toBe(1)
+    expect(r2450.body.games).toBe(1)
+  })
+})
+
+describe('queueId isolation — augment stats', () => {
+  it('GET /api/augments?queueId=2450 returns empty when only 2400 data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments?queueId=2450')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('GET /api/augments?queueId=2400 ignores 2450 games', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [classicMatch] })
+    const res = await request(app).get('/api/augments?queueId=2400')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+
+  it('each queue accumulates its own augment pick count', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    const r2400 = await request(app).get('/api/augments?queueId=2400')
+    const r2450 = await request(app).get('/api/augments?queueId=2450')
+    const aug2400 = r2400.body.find((a: any) => a.augmentId === 200)
+    const aug2450 = r2450.body.find((a: any) => a.augmentId === 200)
+    expect(aug2400?.pickCount).toBe(1)
+    expect(aug2450?.pickCount).toBe(1)
+  })
+
+  it('GET /api/augments/:id/champions?queueId=2450 returns empty for 2400-only data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments/200/champions?queueId=2450')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
+  })
+})
+
+describe('queueId isolation — item stats', () => {
+  it('GET /api/items/picks?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2450`)
+    expect(res.status).toBe(200)
+    expect(res.body.items).toEqual([])
+    expect(res.body.totalGames).toBe(0)
+  })
+
+  it('GET /api/items/picks?championId=X&queueId=2400 ignores 2450 games', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [classicMatchWithItems] })
+    const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2400`)
+    expect(res.status).toBe(200)
+    expect(res.body.items).toEqual([])
+  })
+
+  it('item pick counts are stored separately per queue', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, classicMatchWithItems] })
+    const r2400 = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2400`)
+    const r2450 = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2450`)
+    expect(r2400.body.totalGames).toBe(1)
+    expect(r2450.body.totalGames).toBe(1)
+  })
+
+  it('GET /api/items/summary?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&queueId=2450`)
+    expect(res.status).toBe(200)
+    expect(res.body.totalGames).toBe(0)
+    expect(res.body.items).toEqual([])
+    expect(res.body.archetypes).toEqual([])
+  })
+
+  it('GET /api/items/builds?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&queueId=2450`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual([])
   })
 })

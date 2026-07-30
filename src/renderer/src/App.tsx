@@ -37,6 +37,7 @@ export default function App() {
   const [augmentDetailOrigin, setAugmentDetailOrigin] = useState<'augments' | 'players'>('augments')
   const [championDetailOrigin, setChampionDetailOrigin] = useState<Page>('champions')
   const [augmentDetailPuuid, setAugmentDetailPuuid] = useState<string | null>(null)
+  const [selectedMode, setSelectedMode] = useState<number>(2400)
   const [patchExpanded, setPatchExpanded] = useState(false)
   const [selectedPlayerPuuid, setSelectedPlayerPuuid] = useState<string | null>(null)
   const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null)
@@ -235,6 +236,24 @@ export default function App() {
           ))}
         </ul>
 
+        <div className="sidebar-mode">
+          <div className="sidebar-patch-label">Mode</div>
+          <div className="sidebar-mode-btns">
+            <button
+              className={`mode-btn ${selectedMode === 2400 ? 'active' : ''}`}
+              onClick={() => setSelectedMode(2400)}
+            >
+              Mayhem
+            </button>
+            <button
+              className={`mode-btn ${selectedMode === 2450 ? 'active' : ''}`}
+              onClick={() => setSelectedMode(2450)}
+            >
+              Classic
+            </button>
+          </div>
+        </div>
+
         <div className="sidebar-patch">
           <div className="sidebar-patch-header">
             <span className="sidebar-patch-label">Patch</span>
@@ -343,6 +362,7 @@ export default function App() {
           <Players
             onPlayersChange={refreshPlayers}
             selectedPatches={selectedPatches}
+            selectedMode={selectedMode}
             selectedPuuid={selectedPlayerPuuid}
             onPlayerSelect={(puuid, name) => { setSelectedPlayerPuuid(puuid); setSelectedPlayerName(name) }}
             onPlayerDeselect={() => { setSelectedPlayerPuuid(null); setSelectedPlayerName(null) }}
@@ -352,6 +372,7 @@ export default function App() {
         <div style={{ display: page === 'champions' ? 'block' : 'none' }}>
           <Champions
             selectedPatches={selectedPatches}
+            selectedMode={selectedMode}
             onChampionClick={(championId, championName) => {
               setSelectedChampionId(championId)
               setSelectedChampionName(championName)
@@ -363,6 +384,7 @@ export default function App() {
         <div style={{ display: page === 'augments' ? 'block' : 'none' }}>
           <Augments
             selectedPatches={selectedPatches}
+            selectedMode={selectedMode}
             onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
           />
         </div>
@@ -372,6 +394,7 @@ export default function App() {
               augmentId={selectedAugmentId}
               puuid={augmentDetailPuuid ?? undefined}
               selectedPatches={selectedPatches}
+              selectedMode={selectedMode}
               onBack={() => setPage(augmentDetailOrigin)}
             />
           )}
@@ -379,6 +402,7 @@ export default function App() {
         <div style={{ display: page === 'current-game' ? 'block' : 'none' }}>
           <CurrentGame
             selectedPatches={selectedPatches}
+            selectedMode={selectedMode}
             onChampionClick={(championId, championName) => {
               setSelectedChampionId(championId)
               setSelectedChampionName(championName)
@@ -393,6 +417,7 @@ export default function App() {
               championId={selectedChampionId}
               championName={selectedChampionName}
               selectedPatches={selectedPatches}
+              selectedMode={selectedMode}
               metaKey={metaKey}
               onBack={() => setPage(championDetailOrigin)}
               onAugmentClick={(id) => handleAugmentClick(id, 'augments')}

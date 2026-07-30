@@ -105,8 +105,8 @@ export interface LCUParticipantIdentity {
   }
 }
 
-// ARAM Mayhem queue ID — Riot internal game mode "KIWI"
-export const ARAM_MAYHEM_QUEUE_ID = 2400
+// ARAM Mayhem queue IDs — 2400 = Mayhem, 2450 = Classic (verify 2450 in-game)
+export const MAYHEM_QUEUE_IDS = [2400, 2450]
 
 let credentials: LCUCredentials | null = null
 let axiosInstance: ReturnType<typeof axios.create> | null = null
@@ -193,7 +193,7 @@ export async function getMatchHistory(
     )
     const all: LCUMatchHistoryGame[] = res.data.games?.games ?? []
     return {
-      games: all.filter((g) => g.queueId === ARAM_MAYHEM_QUEUE_ID),
+      games: all.filter((g) => MAYHEM_QUEUE_IDS.includes(g.queueId)),
       totalInWindow: all.length
     }
   } catch (err: any) {

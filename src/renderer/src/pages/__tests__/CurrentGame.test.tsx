@@ -10,6 +10,7 @@ const mockApi = {
     currentGame: vi.fn().mockResolvedValue(null),
     syncCurrentGame: vi.fn().mockResolvedValue({ ok: true }),
     currentSummoner: vi.fn().mockResolvedValue({ puuid: 'p1' }),
+    ocrScreen: vi.fn().mockResolvedValue({ text: null, dataUrl: null }),
   },
   db: {
     playerOneStats: vi.fn().mockResolvedValue({ games: 10, wins: 6, avgDpm: 800 }),
@@ -26,6 +27,7 @@ const mockApi = {
     augmentStats: vi.fn().mockResolvedValue([
       { augmentId: 200, name: 'Iron Will', rarity: 0, iconPath: '', pickCount: 5, wins: 3, avgDpm: 800 },
     ]),
+    itemSummary: vi.fn().mockResolvedValue({ archetypes: [], totalGames: 0, items: [] }),
   }
 }
 ;(window as any).api = mockApi

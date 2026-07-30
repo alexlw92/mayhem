@@ -35,6 +35,7 @@ interface PickRow {
 interface Props {
   championId: number
   selectedPatches: string[] | null
+  selectedMode?: number
   metaKey?: number
   buildsOnly?: boolean
 }
@@ -47,7 +48,7 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 8,
 }
 
-export default function Items({ championId, selectedPatches, metaKey, buildsOnly }: Props) {
+export default function Items({ championId, selectedPatches, selectedMode, metaKey, buildsOnly }: Props) {
   const [archetypes, setArchetypes] = useState<Archetype[]>([])
   const [picks, setPicks] = useState<PickRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -57,7 +58,7 @@ export default function Items({ championId, selectedPatches, metaKey, buildsOnly
 
   useEffect(() => {
     if (selectedPatches === null) return
-    const key = `${championId}:${(selectedPatches ?? []).slice().sort().join(',')}`
+    const key = `${selectedMode ?? 2400}:${championId}:${(selectedPatches ?? []).slice().sort().join(',')}`
     const hit = summaryCache.get(key)
     if (hit && hit.expires > Date.now()) {
       setArchetypes(hit.data.archetypes)
@@ -66,7 +67,7 @@ export default function Items({ championId, selectedPatches, metaKey, buildsOnly
       return
     }
     setLoading(true)
-    api.db.itemSummary(championId, selectedPatches)
+    api.db.itemSummary(championId, selectedPatches, selectedMode ?? 2400)
       .then((r: { archetypes: Archetype[]; totalGames: number; items: PickRow[] }) => {
         summaryCache.set(key, { data: r, expires: Date.now() + SUMMARY_CACHE_TTL_MS })
         setArchetypes(r.archetypes)
@@ -74,7 +75,7 @@ export default function Items({ championId, selectedPatches, metaKey, buildsOnly
         setTotalGames(r.totalGames)
         setLoading(false)
       }).catch(() => setLoading(false))
-  }, [championId, selectedPatches, metaKey])
+  }, [championId, selectedPatches, selectedMode, metaKey])
 
   if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13, padding: '16px 0' }}>Loading…</div>
 

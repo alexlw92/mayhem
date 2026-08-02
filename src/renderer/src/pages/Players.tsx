@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import AugmentIcon from '../components/AugmentIcon'
+import AugmentStatsTable from '../components/AugmentStatsTable'
+import ChampionStatsTable from '../components/ChampionStatsTable'
 import './Dashboard.css'
 
 const api = (window as any).api
@@ -18,6 +20,15 @@ interface PlayerStats {
   avgGold: number
   syncedFull: boolean
   syncedAt: number
+  elo: number | null
+}
+
+interface EloEntry {
+  gameId: number
+  elo_before: number
+  elo_after: number
+  delta: number
+  gameCreation: number
 }
 
 interface MatchParticipant {
@@ -74,9 +85,17 @@ export interface CoplayerStat {
   wins: number
 }
 
-type Tab = 'matches' | 'champions' | 'augments' | 'coplayers'
-type ChampionSortKey = 'games' | 'winRate' | 'kda' | 'avgDpm'
-type AugmentSortKey = 'pickCount' | 'winRate' | 'avgDpm'
+type Tab = 'matches' | 'champions' | 'augments' | 'coplayers' | 'elo'
+type PlayerListView = 'recent' | 'leaderboard'
+
+interface LeaderboardEntry {
+  puuid: string
+  summonerName: string
+  elo: number
+  gamesRated: number
+  games: number
+  wins: number
+}
 type CoplayerSortKey = 'games' | 'winRate'
 
 const RECENT_KEY = 'mayhem-recent-players'
@@ -149,7 +168,7 @@ export default function Players({ onPlayersChange, selectedPatches, selectedMode
           const placeholder: PlayerStats = {
             puuid: newPuuid, summonerName: name,
             games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
+            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0, elo: null,
           }
           setSelectedPlayerData(placeholder)
           onPlayerSelect(newPuuid, name)
@@ -217,7 +236,7 @@ function RecentPlayerCard({
   const placeholder: PlayerStats = {
     puuid: entry.puuid, summonerName: entry.riotId,
     games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-    avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
+    avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0, elo: null,
   }
 
   return (
@@ -233,6 +252,9 @@ function RecentPlayerCard({
             <span className={wr! >= 0.5 ? 'win' : 'loss'}>{((wr!) * 100).toFixed(0)}%WR</span>
             <span>{kda(stats.kills, stats.deaths, stats.assists)} KDA</span>
             <span style={{ color: 'var(--text-muted)' }}>{Math.round(stats.avgDpm)}/min</span>
+            {stats.elo != null && (
+              <span style={{ color: 'var(--blue-light)', fontWeight: 600 }}>{Math.round(stats.elo)} ELO</span>
+            )}
           </div>
         ) : (
           <div className="recent-card-empty">Loading…</div>
@@ -278,6 +300,7 @@ function PlayerList({
   selectedPatches: string[] | null
   selectedMode?: number
 }) {
+  const [view, setView] = useState<PlayerListView>('recent')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [addInput, setAddInput] = useState('')
@@ -361,6 +384,18 @@ function PlayerList({
     <div>
       <h1 className="page-title">Players</h1>
 
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        <button className={`mode-btn${view === 'recent' ? ' active' : ''}`} onClick={() => setView('recent')}>Recent</button>
+        <button className={`mode-btn${view === 'leaderboard' ? ' active' : ''}`} onClick={() => setView('leaderboard')}>Leaderboard</button>
+      </div>
+
+      {view === 'leaderboard' ? (
+        <EloLeaderboard selectedMode={selectedMode} onPlayerSelect={(puuid, name) => {
+          const placeholder: PlayerStats = { puuid, summonerName: name, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0, elo: null }
+          onSelect(puuid, placeholder)
+        }} />
+      ) : (<>
+
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
         <div className="card" style={{ flex: 2, padding: '12px 16px' }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>Search players</div>
@@ -384,7 +419,7 @@ function PlayerList({
                           const placeholder: PlayerStats = {
                             puuid: r.puuid, summonerName: r.summonerName,
                             games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
-                            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0,
+                            avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0, elo: null,
                           }
                           const next = [{ riotId: r.summonerName, puuid: r.puuid }, ...recents.filter(e => e.puuid !== r.puuid)].slice(0, MAX_RECENT)
                           setRecents(next)
@@ -493,6 +528,71 @@ function PlayerList({
         .recent-item { padding: 7px 10px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
         .recent-item:hover { background: var(--bg-primary); color: var(--blue-light); }
       `}</style>
+      </>)}
+    </div>
+  )
+}
+
+// ─── Elo leaderboard ─────────────────────────────────────────────────────────
+
+function EloLeaderboard({ selectedMode, onPlayerSelect }: { selectedMode?: number; onPlayerSelect: (puuid: string, name: string) => void }) {
+  const [data, setData] = useState<LeaderboardEntry[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.db.eloLeaderboard(selectedMode ?? 2400)
+      .then(setData)
+      .catch(() => setData([]))
+      .finally(() => setLoading(false))
+  }, [selectedMode])
+
+  if (loading) return <div className="empty-state"><div>Loading…</div></div>
+
+  if (data.length === 0) {
+    return (
+      <div className="empty-state">
+        <div>No elo ratings yet</div>
+        <p>Elo ratings will appear after your next sync</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <th style={{ padding: '8px 12px', textAlign: 'right', width: 36 }}>#</th>
+            <th style={{ padding: '8px 12px', textAlign: 'left' }}>Player</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Elo</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Games</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Win Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => {
+            const wr = row.games > 0 ? row.wins / row.games : 0
+            return (
+              <tr
+                key={row.puuid}
+                onClick={() => onPlayerSelect(row.puuid, row.summonerName)}
+                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}
+              >
+                <td style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 600 }}>{i + 1}</td>
+                <td style={{ padding: '9px 12px', color: 'var(--blue-light)', fontWeight: 600 }}>{row.summonerName}</td>
+                <td style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--blue-light)', fontWeight: 700 }}>{Math.round(row.elo)}</td>
+                <td style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{row.gamesRated}</td>
+                <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                  <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -507,6 +607,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
   const [augmentStats, setAugmentStats] = useState<AugmentStat[]>([])
   const [augmentCache, setAugmentCache] = useState<Record<number, AugmentInfo>>({})
   const [coplayerStats, setCoplayerStats] = useState<CoplayerStat[]>([])
+  const [eloHistory, setEloHistory] = useState<EloEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -541,7 +642,10 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
     if (tab === 'coplayers' && coplayerStats.length === 0) {
       api.db.coplayerStats(puuid, selectedPatches ?? undefined, selectedMode ?? 2400).then(setCoplayerStats).catch(() => {})
     }
-  }, [tab, puuid, selectedPatches, selectedMode, championStats.length, augmentStats.length, coplayerStats.length])
+    if (tab === 'elo' && eloHistory.length === 0) {
+      api.db.eloHistory(puuid, selectedMode ?? 2400).then(setEloHistory).catch(() => {})
+    }
+  }, [tab, puuid, selectedPatches, selectedMode, championStats.length, augmentStats.length, coplayerStats.length, eloHistory.length])
 
   const handleDetailSync = useCallback(async () => {
     setSyncing(true)
@@ -626,11 +730,18 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
             <div className="stat-value">{Math.round(stats.avgDpm)}</div>
             <div className="stat-label">Damage per minute</div>
           </div>
+          {stats.elo != null && (
+            <div className="card stat-card">
+              <div className="card-title">Elo</div>
+              <div className="stat-value" style={{ color: 'var(--blue-light)' }}>{Math.round(stats.elo)}</div>
+              <div className="stat-label">Rating</div>
+            </div>
+          )}
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {(['matches', 'champions', 'augments', 'coplayers'] as Tab[]).map((t) => (
+        {(['matches', 'champions', 'augments', 'coplayers', 'elo'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -664,19 +775,11 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
       )}
 
       {tab === 'champions' && (
-        championStats.length === 0 ? (
-          <div className="card"><div className="empty-state"><div>No champion data</div></div></div>
-        ) : (
-          <ChampionTable data={championStats} />
-        )
+        <ChampionStatsTable data={championStats} />
       )}
 
       {tab === 'augments' && (
-        augmentStats.length === 0 ? (
-          <div className="card"><div className="empty-state"><div>No augment data</div></div></div>
-        ) : (
-          <AugmentTable data={augmentStats} augmentCache={augmentCache} onAugmentClick={onAugmentClick} />
-        )
+        <AugmentStatsTable data={augmentStats} augmentCache={augmentCache} onAugmentClick={onAugmentClick} showRarityFilter />
       )}
 
       {tab === 'coplayers' && (
@@ -686,174 +789,84 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
           <CoplayerTable data={coplayerStats} onPlayerClick={onPlayerClick} />
         )
       )}
+
+      {tab === 'elo' && (
+        <EloHistoryChart data={eloHistory} />
+      )}
     </div>
   )
 }
 
-// ─── Champion sub-tab table ───────────────────────────────────────────────────
+// ─── Elo history chart ────────────────────────────────────────────────────────
 
-export function ChampionTable({ data }: { data: ChampionStat[] }) {
-  const [sortKey, setSortKey] = useState<ChampionSortKey>('games')
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
-
-  const sorted = [...data].sort((a, b) => {
-    const aVal = sortKey === 'winRate' ? a.wins / a.games
-      : sortKey === 'kda' ? (a.kills + a.assists) / Math.max(1, a.deaths)
-      : sortKey === 'avgDpm' ? a.avgDpm
-      : a.games
-    const bVal = sortKey === 'winRate' ? b.wins / b.games
-      : sortKey === 'kda' ? (b.kills + b.assists) / Math.max(1, b.deaths)
-      : sortKey === 'avgDpm' ? b.avgDpm
-      : b.games
-    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
-  })
-
-  const onSort = (key: ChampionSortKey) => {
-    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    else { setSortKey(key); setSortDir('desc') }
-  }
-
-  const arrow = (key: ChampionSortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
-  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
-
-  return (
-    <div className="card">
-      <table>
-        <thead>
-          <tr>
-            <th>Champion</th>
-            <th style={thStyle} onClick={() => onSort('games')}>Games{arrow('games')}</th>
-            <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
-            <th style={thStyle} onClick={() => onSort('kda')}>KDA{arrow('kda')}</th>
-            <th>K / D / A</th>
-            <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((c) => {
-            const wr = c.wins / c.games
-            return (
-              <tr key={c.championId}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <img
-                      src={`mayhem-asset://champion-icons/${c.championId}.png`}
-                      alt={c.championName}
-                      style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--border)' }}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                    />
-                    {c.championName}
-                  </div>
-                </td>
-                <td>{c.games}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
-                    </div>
-                    <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
-                  </div>
-                </td>
-                <td className="kda">{kda(c.kills, c.deaths, c.assists)}</td>
-                <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                  {(c.kills / c.games).toFixed(1)} / {(c.deaths / c.games).toFixed(1)} / {(c.assists / c.games).toFixed(1)}
-                </td>
-                <td>{Math.round(c.avgDpm)}/min</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ─── Augment sub-tab table ────────────────────────────────────────────────────
-
-export function AugmentTable({ data, augmentCache, onAugmentClick }: { data: AugmentStat[]; augmentCache: Record<number, AugmentInfo>; onAugmentClick?: (augmentId: number) => void }) {
-  const [sortKey, setSortKey] = useState<AugmentSortKey>('pickCount')
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
-  const [rarityFilter, setRarityFilter] = useState<number | null>(null)
-
-  const sorted = [...data].filter((a) => rarityFilter === null || a.rarity === rarityFilter).sort((a, b) => {
-    const aVal = sortKey === 'winRate' ? (a.pickCount > 0 ? a.wins / a.pickCount : 0)
-      : sortKey === 'avgDpm' ? a.avgDpm
-      : a.pickCount
-    const bVal = sortKey === 'winRate' ? (b.pickCount > 0 ? b.wins / b.pickCount : 0)
-      : sortKey === 'avgDpm' ? b.avgDpm
-      : b.pickCount
-    return sortDir === 'desc' ? bVal - aVal : aVal - bVal
-  })
-
-  const onSort = (key: AugmentSortKey) => {
-    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    else { setSortKey(key); setSortDir('desc') }
-  }
-
-  const arrow = (key: AugmentSortKey) => sortKey === key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''
-  const thStyle = { cursor: 'pointer', userSelect: 'none' as const }
-
-  const RARITY = ['Silver', 'Gold', 'Prismatic']
-  const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Rarity</span>
-        <button className={`aug-btn ${rarityFilter === null ? 'active' : ''}`} onClick={() => setRarityFilter(null)}>All</button>
-        {[0, 1, 2].map((r) => (
-          <button
-            key={r}
-            className={`aug-btn ${rarityFilter === r ? 'active' : ''}`}
-            style={rarityFilter === r ? { borderColor: RARITY_COLOR[r], color: RARITY_COLOR[r] } : {}}
-            onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
-          >
-            {RARITY[r]}
-          </button>
-        ))}
+function EloHistoryChart({ data }: { data: EloEntry[] }) {
+  if (data.length === 0) {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <div>No Elo history yet</div>
+          <p>Sync games to compute your rating</p>
+        </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Augment</th>
-            <th>Rarity</th>
-            <th style={thStyle} onClick={() => onSort('pickCount')}>Picks{arrow('pickCount')}</th>
-            <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
-            <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((a) => {
-            const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
-            return (
-              <tr
-                key={a.augmentId}
-                style={{ cursor: onAugmentClick ? 'pointer' : undefined }}
-                onClick={() => onAugmentClick?.(a.augmentId)}
-              >
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <AugmentIcon id={a.augmentId} augments={augmentCache} size={24} />
-                    {a.name}
-                  </div>
-                </td>
-                <td style={{ color: RARITY_COLOR[a.rarity] ?? RARITY_COLOR[0], fontSize: 12, fontWeight: 600 }}>
-                  {RARITY[a.rarity] ?? 'Silver'}
-                </td>
-                <td>{a.pickCount}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
-                    </div>
-                    <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
-                  </div>
-                </td>
-                <td>{Math.round(a.avgDpm)}/min</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+    )
+  }
+
+  const width = 700
+  const height = 220
+  const pad = { top: 20, right: 16, bottom: 32, left: 52 }
+  const inner = { w: width - pad.left - pad.right, h: height - pad.top - pad.bottom }
+
+  const elos = data.map(d => d.elo_after)
+  const minElo = Math.min(...elos)
+  const maxElo = Math.max(...elos)
+  const eloRange = maxElo - minElo || 100
+  const yMin = minElo - eloRange * 0.1
+  const yMax = maxElo + eloRange * 0.1
+
+  const xScale = (i: number) => (i / (data.length - 1 || 1)) * inner.w
+  const yScale = (v: number) => inner.h - ((v - yMin) / (yMax - yMin)) * inner.h
+
+  const points = data.map((d, i) => `${xScale(i)},${yScale(d.elo_after)}`).join(' ')
+  const current = Math.round(data[data.length - 1].elo_after)
+  const first = Math.round(data[0].elo_before)
+  const delta = current - first
+
+  const yTicks = 4
+  const yTickValues = Array.from({ length: yTicks + 1 }, (_, i) => yMin + (yMax - yMin) * (i / yTicks))
+
+  return (
+    <div className="card" style={{ padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--blue-light)' }}>{current}</span>
+        <span style={{ fontSize: 13, color: delta >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+          {delta >= 0 ? '+' : ''}{delta} all-time
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>{data.length} rated games</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: width, display: 'block', overflow: 'visible' }}>
+        <g transform={`translate(${pad.left},${pad.top})`}>
+          {yTickValues.map((v, i) => (
+            <g key={i}>
+              <line x1={0} x2={inner.w} y1={yScale(v)} y2={yScale(v)} stroke="var(--border)" strokeWidth={1} strokeDasharray="3,3" />
+              <text x={-8} y={yScale(v) + 4} textAnchor="end" fontSize={10} fill="var(--text-muted)">{Math.round(v)}</text>
+            </g>
+          ))}
+          <line x1={0} x2={0} y1={0} y2={inner.h} stroke="var(--border)" strokeWidth={1} />
+          <line x1={0} x2={inner.w} y1={inner.h} y2={inner.h} stroke="var(--border)" strokeWidth={1} />
+          <polyline points={points} fill="none" stroke="var(--blue)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          {data.length < 80 && data.map((d, i) => (
+            <circle
+              key={i}
+              cx={xScale(i)}
+              cy={yScale(d.elo_after)}
+              r={3}
+              fill={d.delta >= 0 ? 'var(--green)' : 'var(--red)'}
+              stroke="var(--bg-card)"
+              strokeWidth={1}
+            />
+          ))}
+        </g>
+      </svg>
     </div>
   )
 }

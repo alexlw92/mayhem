@@ -101,4 +101,16 @@ export const apiClient = {
 
   searchPlayers: (query: string): Promise<{ puuid: string; summonerName: string }[]> =>
     http.get('/api/players/search', { params: { q: query } }).then((r) => r.data),
+
+  recomputeElo: (queueId = 2400, wipe = false) =>
+    http.post('/api/players/elo/recompute', null, {
+      params: { queueId, ...(wipe && { wipe: 'true' }) },
+      timeout: wipe ? 0 : 60_000,
+    }),
+
+  eloHistory: (puuid: string, queueId = 2400): Promise<{ gameId: number; elo_before: number; elo_after: number; delta: number; gameCreation: number }[]> =>
+    http.get(`/api/players/${puuid}/elo-history`, { params: { queueId } }).then((r) => r.data),
+
+  eloLeaderboard: (queueId = 2400): Promise<{ puuid: string; summonerName: string; elo: number; gamesRated: number; games: number; wins: number }[]> =>
+    http.get('/api/players/elo-leaderboard', { params: { queueId } }).then((r) => r.data),
 }

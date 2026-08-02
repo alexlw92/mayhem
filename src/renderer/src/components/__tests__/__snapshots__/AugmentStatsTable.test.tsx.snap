@@ -1,0 +1,1356 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AugmentStatsTable > click Avg DPM header sorts by dpm desc 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+             ▼
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > click Picks header toggles to ascending 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▲
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > click Win Rate header sorts by win rate desc 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > derives icon cache from iconPath when augmentCache is not provided 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > rarity filter narrows rows to gold only 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn "
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn active"
+        style="border-color: rgb(240, 180, 41); color: rgb(240, 180, 41);"
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > renders empty state when data is empty 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      class="empty-state"
+    >
+      <div>
+        No augment data
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > renders table with default sort (picks desc) 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`AugmentStatsTable > shows rarity filter when showRarityFilter is true 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;"
+    >
+      <span
+        style="font-size: 11px; color: var(--text-muted); margin-right: 2px;"
+      >
+        Rarity
+      </span>
+      <button
+        class="aug-btn active"
+      >
+        All
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Silver
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Gold
+      </button>
+      <button
+        class="aug-btn "
+      >
+        Prismatic
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Augment
+          </th>
+          <th>
+            Rarity
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Picks
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(192, 192, 192); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Iron Will"
+              >
+                <img
+                  alt="Iron Will"
+                  src="mayhem-asset://augment-icons/1.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Iron Will
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
+          </td>
+          <td>
+            100
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 45%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                45
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            800
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(240, 180, 41); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Gold Rush"
+              >
+                <img
+                  alt="Gold Rush"
+                  src="mayhem-asset://augment-icons/2.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Gold Rush
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
+          </td>
+          <td>
+            60
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            950
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid rgb(180, 75, 225); overflow: hidden; flex-shrink: 0; background: var(--bg-primary); display: inline-flex;"
+                title="Prismatic Eye"
+              >
+                <img
+                  alt="Prismatic Eye"
+                  src="mayhem-asset://augment-icons/3.png"
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+              </div>
+              Prismatic Eye
+            </div>
+          </td>
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
+          </td>
+          <td>
+            20
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1100
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

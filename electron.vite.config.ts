@@ -6,10 +6,14 @@ import dotenv from 'dotenv'
 // Must load env BEFORE defineConfig evaluates the define block.
 // Vite plugin hooks (vite-plugin-dotenv) run after the config object is built,
 // so process.env values set by plugins are too late for define to capture.
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
-} else {
-  dotenv.config({ path: join(process.cwd(), '.env') })
+//
+// electron-vite always sets NODE_ENV=production during `electron-vite build`, so
+// we can't use NODE_ENV to distinguish dev from release builds. Instead we use
+// RELEASE_BUILD=true as an explicit opt-in for production packaging. Normal builds
+// (dev, CI, e2e tests) load .env.dev so BACKEND_URL is inlined as localhost.
+dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
+if (process.env.RELEASE_BUILD === 'true') {
+  dotenv.config({ path: join(process.cwd(), '.env'), override: true })
 }
 
 export default defineConfig({

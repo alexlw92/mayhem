@@ -2,8 +2,8 @@ import dotenv from 'dotenv'
 import { join, dirname } from 'path'
 import { createWorker as createTessWorker } from 'tesseract.js'
 if (process.env.NODE_ENV !== 'production') {
-  // Dev: load .env.dev from project root
-  dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
+  // Dev: load .env.dev from project root; in test mode don't override injected env vars
+  dotenv.config({ path: join(process.cwd(), '.env.dev'), override: process.env.NODE_ENV !== 'test' })
 } else {
   // Production: load .env next to exe, then one level up, then cwd fallback
   dotenv.config({ path: join(dirname(process.execPath), '.env') })
@@ -253,12 +253,22 @@ async function syncWorker(): Promise<void> {
         syncCancelled = false
         syncInProgress = false
         const reason = !isClientRunning() ? 'client-offline' : 'cancelled'
-        if (draining) sendToWindow('sync-complete', { ...syncAccum, reason })
+        if (draining) {
+          if (syncAccum.imported > 0) {
+            apiClient.recomputeElo(2400).catch(() => {})
+            apiClient.recomputeElo(2450).catch(() => {})
+          }
+          sendToWindow('sync-complete', { ...syncAccum, reason })
+        }
         return
       }
       if (!isClientRunning()) {
         if (draining && syncInProgress) {
           syncInProgress = false
+          if (syncAccum.imported > 0) {
+            apiClient.recomputeElo(2400).catch(() => {})
+            apiClient.recomputeElo(2450).catch(() => {})
+          }
           sendToWindow('sync-complete', { ...syncAccum, reason: 'client-offline' })
         }
         return
@@ -290,6 +300,8 @@ async function syncWorker(): Promise<void> {
       if (!puuid) {
         if (draining && syncInProgress) {
           syncInProgress = false
+          const affectedQueues = new Set([2400, 2450])
+          for (const q of affectedQueues) apiClient.recomputeElo(q).catch(() => {})
           sendToWindow('sync-complete', syncAccum)
         }
         return
@@ -484,6 +496,8 @@ ipcMain.handle('db:augmentStats', async (_e, puuid?: string, championId?: number
 ipcMain.handle('db:augmentChampionStats', (_e, augmentId: number, puuid?: string, patches?: string[], queueId = 2400) => apiClient.augmentChampionStats(augmentId, puuid, patches, queueId))
 ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayers(query))
 ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[], queueId?: number) => apiClient.coplayerStats(puuid, patches, queueId))
+ipcMain.handle('db:eloHistory', (_e, puuid: string, queueId = 2400) => apiClient.eloHistory(puuid, queueId))
+ipcMain.handle('db:eloLeaderboard', (_e, queueId = 2400) => apiClient.eloLeaderboard(queueId))
 
 ipcMain.handle('db:itemSummary', async (_e, championId: number, patches?: string[], queueId = 2400) => {
   const key = `summary:${championId}:${queueId}:${(patches ?? []).slice().sort().join(',')}`

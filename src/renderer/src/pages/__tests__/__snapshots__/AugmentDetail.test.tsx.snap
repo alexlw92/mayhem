@@ -121,28 +121,24 @@ exports[`AugmentDetail > click Champion header — sorts ascending alphabeticall
             >
               Win Rate
             </th>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Avg DPM
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Kayle"
-                    src="mayhem-asset://champion-icons/10.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Kayle"
+                  src="mayhem-asset://champion-icons/10.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Kayle
               </div>
             </td>
@@ -154,10 +150,11 @@ exports[`AugmentDetail > click Champion header — sorts ascending alphabeticall
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 62.5%; background: var(--green);"
                   />
                 </div>
                 <span
@@ -174,21 +171,15 @@ exports[`AugmentDetail > click Champion header — sorts ascending alphabeticall
             </td>
           </tr>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Teemo"
-                    src="mayhem-asset://champion-icons/20.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Teemo"
+                  src="mayhem-asset://champion-icons/20.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Teemo
               </div>
             </td>
@@ -200,10 +191,11 @@ exports[`AugmentDetail > click Champion header — sorts ascending alphabeticall
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 33.33333333333333%; background: var(--red);"
                   />
                 </div>
                 <span
@@ -347,28 +339,24 @@ exports[`AugmentDetail > click Games header — toggles to ascending 1`] = `
             >
               Win Rate
             </th>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Avg DPM
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Teemo"
-                    src="mayhem-asset://champion-icons/20.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Teemo"
+                  src="mayhem-asset://champion-icons/20.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Teemo
               </div>
             </td>
@@ -380,10 +368,11 @@ exports[`AugmentDetail > click Games header — toggles to ascending 1`] = `
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 33.33333333333333%; background: var(--red);"
                   />
                 </div>
                 <span
@@ -400,21 +389,15 @@ exports[`AugmentDetail > click Games header — toggles to ascending 1`] = `
             </td>
           </tr>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Kayle"
-                    src="mayhem-asset://champion-icons/10.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Kayle"
+                  src="mayhem-asset://champion-icons/10.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Kayle
               </div>
             </td>
@@ -426,10 +409,11 @@ exports[`AugmentDetail > click Games header — toggles to ascending 1`] = `
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 62.5%; background: var(--green);"
                   />
                 </div>
                 <span
@@ -573,28 +557,24 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
             >
               Win Rate
             </th>
-            <th>
+            <th
+              style="cursor: pointer; user-select: none;"
+            >
               Avg DPM
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Kayle"
-                    src="mayhem-asset://champion-icons/10.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Kayle"
+                  src="mayhem-asset://champion-icons/10.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Kayle
               </div>
             </td>
@@ -606,10 +586,11 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 62.5%; background: var(--green);"
                   />
                 </div>
                 <span
@@ -626,21 +607,15 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
             </td>
           </tr>
           <tr>
-            <td
-              style="font-weight: 500;"
-            >
+            <td>
               <div
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <div
-                  style="width: 28px; height: 28px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: var(--bg-primary); border: 1px solid var(--border);"
-                >
-                  <img
-                    alt="Teemo"
-                    src="mayhem-asset://champion-icons/20.png"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </div>
+                <img
+                  alt="Teemo"
+                  src="mayhem-asset://champion-icons/20.png"
+                  style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+                />
                 Teemo
               </div>
             </td>
@@ -652,10 +627,11 @@ exports[`AugmentDetail > renders champion table after data loads 1`] = `
                 style="display: flex; align-items: center; gap: 8px;"
               >
                 <div
-                  style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                  class="wr-bar"
                 >
                   <div
-                    style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                    class="wr-fill"
+                    style="width: 33.33333333333333%; background: var(--red);"
                   />
                 </div>
                 <span
@@ -719,11 +695,8 @@ exports[`AugmentDetail > shows empty state when no champion data 1`] = `
         class="empty-state"
       >
         <div>
-          No data
+          No champion data
         </div>
-        <p>
-          No games found for this augment with the current filters
-        </p>
       </div>
     </div>
   </div>

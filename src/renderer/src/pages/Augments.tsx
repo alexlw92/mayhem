@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react'
+import AugmentStatsTable, { AugmentStat } from '../components/AugmentStatsTable'
 
 const api = (window as any).api
-
-interface AugmentStat {
-  augmentId: number
-  name: string
-  rarity: number
-  iconPath: string
-  pickCount: number
-  wins: number
-  avgDpm: number
-}
 
 interface ChampionOption {
   championId: number
@@ -24,9 +15,6 @@ api.on('sync-complete', () => {
   augmentStatsCache.clear()
 })
 
-type SortKey = 'pickCount' | 'winRate' | 'avgDpm'
-
-const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
 const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
 
 const SELECT_STYLE = {
@@ -51,11 +39,11 @@ export default function Augments({ selectedPatches, selectedMode, initialChampio
   const [selectedChampionId, setSelectedChampionId] = useState<number | undefined>(initialChampionId)
   const [champions, setChampions] = useState<ChampionOption[]>([])
   const [data, setData] = useState<AugmentStat[]>([])
-  const [sort, setSort] = useState<SortKey>('pickCount')
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [minPicks, setMinPicks] = useState(20)
   const [loading, setLoading] = useState(true)
+
   useEffect(() => {
     if (initialChampionId !== undefined) {
       setSelectedChampionId(initialChampionId)
@@ -90,30 +78,18 @@ export default function Augments({ selectedPatches, selectedMode, initialChampio
     }).catch(() => setLoading(false))
   }, [selectedChampionId, selectedPatches, selectedMode])
 
-  const filtered = data
-    .filter((a) => {
-      if (a.pickCount < minPicks) return false
-      if (rarityFilter !== null && a.rarity !== rarityFilter) return false
-      if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false
-      return true
-    })
-    .sort((a, b) => {
-      if (sort === 'pickCount') return b.pickCount - a.pickCount
-      if (sort === 'winRate') {
-        const wrA = a.pickCount > 0 ? a.wins / a.pickCount : 0
-        const wrB = b.pickCount > 0 ? b.wins / b.pickCount : 0
-        return wrB - wrA
-      }
-      if (sort === 'avgDpm') return b.avgDpm - a.avgDpm
-      return 0
-    })
+  const filtered = data.filter((a) => {
+    if (a.pickCount < minPicks) return false
+    if (rarityFilter !== null && a.rarity !== rarityFilter) return false
+    if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
 
   return (
     <div>
       <h1 className="page-title">Augments</h1>
 
       <div className="card" style={{ marginBottom: 16, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Row 1: data filters */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <select
             value={selectedChampionId ?? ''}
@@ -134,7 +110,6 @@ export default function Augments({ selectedPatches, selectedMode, initialChampio
           />
         </div>
 
-        {/* Row 2: rarity + sort */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Rarity</span>
           <button
@@ -150,7 +125,7 @@ export default function Augments({ selectedPatches, selectedMode, initialChampio
               style={rarityFilter === r ? { borderColor: RARITY_COLOR[r], color: RARITY_COLOR[r] } : {}}
               onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
             >
-              {RARITY_LABEL[r]}
+              {['Silver', 'Gold', 'Prismatic'][r]}
             </button>
           ))}
 
@@ -166,101 +141,21 @@ export default function Augments({ selectedPatches, selectedMode, initialChampio
               {n === 0 ? 'All' : n}
             </button>
           ))}
-
-          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 6px' }} />
-
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Sort</span>
-          {(['pickCount', 'winRate', 'avgDpm'] as SortKey[]).map((key) => (
-            <button
-              key={key}
-              className={`aug-btn ${sort === key ? 'active' : ''}`}
-              onClick={() => setSort(key)}
-            >
-              {key === 'pickCount' ? 'Picks' : key === 'winRate' ? 'Win Rate' : 'DPM'}
-            </button>
-          ))}
         </div>
       </div>
 
-      <div className="card">
-        {loading ? (
-          <div className="empty-state">Loading…</div>
-        ) : filtered.length === 0 ? (
+      {loading ? (
+        <div className="card"><div className="empty-state">Loading…</div></div>
+      ) : data.length === 0 ? (
+        <div className="card">
           <div className="empty-state">
             <div>No augment data</div>
-            <p>{data.length > 0 ? 'No augments match the current filters' : 'Sync some games first'}</p>
+            <p>Sync some games first</p>
           </div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Augment</th>
-                <th>Rarity</th>
-                <th>Picks</th>
-                <th>Win Rate</th>
-                <th>Avg DPM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((a) => {
-                const wr = a.pickCount > 0 ? a.wins / a.pickCount : 0
-                const rarityColor = RARITY_COLOR[a.rarity] ?? RARITY_COLOR[0]
-                return (
-                  <tr
-                    key={a.augmentId}
-                    style={{ cursor: onAugmentClick ? 'pointer' : undefined }}
-                    onClick={() => onAugmentClick?.(a.augmentId)}
-                  >
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{
-                          width: 24, height: 24, borderRadius: 4, border: `1px solid ${rarityColor}`,
-                          overflow: 'hidden', flexShrink: 0, background: 'var(--bg-primary)',
-                        }}>
-                          {a.iconPath && (
-                            <img
-                              src={a.iconPath}
-                              alt={a.name}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                            />
-                          )}
-                        </div>
-                        {a.name}
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{
-                        display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                        fontSize: 11, fontWeight: 600, color: rarityColor,
-                        border: `1px solid ${rarityColor}`, opacity: 0.9,
-                      }}>
-                        {RARITY_LABEL[a.rarity] ?? 'Silver'}
-                      </span>
-                    </td>
-                    <td>{a.pickCount}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 60, height: 6, background: 'var(--bg-primary)', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ width: `${wr * 100}%`, height: '100%', background: wr >= 0.5 ? 'var(--green)' : 'var(--red)', borderRadius: 3 }} />
-                        </div>
-                        <span className={wr >= 0.5 ? 'win' : 'loss'}>{(wr * 100).toFixed(0)}%</span>
-                      </div>
-                    </td>
-                    <td>{Math.round(a.avgDpm)}/min</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <style>{`
-        .aug-btn { padding: 4px 12px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; }
-        .aug-btn:hover { border-color: var(--blue); color: var(--text-primary); }
-        .aug-btn.active { border-color: var(--accent); color: var(--accent); }
-      `}</style>
+        </div>
+      ) : (
+        <AugmentStatsTable data={filtered} onAugmentClick={onAugmentClick} />
+      )}
     </div>
   )
 }

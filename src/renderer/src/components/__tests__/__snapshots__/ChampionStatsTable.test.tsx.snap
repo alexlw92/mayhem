@@ -1,0 +1,1233 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ChampionStatsTable > click Champion header sorts alphabetically ascending 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+             ▲
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            KDA
+          </th>
+          <th>
+            K / D / A
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            1.67
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            3.0
+             / 
+            3.0
+             / 
+            2.0
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▲
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            KDA
+          </th>
+          <th>
+            K / D / A
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            1.67
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            3.0
+             / 
+            3.0
+             / 
+            2.0
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > click KDA header sorts by kda desc 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            KDA
+             ▼
+          </th>
+          <th>
+            K / D / A
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            1.67
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            3.0
+             / 
+            3.0
+             / 
+            2.0
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > click Win Rate header sorts by win rate desc 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            KDA
+          </th>
+          <th>
+            K / D / A
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            1.67
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            3.0
+             / 
+            3.0
+             / 
+            2.0
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > renders empty state when data is empty 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <div
+      class="empty-state"
+    >
+      <div>
+        No champion data
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ChampionStatsTable > renders full table with KDA columns by default 1`] = `
+<div>
+  <div
+    class="card"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Champion
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Games
+             ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Win Rate
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            KDA
+          </th>
+          <th>
+            K / D / A
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Avg DPM
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Annie
+            </div>
+          </td>
+          <td>
+            80
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            1050
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Kayle"
+                src="mayhem-asset://champion-icons/10.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Kayle
+            </div>
+          </td>
+          <td>
+            50
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 60%; background: var(--green);"
+                />
+              </div>
+              <span
+                class="win"
+              >
+                60
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            3.50
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            4.0
+             / 
+            2.0
+             / 
+            3.0
+          </td>
+          <td>
+            900
+            /min
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
+              />
+              Teemo
+            </div>
+          </td>
+          <td>
+            30
+          </td>
+          <td>
+            <div
+              style="display: flex; align-items: center; gap: 8px;"
+            >
+              <div
+                class="wr-bar"
+              >
+                <div
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
+                />
+              </div>
+              <span
+                class="loss"
+              >
+                40
+                %
+              </span>
+            </div>
+          </td>
+          <td
+            class="kda"
+          >
+            1.67
+          </td>
+          <td
+            style="color: var(--text-secondary); font-size: 12px;"
+          >
+            3.0
+             / 
+            3.0
+             / 
+            2.0
+          </td>
+          <td>
+            750
+            /min
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

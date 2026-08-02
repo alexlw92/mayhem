@@ -21,7 +21,7 @@ async function truncate() {
   await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
     champion_stats_cache, augment_stats_cache, player_stats_cache,
     player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache, item_picks_cache,
-    item_archetypes_cache
+    item_archetypes_cache, player_elo, elo_history
     RESTART IDENTITY CASCADE`
   await db.end()
 }

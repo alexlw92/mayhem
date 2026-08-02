@@ -1,7 +1,7 @@
 import path from 'path'
 import dotenv from 'dotenv'
 const envFile = process.env.NODE_ENV !== 'production' ? '.env.dev' : '.env'
-dotenv.config({ path: path.resolve(__dirname, '../../', envFile), override: true })
+dotenv.config({ path: path.resolve(__dirname, '../../', envFile), override: process.env.NODE_ENV !== 'test' })
 dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 
@@ -49,6 +49,12 @@ export interface Match {
 
 let sql_: ReturnType<typeof postgres>
 
+export async function connectDb(url?: string): Promise<void> {
+  const connectionUrl = url ?? process.env.DATABASE_URL
+  if (!connectionUrl) throw new Error('DATABASE_URL is not set')
+  sql_ = postgres(connectionUrl, { onnotice: () => {} })
+}
+
 export async function initDb(url?: string, onProgress?: (phase: string) => void): Promise<void> {
   const connectionUrl = url ?? process.env.DATABASE_URL
   if (!connectionUrl) throw new Error('DATABASE_URL is not set')
@@ -58,7 +64,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
   const existingCols = await sql_`
     SELECT table_name, column_name FROM information_schema.columns
     WHERE table_name IN (
-      'matches','participants','participant_items','meta_items',
+      'matches','participants','participant_items','participant_item_sets','meta_items',
       'item_picks_cache','item_builds_cache',
       'champion_stats_cache','augment_stats_cache',
       'player_stats_cache','player_champion_stats_cache','augment_champion_stats_cache'
@@ -69,6 +75,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     (existingCols as any[]).some((r) => r.table_name === table && r.column_name === col)
 
   console.log('[db] creating tables...')
+  const _t0 = Date.now()
   await sql_`
     CREATE TABLE IF NOT EXISTS matches (
       "gameId"       BIGINT PRIMARY KEY,
@@ -121,14 +128,20 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       "itemIds"       INTEGER[] NOT NULL
     )
   `
-  await sql_`CREATE INDEX IF NOT EXISTS idx_participant_item_sets_gin ON participant_item_sets USING GIN ("itemIds")`
-  await sql_`
-    INSERT INTO participant_item_sets ("participantId", "itemIds")
-    SELECT "participantId", array_agg("itemId" ORDER BY "itemId")
-    FROM participant_items
-    GROUP BY "participantId"
-    ON CONFLICT ("participantId") DO NOTHING
-  `
+  await sql_`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_participant_item_sets_gin ON participant_item_sets USING GIN ("itemIds")`
+  if (!hasCol('participant_item_sets', 'itemIds')) {
+    // one-time backfill: participant_item_sets is kept up-to-date incrementally on new inserts
+    console.log('[db] backfilling participant_item_sets...')
+    const _tpis = Date.now()
+    await sql_`
+      INSERT INTO participant_item_sets ("participantId", "itemIds")
+      SELECT "participantId", array_agg("itemId" ORDER BY "itemId")
+      FROM participant_items
+      GROUP BY "participantId"
+      ON CONFLICT ("participantId") DO NOTHING
+    `
+    console.log(`[db] participant_item_sets backfill done (${Date.now() - _tpis}ms)`)
+  }
   await sql_`
     CREATE TABLE IF NOT EXISTS player_sync_times (
       puuid     TEXT PRIMARY KEY,
@@ -146,7 +159,9 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     )
   `
 
+  console.log(`[db] tables done (${Date.now() - _t0}ms)`)
   console.log('[db] creating indexes...')
+  const _t1 = Date.now()
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_gameId       ON participants("gameId")`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid        ON participants(puuid)`
   await sql_`CREATE INDEX IF NOT EXISTS idx_participants_puuid_id     ON participants(puuid, id DESC)`
@@ -334,9 +349,36 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       PRIMARY KEY ("championId", patches_key)
     )
   `
-const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS player_elo (
+      puuid                        TEXT    NOT NULL,
+      "queueId"                    INTEGER NOT NULL,
+      elo                          FLOAT   NOT NULL DEFAULT 1500,
+      games_rated                  INTEGER NOT NULL DEFAULT 0,
+      last_processed_game_creation BIGINT  NOT NULL DEFAULT 0,
+      updated_at                   TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY (puuid, "queueId")
+    )
+  `
+  await sql_`
+    CREATE TABLE IF NOT EXISTS elo_history (
+      puuid          TEXT    NOT NULL,
+      "gameId"       BIGINT  NOT NULL,
+      "queueId"      INTEGER NOT NULL,
+      elo_before     FLOAT   NOT NULL,
+      elo_after      FLOAT   NOT NULL,
+      delta          FLOAT   NOT NULL,
+      "gameCreation" BIGINT  NOT NULL,
+      PRIMARY KEY (puuid, "gameId", "queueId")
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_elo_history_puuid_queue_gc ON elo_history (puuid, "queueId", "gameCreation")`
+
+console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
+  const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`
   if (Number(champCacheCount) === 0) {
     console.log('[db] backfilling summary caches...')
+    const _t2 = Date.now()
     onProgress?.('Rebuilding champion & augment cache…')
     await sql_`
       INSERT INTO champion_stats_cache ("gameVersion","queueId","championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
@@ -362,7 +404,7 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
       GROUP BY p."gameVersion", m."queueId", pa."augmentId"
       ON CONFLICT DO NOTHING
     `
-    console.log('[db] backfill complete')
+    console.log(`[db] summary cache backfill done (${Date.now() - _t2}ms)`)
   }
 
   {
@@ -374,8 +416,10 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
     const missingPlayer = pvList.filter(gv => !existingPlayer.has(gv))
     if (missingPlayer.length > 0) {
       console.log(`[db] backfilling player stats cache (${missingPlayer.length} patches)...`)
+      const _t3 = Date.now()
       for (let i = 0; i < missingPlayer.length; i++) {
         const gv = missingPlayer[i]
+        const _tp = Date.now()
         console.log(`[db] player stats ${gv} (${i + 1}/${missingPlayer.length})...`)
         onProgress?.(`Rebuilding player cache: ${gv} (${i + 1}/${missingPlayer.length})…`)
         await sql_`
@@ -390,16 +434,19 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           GROUP BY p."gameVersion", m."queueId", p.puuid
           ON CONFLICT DO NOTHING
         `
+        console.log(`[db] player stats ${gv} done (${Date.now() - _tp}ms)`)
       }
-      console.log('[db] player stats cache backfill complete')
+      console.log(`[db] player stats cache backfill complete (${Date.now() - _t3}ms total)`)
     }
     const existingPCRows = await sql_`SELECT DISTINCT "gameVersion" FROM player_champion_stats_cache`
     const existingPC = new Set(existingPCRows.map((r: any) => r.gameVersion as string))
     const missingPC = pvList.filter(gv => !existingPC.has(gv))
     if (missingPC.length > 0) {
       console.log(`[db] backfilling player_champion_stats_cache (${missingPC.length} patches)...`)
+      const _t4 = Date.now()
       for (let i = 0; i < missingPC.length; i++) {
         const gv = missingPC[i]
+        const _tpc = Date.now()
         console.log(`[db] player_champion_stats ${gv} (${i + 1}/${missingPC.length})...`)
         onProgress?.(`Rebuilding player/champion cache: ${gv} (${i + 1}/${missingPC.length})…`)
         await sql_`
@@ -414,8 +461,9 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
           GROUP BY p."gameVersion",m."queueId",p.puuid,p."championId"
           ON CONFLICT DO NOTHING
         `
+        console.log(`[db] player_champion_stats ${gv} done (${Date.now() - _tpc}ms)`)
       }
-      console.log('[db] player_champion_stats_cache backfill complete')
+      console.log(`[db] player_champion_stats_cache backfill complete (${Date.now() - _t4}ms total)`)
     }
   }
 
@@ -515,8 +563,9 @@ const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_st
     })
   const keepPatches = allPatches.slice(0, 4)
   if (keepPatches.length === 4) {
+    const _tp = Date.now()
     const pruned = await deleteOldMatches(keepPatches)
-    if (pruned > 0) console.log(`[db] pruned ${pruned} old matches (keeping: ${keepPatches.join(', ')})`)
+    if (pruned > 0) console.log(`[db] pruned ${pruned} old matches (${Date.now() - _tp}ms, keeping: ${keepPatches.join(', ')})`)
   }
 }
 
@@ -1340,6 +1389,7 @@ export interface PlayerStats {
   avgGold: number
   syncedFull: boolean
   syncedAt: number
+  elo: number | null
 }
 
 export async function getPlayerStats(patches?: string[], queueId = 2400): Promise<PlayerStats[]> {
@@ -1350,9 +1400,11 @@ export async function getPlayerStats(patches?: string[], queueId = 2400): Promis
           SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm",
-          MAX(s."syncedAt") AS "syncedAt"
+          MAX(s."syncedAt") AS "syncedAt",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
         JOIN player_sync_times s ON s.puuid = pc.puuid
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc."queueId" = ${queueId} AND pc."gameVersion" = ANY(${patches}) AND pc.puuid != ''
         GROUP BY pc.puuid ORDER BY games DESC
       `
@@ -1362,9 +1414,11 @@ export async function getPlayerStats(patches?: string[], queueId = 2400): Promis
           SUM(pc.games)::int AS games, SUM(pc.wins)::int AS wins,
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0 THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0 END AS "avgDpm",
-          MAX(s."syncedAt") AS "syncedAt"
+          MAX(s."syncedAt") AS "syncedAt",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
         JOIN player_sync_times s ON s.puuid = pc.puuid
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc."queueId" = ${queueId} AND pc.puuid != ''
         GROUP BY pc.puuid ORDER BY games DESC
       `
@@ -1380,6 +1434,7 @@ export async function getPlayerStats(patches?: string[], queueId = 2400): Promis
     avgGold: 0,
     syncedFull: true,
     syncedAt: Number(r.syncedAt ?? 0),
+    elo: r.elo != null ? parseFloat(r.elo) : null,
   }))
 }
 
@@ -1393,9 +1448,11 @@ export async function getOnePlayerStats(puuid: string, patches?: string[], queue
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
           END AS "avgDpm",
-          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
         LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc.puuid = ${puuid} AND pc."queueId" = ${queueId} AND pc."gameVersion" = ANY(${patches})
         GROUP BY pc.puuid
       `
@@ -1407,9 +1464,11 @@ export async function getOnePlayerStats(puuid: string, patches?: string[], queue
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
           END AS "avgDpm",
-          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
         LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc.puuid = ${puuid} AND pc."queueId" = ${queueId}
         GROUP BY pc.puuid
       `
@@ -1427,6 +1486,7 @@ export async function getOnePlayerStats(puuid: string, patches?: string[], queue
     avgGold: 0,
     syncedFull: true,
     syncedAt: Number(r.syncedAt ?? 0),
+    elo: r.elo != null ? parseFloat(r.elo) : null,
   }
 }
 
@@ -1474,6 +1534,7 @@ export async function getBulkPlayerStats(
       avgGold: 0,
       syncedFull: true,
       syncedAt: 0,
+      elo: null,
     }
   }
   return result
@@ -2117,4 +2178,211 @@ async function _computeArchetypes(
   `
   console.log(`[db] archetypes cached for champion ${championId}`)
   return corrected
+}
+
+// ─── Elo rating ───────────────────────────────────────────────────────────────
+
+const ELO_K = 32
+const ELO_DEFAULT = 1500
+
+export async function updateElo(
+  queueId = 2400,
+  opts?: { pageSize?: number; startWatermark?: number; freshInsert?: boolean }
+): Promise<number> {
+  let watermark: number
+  if (opts?.startWatermark != null) {
+    watermark = opts.startWatermark
+  } else {
+    const watermarkRows = await sql_`
+      SELECT COALESCE(MIN(last_processed_game_creation), 0)::bigint AS watermark
+      FROM player_elo WHERE "queueId" = ${queueId}
+    `
+    watermark = Number((watermarkRows[0] as any).watermark)
+  }
+
+  let matchRows: any[]
+  if (opts?.pageSize != null) {
+    const gameIdRows = await sql_`
+      SELECT "gameId" FROM matches
+      WHERE "queueId" = ${queueId} AND "gameCreation" > ${watermark}
+      ORDER BY "gameCreation" ASC, "gameId" ASC
+      LIMIT ${opts.pageSize}
+    `
+    if ((gameIdRows as any[]).length === 0) return 0
+    const gameIds = (gameIdRows as any[]).map(r => Number(r.gameId))
+    matchRows = await sql_`
+      SELECT m."gameId", m."gameCreation", p.puuid, p."teamId", p.win
+      FROM matches m
+      JOIN participants p ON p."gameId" = m."gameId"
+      WHERE m."gameId" = ANY(${gameIds}::bigint[])
+      ORDER BY m."gameCreation" ASC, m."gameId" ASC
+    `
+  } else {
+    matchRows = await sql_`
+      SELECT m."gameId", m."gameCreation", p.puuid, p."teamId", p.win
+      FROM matches m
+      JOIN participants p ON p."gameId" = m."gameId"
+      WHERE m."queueId" = ${queueId} AND m."gameCreation" > ${watermark}
+      ORDER BY m."gameCreation" ASC, m."gameId" ASC
+    `
+  }
+  if ((matchRows as any[]).length === 0) return 0
+
+  const eloRows = await sql_`SELECT puuid, elo FROM player_elo WHERE "queueId" = ${queueId}`
+  const eloMap = new Map<string, number>()
+  for (const r of eloRows as any[]) eloMap.set(r.puuid as string, parseFloat(r.elo))
+
+  // Group by gameId
+  type TeamEntry = { puuid: string; win: boolean }
+  const gameMap = new Map<number, { gameCreation: number; teams: Record<number, TeamEntry[]> }>()
+  for (const row of matchRows as any[]) {
+    const gid = Number(row.gameId)
+    if (!gameMap.has(gid)) gameMap.set(gid, { gameCreation: Number(row.gameCreation), teams: {} })
+    const g = gameMap.get(gid)!
+    const tid = row.teamId as number
+    if (!g.teams[tid]) g.teams[tid] = []
+    g.teams[tid].push({ puuid: row.puuid as string, win: row.win as boolean })
+  }
+
+  const histPuuids: string[] = []
+  const histGameIds: number[] = []
+  const histQueueIds: number[] = []
+  const histEloBefores: number[] = []
+  const histEloAfters: number[] = []
+  const histDeltas: number[] = []
+  const histGCs: number[] = []
+  const gamesRated = new Map<string, number>()
+  let maxGC = watermark
+
+  const sorted = [...gameMap.entries()].sort((a, b) => a[1].gameCreation - b[1].gameCreation)
+
+  for (const [gameId, { gameCreation, teams }] of sorted) {
+    const teamIds = Object.keys(teams).map(Number)
+    if (teamIds.length < 2) continue
+    const [tid1, tid2] = teamIds
+    const team1 = teams[tid1]
+    const team2 = teams[tid2]
+
+    const avg1 = team1.reduce((s, p) => s + (eloMap.get(p.puuid) ?? ELO_DEFAULT), 0) / team1.length
+    const avg2 = team2.reduce((s, p) => s + (eloMap.get(p.puuid) ?? ELO_DEFAULT), 0) / team2.length
+
+    for (const { puuid, win } of [...team1, ...team2]) {
+      const onTeam1 = team1.some(p => p.puuid === puuid)
+      const opponentAvg = onTeam1 ? avg2 : avg1
+      const before = eloMap.get(puuid) ?? ELO_DEFAULT
+      const expected = 1 / (1 + Math.pow(10, (opponentAvg - before) / 400))
+      const delta = ELO_K * ((win ? 1 : 0) - expected)
+      const after = before + delta
+      eloMap.set(puuid, after)
+      gamesRated.set(puuid, (gamesRated.get(puuid) ?? 0) + 1)
+      histPuuids.push(puuid)
+      histGameIds.push(gameId)
+      histQueueIds.push(queueId)
+      histEloBefores.push(before)
+      histEloAfters.push(after)
+      histDeltas.push(delta)
+      histGCs.push(gameCreation)
+    }
+    if (gameCreation > maxGC) maxGC = gameCreation
+  }
+
+  if (histPuuids.length === 0) return 0
+
+  const CHUNK = 50_000
+  const updatedPuuids = [...gamesRated.keys()]
+
+  await sql_.begin(async sql => {
+    for (let i = 0; i < histPuuids.length; i += CHUNK) {
+      const end = Math.min(i + CHUNK, histPuuids.length)
+      await sql`
+        INSERT INTO elo_history (puuid, "gameId", "queueId", elo_before, elo_after, delta, "gameCreation")
+        SELECT * FROM UNNEST(
+          ${histPuuids.slice(i, end)}::text[],
+          ${histGameIds.slice(i, end)}::bigint[],
+          ${histQueueIds.slice(i, end)}::int[],
+          ${histEloBefores.slice(i, end)}::float8[],
+          ${histEloAfters.slice(i, end)}::float8[],
+          ${histDeltas.slice(i, end)}::float8[],
+          ${histGCs.slice(i, end)}::bigint[]
+        )
+        ${opts?.freshInsert ? sql`` : sql`ON CONFLICT (puuid, "gameId", "queueId") DO NOTHING`}
+      `
+    }
+
+    for (let i = 0; i < updatedPuuids.length; i += CHUNK) {
+      const chunk = updatedPuuids.slice(i, i + CHUNK)
+      await sql`
+        INSERT INTO player_elo (puuid, "queueId", elo, games_rated, last_processed_game_creation, updated_at)
+        SELECT * FROM UNNEST(
+          ${chunk}::text[],
+          ${Array(chunk.length).fill(queueId)}::int[],
+          ${chunk.map(p => eloMap.get(p)!)}::float8[],
+          ${chunk.map(p => gamesRated.get(p)!)}::int[],
+          ${Array(chunk.length).fill(maxGC)}::bigint[],
+          ${Array(chunk.length).fill(new Date().toISOString())}::timestamptz[]
+        )
+        ON CONFLICT (puuid, "queueId") DO UPDATE SET
+          elo = EXCLUDED.elo,
+          games_rated = player_elo.games_rated + EXCLUDED.games_rated,
+          last_processed_game_creation = GREATEST(player_elo.last_processed_game_creation, EXCLUDED.last_processed_game_creation),
+          updated_at = now()
+      `
+    }
+  })
+
+  return gameMap.size
+}
+
+export async function recomputeEloFull(queueId = 2400): Promise<number> {
+  await sql_`DELETE FROM elo_history WHERE "queueId" = ${queueId}`
+  await sql_`DELETE FROM player_elo  WHERE "queueId" = ${queueId}`
+  await sql_`ALTER TABLE elo_history DROP CONSTRAINT IF EXISTS elo_history_pkey`
+  await sql_`DROP INDEX IF EXISTS idx_elo_history_puuid_queue_gc`
+  try {
+    return await updateElo(queueId, { freshInsert: true })
+  } finally {
+    await sql_`ALTER TABLE elo_history ADD PRIMARY KEY (puuid, "gameId", "queueId")`
+    await sql_`CREATE INDEX IF NOT EXISTS idx_elo_history_puuid_queue_gc ON elo_history (puuid, "queueId", "gameCreation")`
+  }
+}
+
+export async function getEloLeaderboard(
+  queueId = 2400,
+  minGames = 10
+): Promise<{ puuid: string; summonerName: string; elo: number; gamesRated: number; games: number; wins: number }[]> {
+  const rows = await sql_`
+    SELECT
+      pe.puuid,
+      pe.elo::float,
+      pe.games_rated AS "gamesRated",
+      MAX(psc."summonerName") AS "summonerName",
+      SUM(psc.games)::int AS games,
+      SUM(psc.wins)::int AS wins
+    FROM player_elo pe
+    JOIN player_stats_cache psc ON psc.puuid = pe.puuid AND psc."queueId" = pe."queueId"
+    WHERE pe."queueId" = ${queueId} AND pe.games_rated >= ${minGames}
+    GROUP BY pe.puuid, pe.elo, pe.games_rated
+    ORDER BY pe.elo DESC
+    LIMIT 200
+  `
+  return rows as any[]
+}
+
+export async function getEloHistory(
+  puuid: string,
+  queueId = 2400
+): Promise<{ gameId: number; elo_before: number; elo_after: number; delta: number; gameCreation: number }[]> {
+  const rows = await sql_`
+    SELECT "gameId", elo_before::float, elo_after::float, delta::float, "gameCreation"
+    FROM elo_history
+    WHERE puuid = ${puuid} AND "queueId" = ${queueId}
+    ORDER BY "gameCreation" ASC
+  `
+  return (rows as any[]).map(r => ({
+    gameId: Number(r.gameId),
+    elo_before: parseFloat(r.elo_before),
+    elo_after: parseFloat(r.elo_after),
+    delta: parseFloat(r.delta),
+    gameCreation: Number(r.gameCreation),
+  }))
 }

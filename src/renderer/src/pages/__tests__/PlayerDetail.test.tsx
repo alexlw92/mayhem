@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
-import { ChampionTable, AugmentTable, CoplayerTable, MatchCard, ChampionStat, AugmentStat, AugmentInfo, CoplayerStat, MatchView } from '../Players'
+import ChampionTable from '../../components/ChampionStatsTable'
+import AugmentTable from '../../components/AugmentStatsTable'
+import { CoplayerTable, MatchCard, ChampionStat, AugmentStat, AugmentInfo, CoplayerStat, MatchView } from '../Players'
 
 afterEach(() => cleanup())
 
@@ -56,42 +58,42 @@ describe('ChampionTable', () => {
 
 describe('AugmentTable', () => {
   it('default render — sorted by picks descending, All rarity active', () => {
-    const { container } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     expect(container).toMatchSnapshot()
   })
 
   it('click Win Rate — reorders by win rate descending', () => {
-    const { container, getByText } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByText } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     fireEvent.click(getByText(/Win Rate/))
     expect(container).toMatchSnapshot()
   })
 
   it('click Avg DPM — reorders by DPM descending', () => {
-    const { container, getByText } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByText } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     fireEvent.click(getByText(/Avg DPM/))
     expect(container).toMatchSnapshot()
   })
 
   it('click Silver — shows only Silver augments', () => {
-    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     fireEvent.click(getByRole('button', { name: 'Silver' }))
     expect(container).toMatchSnapshot()
   })
 
   it('click Gold — shows only Gold augments', () => {
-    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     fireEvent.click(getByRole('button', { name: 'Gold' }))
     expect(container).toMatchSnapshot()
   })
 
   it('click Prismatic — shows only Prismatic augments', () => {
-    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     fireEvent.click(getByRole('button', { name: 'Prismatic' }))
     expect(container).toMatchSnapshot()
   })
 
   it('click Silver twice — returns to All (all rows visible)', () => {
-    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} />)
+    const { container, getByRole } = render(<AugmentTable data={augments} augmentCache={augmentCache} showRarityFilter />)
     const btn = getByRole('button', { name: 'Silver' })
     fireEvent.click(btn)
     fireEvent.click(btn)

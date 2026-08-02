@@ -15,6 +15,10 @@ import {
   getItemPickRates,
   upsertItemMeta,
   getOrComputeArchetypes,
+  updateElo,
+  recomputeEloFull,
+  getEloHistory,
+  getEloLeaderboard,
   AugmentInfo
 } from '../db'
 
@@ -46,6 +50,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
     if (!q || q.length < 2) return res.json([])
     res.json(await searchPlayers(q))
+  })
+
+  router.get('/players/elo-leaderboard', async (req, res) => {
+    const queueId = parseQueueId(req.query.queueId)
+    const minGames = parseInt(req.query.minGames as string) || 10
+    res.json(await getEloLeaderboard(queueId, minGames))
   })
 
   router.get('/players/:puuid/stats', async (req, res) => {
@@ -143,6 +153,17 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const componentIds = Array.isArray(req.body?.componentIds) ? req.body.componentIds : []
     await upsertItemMeta(items, componentIds)
     res.json({ ok: true })
+  })
+
+  router.post('/players/elo/recompute', async (req, res) => {
+    const queueId = parseQueueId(req.query.queueId)
+    const wipe = req.query.wipe === 'true'
+    const games = wipe ? await recomputeEloFull(queueId) : await updateElo(queueId)
+    res.json({ ok: true, games })
+  })
+
+  router.get('/players/:puuid/elo-history', async (req, res) => {
+    res.json(await getEloHistory(req.params.puuid, parseQueueId(req.query.queueId)))
   })
 
   return router

@@ -30,6 +30,6 @@ describe('inferPatch', () => {
   })
 
   it('returns the last known patch for future timestamps', () => {
-    expect(inferPatch(ts('2099-01-01T00:00:00Z'))).toBe('26.14')
+    expect(inferPatch(ts('2099-01-01T00:00:00Z'))).toBe('26.15')
   })
 })

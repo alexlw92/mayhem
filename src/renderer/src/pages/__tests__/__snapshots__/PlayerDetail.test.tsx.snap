@@ -80,10 +80,12 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               Gold Rush
             </div>
           </td>
-          <td
-            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
-          >
-            Gold
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
           </td>
           <td>
             6
@@ -93,10 +95,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 33.33333333333333%; background: var(--red);"
                 />
               </div>
               <span
@@ -130,10 +133,12 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               Iron Will
             </div>
           </td>
-          <td
-            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
-          >
-            Silver
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
           </td>
           <td>
             12
@@ -143,10 +148,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -180,10 +186,12 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               Prismatic Eye
             </div>
           </td>
-          <td
-            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
-          >
-            Prismatic
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
           </td>
           <td>
             9
@@ -193,10 +201,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -299,10 +308,12 @@ exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
               Gold Rush
             </div>
           </td>
-          <td
-            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
-          >
-            Gold
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
           </td>
           <td>
             6
@@ -312,10 +323,11 @@ exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 33.33333333333333%; background: var(--red);"
                 />
               </div>
               <span
@@ -418,10 +430,12 @@ exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = 
               Prismatic Eye
             </div>
           </td>
-          <td
-            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
-          >
-            Prismatic
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
           </td>
           <td>
             9
@@ -431,10 +445,11 @@ exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = 
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -537,10 +552,12 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               Iron Will
             </div>
           </td>
-          <td
-            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
-          >
-            Silver
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
           </td>
           <td>
             12
@@ -550,10 +567,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -587,10 +605,12 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               Prismatic Eye
             </div>
           </td>
-          <td
-            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
-          >
-            Prismatic
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
           </td>
           <td>
             9
@@ -600,10 +620,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -637,10 +658,12 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               Gold Rush
             </div>
           </td>
-          <td
-            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
-          >
-            Gold
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
           </td>
           <td>
             6
@@ -650,10 +673,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 33.33333333333333%; background: var(--red);"
                 />
               </div>
               <span
@@ -756,10 +780,12 @@ exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
               Iron Will
             </div>
           </td>
-          <td
-            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
-          >
-            Silver
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
           </td>
           <td>
             12
@@ -769,10 +795,11 @@ exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -874,10 +901,12 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               Iron Will
             </div>
           </td>
-          <td
-            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
-          >
-            Silver
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
           </td>
           <td>
             12
@@ -887,10 +916,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -924,10 +954,12 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               Prismatic Eye
             </div>
           </td>
-          <td
-            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
-          >
-            Prismatic
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
           </td>
           <td>
             9
@@ -937,10 +969,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -974,10 +1007,12 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               Gold Rush
             </div>
           </td>
-          <td
-            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
-          >
-            Gold
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
           </td>
           <td>
             6
@@ -987,10 +1022,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 33.33333333333333%; background: var(--red);"
                 />
               </div>
               <span
@@ -1092,10 +1128,12 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               Iron Will
             </div>
           </td>
-          <td
-            style="color: rgb(192, 192, 192); font-size: 12px; font-weight: 600;"
-          >
-            Silver
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(192, 192, 192); border: 1px solid rgb(192, 192, 192); opacity: 0.9;"
+            >
+              Silver
+            </span>
           </td>
           <td>
             12
@@ -1105,10 +1143,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -1142,10 +1181,12 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               Prismatic Eye
             </div>
           </td>
-          <td
-            style="color: rgb(180, 75, 225); font-size: 12px; font-weight: 600;"
-          >
-            Prismatic
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(180, 75, 225); border: 1px solid rgb(180, 75, 225); opacity: 0.9;"
+            >
+              Prismatic
+            </span>
           </td>
           <td>
             9
@@ -1155,10 +1196,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 66.66666666666666%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 66.66666666666666%; background: var(--green);"
                 />
               </div>
               <span
@@ -1192,10 +1234,12 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               Gold Rush
             </div>
           </td>
-          <td
-            style="color: rgb(240, 180, 41); font-size: 12px; font-weight: 600;"
-          >
-            Gold
+          <td>
+            <span
+              style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; color: rgb(240, 180, 41); border: 1px solid rgb(240, 180, 41); opacity: 0.9;"
+            >
+              Gold
+            </span>
           </td>
           <td>
             6
@@ -1205,10 +1249,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 33.33333333333333%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 33.33333333333333%; background: var(--red);"
                 />
               </div>
               <span
@@ -1238,7 +1283,9 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
     <table>
       <thead>
         <tr>
-          <th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
             Champion
           </th>
           <th
@@ -1289,10 +1336,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 62.5%; background: var(--green);"
                 />
               </div>
               <span
@@ -1343,10 +1391,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 70%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 70%; background: var(--green);"
                 />
               </div>
               <span
@@ -1397,10 +1446,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 40%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
                 />
               </div>
               <span
@@ -1444,7 +1494,9 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
     <table>
       <thead>
         <tr>
-          <th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
             Champion
           </th>
           <th
@@ -1495,10 +1547,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 40%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
                 />
               </div>
               <span
@@ -1549,10 +1602,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 62.5%; background: var(--green);"
                 />
               </div>
               <span
@@ -1603,10 +1657,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 70%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 70%; background: var(--green);"
                 />
               </div>
               <span
@@ -1650,7 +1705,9 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
     <table>
       <thead>
         <tr>
-          <th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
             Champion
           </th>
           <th
@@ -1701,10 +1758,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 70%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 70%; background: var(--green);"
                 />
               </div>
               <span
@@ -1755,10 +1813,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 62.5%; background: var(--green);"
                 />
               </div>
               <span
@@ -1809,10 +1868,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 40%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
                 />
               </div>
               <span
@@ -1856,7 +1916,9 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
     <table>
       <thead>
         <tr>
-          <th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
             Champion
           </th>
           <th
@@ -1907,10 +1969,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 70%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 70%; background: var(--green);"
                 />
               </div>
               <span
@@ -1961,10 +2024,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 62.5%; height: 100%; background: var(--green); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 62.5%; background: var(--green);"
                 />
               </div>
               <span
@@ -2015,10 +2079,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <div
-                style="width: 60px; height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden;"
+                class="wr-bar"
               >
                 <div
-                  style="width: 40%; height: 100%; background: var(--red); border-radius: 3px;"
+                  class="wr-fill"
+                  style="width: 40%; background: var(--red);"
                 />
               </div>
               <span

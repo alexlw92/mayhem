@@ -87,7 +87,7 @@ export const apiClient = {
   clearQueue: () =>
     http.delete('/api/sync/queue'),
 
-  championCache: (): Promise<Record<number, string>> =>
+  championCache: (): Promise<Record<number, { name: string; tags: string[] }>> =>
     http.get('/api/meta/champions').then((r) => r.data),
 
   itemSummary: (championId: number, patches?: string[], queueId = 2400) =>

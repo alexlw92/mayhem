@@ -106,7 +106,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
   const [championStats, setChampionStats] = useState<Record<string, ChampionStat[]>>({})
   const [globalChampStats, setGlobalChampStats] = useState<Record<number, GlobalChampStat>>({})
   const [augmentCache, setAugmentCache] = useState<AugmentCache>({})
-  const [championCache, setChampionCache] = useState<Record<number, string>>({})
+  const [championCache, setChampionCache] = useState<Record<number, { name: string; tags: string[] }>>({})
   const [myPuuid, setMyPuuid] = useState<string | null>(null)
   const [champAugStats, setChampAugStats] = useState<{ data: AugmentStat[] | undefined; championId: number } | null>(null)
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
@@ -339,7 +339,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
 
   const myParticipant = myPuuid ? [...myTeam, ...theirTeam].find((p) => p.puuid === myPuuid) : null
   const myChampId = myParticipant?.championId ?? 0
-  const champName = myChampId ? (championCache[myChampId] ?? 'Your Champion') : 'Your Champion'
+  const champName = myChampId ? (championCache[myChampId]?.name ?? 'Your Champion') : 'Your Champion'
 
   const filteredAugs = champAugStats?.data
     ? champAugStats.data

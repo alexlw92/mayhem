@@ -23,7 +23,7 @@ const mockApi = {
       { championId: 10, games: 5, wins: 4 }
     ]),
     augmentCache: vi.fn().mockResolvedValue({}),
-    championCache: vi.fn().mockResolvedValue({ 10: 'Kayle', 20: 'Ashe' }),
+    championCache: vi.fn().mockResolvedValue({ 10: { name: 'Kayle', tags: ['Fighter', 'Support'] }, 20: { name: 'Ashe', tags: ['Marksman', 'Support'] } }),
     augmentStats: vi.fn().mockResolvedValue([
       { augmentId: 200, name: 'Iron Will', rarity: 0, iconPath: '', pickCount: 5, wins: 3, avgDpm: 800 },
     ]),

@@ -2054,6 +2054,7 @@ export interface AugmentChampionStat {
   games: number
   wins: number
   avgDpm: number
+  wilsonScore: number
 }
 
 export async function getAugmentChampionStats(augmentId: number, puuid?: string, patches?: string[], queueId = 2400): Promise<AugmentChampionStat[]> {
@@ -2111,6 +2112,7 @@ export async function getAugmentChampionStats(augmentId: number, puuid?: string,
     games: r.games,
     wins: r.wins,
     avgDpm: parseFloat(r.avgDpm),
+    wilsonScore: wilsonScore(r.wins, r.games),
   }))
 }
 

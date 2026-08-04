@@ -68,7 +68,8 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       'matches','participants','participant_items','participant_item_sets','meta_items',
       'item_picks_cache','item_builds_cache',
       'champion_stats_cache','augment_stats_cache',
-      'player_stats_cache','player_champion_stats_cache','augment_champion_stats_cache'
+      'player_stats_cache','player_champion_stats_cache','augment_champion_stats_cache',
+      'meta_champions'
     )
   `
   const hasCol = (table: string, col: string) =>
@@ -191,6 +192,8 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       name  TEXT NOT NULL
     )
   `
+  if (!hasCol('meta_champions', 'tags'))
+    await sql_`ALTER TABLE meta_champions ADD COLUMN tags TEXT[] NOT NULL DEFAULT '{}'`
   await sql_`
     CREATE TABLE IF NOT EXISTS meta_augments (
       id         INTEGER PRIMARY KEY,
@@ -668,13 +671,13 @@ export async function backfillDetailCaches(onProgress?: (phase: string) => void)
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
-export async function upsertChampions(map: Record<number, string>): Promise<void> {
-  const rows = Object.entries(map).map(([id, name]) => [parseInt(id), name])
+export async function upsertChampions(map: Record<number, { name: string; tags: string[] }>): Promise<void> {
+  const rows = Object.entries(map).map(([id, v]) => [parseInt(id), v.name, v.tags])
   if (rows.length === 0) return
   await sql_`
-    INSERT INTO meta_champions (id, name)
+    INSERT INTO meta_champions (id, name, tags)
     VALUES ${sql_(rows as any)}
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, tags = EXCLUDED.tags
   `
 }
 
@@ -689,9 +692,9 @@ export async function upsertAugments(map: Record<number, AugmentInfo>): Promise<
   `
 }
 
-export async function getChampionsFromDb(): Promise<Record<number, string>> {
-  const rows = await sql_<{ id: number; name: string }[]>`SELECT id, name FROM meta_champions`
-  return Object.fromEntries(rows.map(r => [r.id, r.name]))
+export async function getChampionsFromDb(): Promise<Record<number, { name: string; tags: string[] }>> {
+  const rows = await sql_<{ id: number; name: string; tags: string[] }[]>`SELECT id, name, tags FROM meta_champions`
+  return Object.fromEntries(rows.map(r => [r.id, { name: r.name, tags: r.tags }]))
 }
 
 export async function getAugmentsFromDb(): Promise<Record<number, AugmentInfo>> {

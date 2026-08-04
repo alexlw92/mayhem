@@ -13,11 +13,12 @@ import type { AugmentInfo } from './db'
 const PORT = parseInt(process.env.PORT ?? '3847')
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000
 
-async function fetchChampionNames(): Promise<Record<number, string>> {
+async function fetchChampionData(): Promise<Record<number, { name: string; tags: string[] }>> {
   const { data: versions } = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json', { timeout: 10000 })
   const { data } = await axios.get(`https://ddragon.leagueoflegends.com/cdn/${versions[0]}/data/en_US/champion.json`, { timeout: 10000 })
-  const map: Record<number, string> = {}
-  for (const c of Object.values(data.data) as any[]) map[parseInt(c.key)] = c.name
+  const map: Record<number, { name: string; tags: string[] }> = {}
+  for (const c of Object.values(data.data) as any[])
+    map[parseInt(c.key)] = { name: c.name, tags: c.tags ?? [] }
   return map
 }
 
@@ -33,11 +34,11 @@ async function fetchAugments(): Promise<Record<number, AugmentInfo>> {
 }
 
 async function refreshMetadata(
-  champRef: { value: Record<number, string> },
+  champRef: { value: Record<number, { name: string; tags: string[] }> },
   augRef: { value: Record<number, AugmentInfo> }
 ): Promise<void> {
   try {
-    const [champions, augments] = await Promise.all([fetchChampionNames(), fetchAugments()])
+    const [champions, augments] = await Promise.all([fetchChampionData(), fetchAugments()])
     await Promise.all([upsertChampions(champions), upsertAugments(augments)])
     champRef.value = champions
     augRef.value = augments

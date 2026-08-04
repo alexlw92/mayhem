@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express'
 import type { AugmentInfo } from '../db'
 
 export interface MetaOptions {
-  getChampions?: () => Record<number, string>
+  getChampions?: () => Record<number, { name: string; tags: string[] }>
   getAugments?: () => Record<number, AugmentInfo>
 }
 

@@ -19,11 +19,13 @@ import {
   recomputeEloFull,
   getEloHistory,
   getEloLeaderboard,
+  recomputePlayerElo,
   AugmentInfo
 } from '../db'
 
 export interface StatsOptions {
   getAugments?: () => Record<number, AugmentInfo>
+  getChampions?: () => Record<number, { name: string; tags: string[] }>
   latestPatch?: { value: string | null }
 }
 
@@ -160,6 +162,15 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const wipe = req.query.wipe === 'true'
     const games = wipe ? await recomputeEloFull(queueId) : await updateElo(queueId)
     res.json({ ok: true, games })
+  })
+
+  router.post('/players/elo/recompute-affected', async (req, res) => {
+    const puuids: string[] = Array.isArray(req.body?.puuids) ? req.body.puuids : []
+    if (puuids.length === 0) return res.json({ recomputed: 0 })
+    const results = await Promise.all(
+      puuids.flatMap(p => [2400, 2450].map(q => recomputePlayerElo(p, q)))
+    )
+    res.json({ recomputed: results.reduce((s, n) => s + n, 0) })
   })
 
   router.get('/players/:puuid/elo-history', async (req, res) => {

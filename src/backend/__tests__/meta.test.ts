@@ -20,10 +20,12 @@ beforeEach(async () => {
 
 describe('upsertChampions / getChampionsFromDb', () => {
   it('stores and retrieves champion names', async () => {
-    await upsertChampions({ 1: 'Annie', 2: 'Olaf' })
+    await upsertChampions({ 1: { name: 'Annie', tags: ['Mage', 'Support'] }, 2: { name: 'Olaf', tags: ['Fighter', 'Tank'] } })
     const result = await getChampionsFromDb()
-    expect(result[1]).toBe('Annie')
-    expect(result[2]).toBe('Olaf')
+    expect(result[1].name).toBe('Annie')
+    expect(result[1].tags).toEqual(['Mage', 'Support'])
+    expect(result[2].name).toBe('Olaf')
+    expect(result[2].tags).toEqual(['Fighter', 'Tank'])
   })
 
   it('returns empty map when table is empty', async () => {
@@ -36,9 +38,11 @@ describe('upsertChampions / getChampionsFromDb', () => {
   })
 
   it('updates existing champion name on re-upsert', async () => {
-    await upsertChampions({ 1: 'Annie' })
-    await upsertChampions({ 1: 'Annie Hastur' })
-    expect((await getChampionsFromDb())[1]).toBe('Annie Hastur')
+    await upsertChampions({ 1: { name: 'Annie', tags: ['Mage'] } })
+    await upsertChampions({ 1: { name: 'Annie Hastur', tags: ['Mage', 'Support'] } })
+    const result = await getChampionsFromDb()
+    expect(result[1].name).toBe('Annie Hastur')
+    expect(result[1].tags).toEqual(['Mage', 'Support'])
   })
 })
 

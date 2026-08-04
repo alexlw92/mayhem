@@ -88,7 +88,7 @@ export interface CoplayerStat {
   wins: number
 }
 
-type Tab = 'matches' | 'champions' | 'augments' | 'coplayers' | 'elo'
+type Tab = 'matches' | 'champions' | 'augments' | 'coplayers' | 'elo' | 'performance'
 type PlayerListView = 'recent' | 'leaderboard'
 
 interface LeaderboardEntry {
@@ -768,14 +768,8 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
         </div>
       )}
 
-      <PerformancePanel
-        puuid={puuid}
-        patches={selectedPatches}
-        queueId={selectedMode ?? 2400}
-      />
-
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {(['matches', 'champions', 'augments', 'coplayers', 'elo'] as Tab[]).map((t) => (
+        {(['matches', 'champions', 'augments', 'coplayers', 'elo', 'performance'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -826,6 +820,14 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
 
       {tab === 'elo' && (
         <EloHistoryChart data={eloHistory} />
+      )}
+
+      {tab === 'performance' && (
+        <PerformancePanel
+          puuid={puuid}
+          patches={selectedPatches}
+          queueId={selectedMode ?? 2400}
+        />
       )}
     </div>
   )

@@ -108,9 +108,18 @@ export const apiClient = {
       timeout: wipe ? 0 : 60_000,
     }),
 
+  recomputeAffectedElo: (puuids: string[]) =>
+    http.post('/api/players/elo/recompute-affected', { puuids }, { timeout: 0 }).then(r => r.data),
+
   eloHistory: (puuid: string, queueId = 2400): Promise<{ gameId: number; elo_before: number; elo_after: number; delta: number; gameCreation: number }[]> =>
     http.get(`/api/players/${puuid}/elo-history`, { params: { queueId } }).then((r) => r.data),
 
   eloLeaderboard: (queueId = 2400): Promise<{ puuid: string; summonerName: string; elo: number; gamesRated: number; games: number; wins: number }[]> =>
     http.get('/api/players/elo-leaderboard', { params: { queueId } }).then((r) => r.data),
+
+  playerPerformance: (puuid: string, patches?: string[], queueId = 2400) =>
+    http.get(`/api/players/${puuid}/performance`, {
+      params: { patches: patches?.join(','), queueId },
+      timeout: 30_000,
+    }).then((r) => r.data),
 }

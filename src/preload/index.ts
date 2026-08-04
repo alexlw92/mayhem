@@ -33,7 +33,9 @@ const api = {
     coplayerStats: (puuid: string, patches?: string[], queueId?: number) => ipcRenderer.invoke('db:coplayerStats', puuid, patches, queueId),
     itemSummary: (championId: number, patches?: string[], queueId = 2400) => ipcRenderer.invoke('db:itemSummary', championId, patches, queueId),
     eloHistory: (puuid: string, queueId = 2400) => ipcRenderer.invoke('db:eloHistory', puuid, queueId),
-    eloLeaderboard: (queueId = 2400) => ipcRenderer.invoke('db:eloLeaderboard', queueId)
+    eloLeaderboard: (queueId = 2400) => ipcRenderer.invoke('db:eloLeaderboard', queueId),
+    playerPerformance: (puuid: string, patches?: string[], queueId = 2400) =>
+      ipcRenderer.invoke('db:playerPerformance', puuid, patches, queueId),
   },
   meta: {
     refresh: () => ipcRenderer.invoke('meta:refresh')

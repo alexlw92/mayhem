@@ -492,6 +492,9 @@ ipcMain.handle('db:searchPlayers', (_e, query: string) => apiClient.searchPlayer
 ipcMain.handle('db:coplayerStats', (_e, puuid: string, patches?: string[], queueId?: number) => apiClient.coplayerStats(puuid, patches, queueId))
 ipcMain.handle('db:eloHistory', (_e, puuid: string, queueId = 2400) => apiClient.eloHistory(puuid, queueId))
 ipcMain.handle('db:eloLeaderboard', (_e, queueId = 2400) => apiClient.eloLeaderboard(queueId))
+ipcMain.handle('db:playerPerformance', (_e, puuid: string, patches?: string[], queueId = 2400) =>
+  apiClient.playerPerformance(puuid, patches, queueId)
+)
 
 ipcMain.handle('db:itemSummary', async (_e, championId: number, patches?: string[], queueId = 2400) => {
   const key = `summary:${championId}:${queueId}:${(patches ?? []).slice().sort().join(',')}`

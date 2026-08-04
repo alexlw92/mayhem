@@ -20,7 +20,9 @@ import {
   getEloHistory,
   getEloLeaderboard,
   recomputePlayerElo,
-  AugmentInfo
+  AugmentInfo,
+  getPlayerPerformance,
+  ChampionMeta,
 } from '../db'
 
 export interface StatsOptions {
@@ -175,6 +177,14 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players/:puuid/elo-history', async (req, res) => {
     res.json(await getEloHistory(req.params.puuid, parseQueueId(req.query.queueId)))
+  })
+
+  router.get('/players/:puuid/performance', async (req, res) => {
+    const puuid = req.params.puuid
+    const patches = parsePatches(req.query.patches)
+    const queueId = parseQueueId(req.query.queueId)
+    const championMap = (opts.getChampions?.() ?? {}) as Record<number, ChampionMeta>
+    res.json(await getPlayerPerformance(puuid, championMap, patches, queueId))
   })
 
   return router

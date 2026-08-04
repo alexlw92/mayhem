@@ -34,8 +34,6 @@ interface Props {
   queueId: number
 }
 
-const ROLES = ['Fighter', 'Mage', 'Assassin', 'Tank', 'Marksman', 'Support']
-
 function DeltaCard({ label, value, format }: {
   label: string; value: number; format: (v: number) => string
 }) {
@@ -62,65 +60,28 @@ function PoolCard({ unique, concentration }: { unique: number; concentration: nu
   )
 }
 
-function RadarChart({ buckets }: { buckets: ClassBucket[] }) {
-  const size = 180
-  const cx = size / 2, cy = size / 2
-  const R = size * 0.37
-  const n = ROLES.length
-  const byRole = new Map(buckets.map(b => [b.class, b]))
-
-  const spokes = ROLES.map((role, i) => {
-    const angle = (i / n) * 2 * Math.PI - Math.PI / 2
-    const b = byRole.get(role)
-    const r = b ? Math.min(b.winRate, 1) * R : 0
-    return {
-      role,
-      px: cx + r * Math.cos(angle),
-      py: cy + r * Math.sin(angle),
-      sx: cx + R * Math.cos(angle),
-      sy: cy + R * Math.sin(angle),
-      lx: cx + (R + 22) * Math.cos(angle),
-      ly: cy + (R + 22) * Math.sin(angle),
-      hasData: !!b,
-      games: b?.games ?? 0,
-    }
-  })
-
-  const refRing = ROLES.map((_, i) => {
-    const angle = (i / n) * 2 * Math.PI - Math.PI / 2
-    const r = 0.5 * R
-    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`
-  }).join(' ')
-
-  const poly = spokes.filter(s => s.hasData).map(s => `${s.px},${s.py}`).join(' ')
+function RoleBarChart({ buckets }: { buckets: ClassBucket[] }) {
+  if (buckets.length === 0) return null
+  const sorted = [...buckets].sort((a, b) => b.games - a.games)
+  const maxGames = sorted[0].games
 
   return (
-    <svg width={size + 60} height={size + 50} viewBox={`-30 -25 ${size + 60} ${size + 50}`}>
-      {spokes.map((s, i) => (
-        <line key={i} x1={cx} y1={cy} x2={s.sx} y2={s.sy}
-          stroke="var(--border, #2a2a3a)" strokeWidth={1} />
+    <div style={{ width: '100%' }}>
+      {sorted.map(b => (
+        <div key={b.class} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ width: 72, fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{b.class}</div>
+          <div style={{ flex: 1, height: 14, background: 'var(--bg-tertiary, #1a1a2a)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', height: '100%', width: `${(b.games / maxGames) * 100}%` }}>
+              <div style={{ width: `${(b.wins / b.games) * 100}%`, background: 'var(--accent, #7b68ee)' }} />
+              <div style={{ flex: 1, background: 'var(--bg-card, #2a2a3a)' }} />
+            </div>
+          </div>
+          <div style={{ width: 36, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0 }}>
+            {(b.winRate * 100).toFixed(0)}%
+          </div>
+        </div>
       ))}
-      <polygon points={refRing} fill="none"
-        stroke="var(--text-muted, #444)" strokeWidth={1} strokeDasharray="3,3" />
-      {poly && (
-        <polygon points={poly}
-          fill="var(--accent, #7b68ee)" fillOpacity={0.2}
-          stroke="var(--accent, #7b68ee)" strokeWidth={2} />
-      )}
-      {spokes.filter(s => s.hasData).map((s, i) => (
-        <circle key={i} cx={s.px} cy={s.py}
-          r={Math.max(3, Math.log(s.games + 1) * 2)}
-          fill="var(--accent, #7b68ee)" />
-      ))}
-      {spokes.map((s, i) => (
-        <text key={i} x={s.lx} y={s.ly}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={9}
-          fill={s.hasData ? 'var(--text-primary)' : 'var(--text-muted, #555)'}>
-          {s.role}
-        </text>
-      ))}
-    </svg>
+    </div>
   )
 }
 
@@ -165,9 +126,6 @@ export default function PerformancePanel({ puuid, patches, queueId }: Props) {
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Performance
-      </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
         <DeltaCard label="Champ Picks" value={data.championPickQuality} format={fmtPct} />
         <DeltaCard label="Aug Picks" value={data.augmentPickQuality} format={fmtPct} />
@@ -177,9 +135,9 @@ export default function PerformancePanel({ puuid, patches, queueId }: Props) {
         <PoolCard unique={data.poolUniqueChampions} concentration={data.poolTop3Concentration} />
       </div>
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Win Rate by Role</div>
-          <RadarChart buckets={data.classBuckets} />
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Win Rate by Role</div>
+          <RoleBarChart buckets={data.classBuckets} />
         </div>
         <PoolDepth champions={data.poolTopChampions} />
       </div>

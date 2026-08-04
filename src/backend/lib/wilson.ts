@@ -1,6 +1,11 @@
-const Z2 = 3.8416      // 1.96² (95% confidence)
-const Z2_HALF = 1.9208 // z²/2
+const Z = 1.96
+const Z2 = Z * Z
 
 export function wilsonScore(wins: number, n: number): number {
-  return ((wins + Z2_HALF) / (n + Z2)) * 10
+  if (n === 0) return 0
+  const p = wins / n
+  const lower =
+    (p + Z2 / (2 * n) - Z * Math.sqrt((p * (1 - p) + Z2 / (4 * n)) / n)) /
+    (1 + Z2 / n)
+  return lower * 10
 }

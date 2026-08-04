@@ -8,15 +8,15 @@ import { CoplayerTable, MatchCard, ChampionStat, AugmentStat, AugmentInfo, Copla
 afterEach(() => cleanup())
 
 const champions: ChampionStat[] = [
-  { championId: 1, championName: 'Annie',    games: 10, wins: 7, kills: 50, deaths: 20, assists: 40, avgDpm: 800 },
-  { championId: 2, championName: 'Teemo',    games: 5,  wins: 2, kills: 20, deaths: 25, assists: 10, avgDpm: 600 },
-  { championId: 3, championName: 'Lux',      games: 8,  wins: 5, kills: 30, deaths: 15, assists: 60, avgDpm: 950 },
+  { championId: 1, championName: 'Annie',    games: 10, wins: 7, kills: 50, deaths: 20, assists: 40, avgDpm: 800,  wilsonScore: 6.44 },
+  { championId: 2, championName: 'Teemo',    games: 5,  wins: 2, kills: 20, deaths: 25, assists: 10, avgDpm: 600,  wilsonScore: 4.43 },
+  { championId: 3, championName: 'Lux',      games: 8,  wins: 5, kills: 30, deaths: 15, assists: 60, avgDpm: 950,  wilsonScore: 5.84 },
 ]
 
 const augments: AugmentStat[] = [
-  { augmentId: 1, name: 'Iron Will',     rarity: 0, pickCount: 12, wins: 8,  avgDpm: 700 },
-  { augmentId: 2, name: 'Gold Rush',     rarity: 1, pickCount: 6,  wins: 2,  avgDpm: 900 },
-  { augmentId: 3, name: 'Prismatic Eye', rarity: 2, pickCount: 9,  wins: 6,  avgDpm: 500 },
+  { augmentId: 1, name: 'Iron Will',     rarity: 0, pickCount: 12, wins: 8,  avgDpm: 700, wilsonScore: 6.26 },
+  { augmentId: 2, name: 'Gold Rush',     rarity: 1, pickCount: 6,  wins: 2,  avgDpm: 900, wilsonScore: 3.98 },
+  { augmentId: 3, name: 'Prismatic Eye', rarity: 2, pickCount: 9,  wins: 6,  avgDpm: 500, wilsonScore: 6.17 },
 ]
 
 const augmentCache: Record<number, AugmentInfo> = {

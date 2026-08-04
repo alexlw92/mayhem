@@ -6,9 +6,9 @@ import AugmentStatsTable from '../AugmentStatsTable'
 afterEach(() => cleanup())
 
 const augments = [
-  { augmentId: 1, name: 'Iron Will',     rarity: 0, iconPath: 'mayhem-asset://augment-icons/1.png', pickCount: 100, wins: 45, avgDpm: 800 },
-  { augmentId: 2, name: 'Gold Rush',     rarity: 1, iconPath: 'mayhem-asset://augment-icons/2.png', pickCount: 60,  wins: 36, avgDpm: 950 },
-  { augmentId: 3, name: 'Prismatic Eye', rarity: 2, iconPath: 'mayhem-asset://augment-icons/3.png', pickCount: 20,  wins: 12, avgDpm: 1100 },
+  { augmentId: 1, name: 'Iron Will',     rarity: 0, iconPath: 'mayhem-asset://augment-icons/1.png', pickCount: 100, wins: 45, avgDpm: 800,  wilsonScore: 4.52 },
+  { augmentId: 2, name: 'Gold Rush',     rarity: 1, iconPath: 'mayhem-asset://augment-icons/2.png', pickCount: 60,  wins: 36, avgDpm: 950,  wilsonScore: 5.94 },
+  { augmentId: 3, name: 'Prismatic Eye', rarity: 2, iconPath: 'mayhem-asset://augment-icons/3.png', pickCount: 20,  wins: 12, avgDpm: 1100, wilsonScore: 5.84 },
 ]
 
 const cache = {
@@ -23,9 +23,28 @@ describe('AugmentStatsTable', () => {
     expect(container).toMatchSnapshot()
   })
 
-  it('renders table with default sort (picks desc)', () => {
+  it('renders table with default sort (wilson score desc)', () => {
     const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} />)
     expect(container).toMatchSnapshot()
+  })
+
+  it('renders a Score column header', () => {
+    const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} />)
+    expect(getByRole(container, 'columnheader', { name: /Score/ })).toBeTruthy()
+  })
+
+  it('default sort is wilson score descending — Gold Rush first', () => {
+    const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} />)
+    const rows = container.querySelectorAll('tbody tr')
+    expect(rows[0].textContent).toContain('Gold Rush')
+    expect(rows[2].textContent).toContain('Iron Will')
+  })
+
+  it('click Score header toggles to ascending — Iron Will first', () => {
+    const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} />)
+    fireEvent.click(getByRole(container, 'columnheader', { name: /Score/ }))
+    const rows = container.querySelectorAll('tbody tr')
+    expect(rows[0].textContent).toContain('Iron Will')
   })
 
   it('hides rarity filter by default', () => {
@@ -39,10 +58,12 @@ describe('AugmentStatsTable', () => {
     expect(container.querySelectorAll('.aug-btn').length).toBeGreaterThan(0)
   })
 
-  it('click Picks header toggles to ascending', () => {
+  it('click Picks header sorts by picks desc', () => {
     const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} />)
     fireEvent.click(getByRole(container, 'columnheader', { name: /Picks/ }))
     expect(container).toMatchSnapshot()
+    const rows = container.querySelectorAll('tbody tr')
+    expect(rows[0].textContent).toContain('Iron Will') // 100 picks
   })
 
   it('click Win Rate header sorts by win rate desc', () => {
@@ -62,7 +83,7 @@ describe('AugmentStatsTable', () => {
     const { container } = render(<AugmentStatsTable data={augments} augmentCache={cache} onAugmentClick={onClick} />)
     const rows = container.querySelectorAll('tbody tr')
     fireEvent.click(rows[0])
-    expect(onClick).toHaveBeenCalledWith(1) // Iron Will is first (100 picks desc)
+    expect(onClick).toHaveBeenCalledWith(2) // Gold Rush is first (highest wilson score)
   })
 
   it('rarity filter narrows rows to gold only', () => {

@@ -5,8 +5,8 @@ import { render, cleanup, act, fireEvent, getByRole } from '@testing-library/rea
 afterEach(() => cleanup())
 
 const mockChampionStats = [
-  { championId: 10, championName: 'Kayle', games: 8, wins: 5, avgDpm: 820 },
-  { championId: 20, championName: 'Teemo', games: 3, wins: 1, avgDpm: 510 },
+  { championId: 10, championName: 'Kayle', games: 8, wins: 5, avgDpm: 820, wilsonScore: 5.84 },
+  { championId: 20, championName: 'Teemo', games: 3, wins: 1, avgDpm: 510, wilsonScore: 4.27 },
 ]
 const mockAugmentCache = {
   200: { name: 'Iron Will', iconPath: 'mayhem-asset://augment-icons/200.png', rarity: 0 },

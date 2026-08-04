@@ -59,6 +59,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
             Avg DPM
              ▼
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -114,6 +119,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
             900
             /min
           </td>
+          <td
+            style="color: rgb(195, 162, 34); font-weight: 600;"
+          >
+            4.0
+          </td>
         </tr>
         <tr>
           <td>
@@ -167,6 +177,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
             700
             /min
           </td>
+          <td
+            style="color: rgb(155, 195, 34); font-weight: 600;"
+          >
+            6.3
+          </td>
         </tr>
         <tr>
           <td>
@@ -219,6 +234,11 @@ exports[`AugmentTable > click Avg DPM — reorders by DPM descending 1`] = `
           <td>
             500
             /min
+          </td>
+          <td
+            style="color: rgb(158, 195, 34); font-weight: 600;"
+          >
+            6.2
           </td>
         </tr>
       </tbody>
@@ -275,7 +295,6 @@ exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Picks
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -286,6 +305,12 @@ exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -341,6 +366,11 @@ exports[`AugmentTable > click Gold — shows only Gold augments 1`] = `
           <td>
             900
             /min
+          </td>
+          <td
+            style="color: rgb(195, 162, 34); font-weight: 600;"
+          >
+            4.0
           </td>
         </tr>
       </tbody>
@@ -397,7 +427,6 @@ exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = 
             style="cursor: pointer; user-select: none;"
           >
             Picks
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -408,6 +437,12 @@ exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = 
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -463,6 +498,11 @@ exports[`AugmentTable > click Prismatic — shows only Prismatic augments 1`] = 
           <td>
             500
             /min
+          </td>
+          <td
+            style="color: rgb(158, 195, 34); font-weight: 600;"
+          >
+            6.2
           </td>
         </tr>
       </tbody>
@@ -519,7 +559,6 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
             style="cursor: pointer; user-select: none;"
           >
             Picks
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -530,6 +569,12 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -586,6 +631,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
             700
             /min
           </td>
+          <td
+            style="color: rgb(155, 195, 34); font-weight: 600;"
+          >
+            6.3
+          </td>
         </tr>
         <tr>
           <td>
@@ -639,6 +689,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
             500
             /min
           </td>
+          <td
+            style="color: rgb(158, 195, 34); font-weight: 600;"
+          >
+            6.2
+          </td>
         </tr>
         <tr>
           <td>
@@ -691,6 +746,11 @@ exports[`AugmentTable > click Silver twice — returns to All (all rows visible)
           <td>
             900
             /min
+          </td>
+          <td
+            style="color: rgb(195, 162, 34); font-weight: 600;"
+          >
+            4.0
           </td>
         </tr>
       </tbody>
@@ -747,7 +807,6 @@ exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Picks
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -758,6 +817,12 @@ exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -813,6 +878,11 @@ exports[`AugmentTable > click Silver — shows only Silver augments 1`] = `
           <td>
             700
             /min
+          </td>
+          <td
+            style="color: rgb(155, 195, 34); font-weight: 600;"
+          >
+            6.3
           </td>
         </tr>
       </tbody>
@@ -880,6 +950,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -935,6 +1010,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
             700
             /min
           </td>
+          <td
+            style="color: rgb(155, 195, 34); font-weight: 600;"
+          >
+            6.3
+          </td>
         </tr>
         <tr>
           <td>
@@ -988,6 +1068,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
             500
             /min
           </td>
+          <td
+            style="color: rgb(158, 195, 34); font-weight: 600;"
+          >
+            6.2
+          </td>
         </tr>
         <tr>
           <td>
@@ -1040,6 +1125,11 @@ exports[`AugmentTable > click Win Rate — reorders by win rate descending 1`] =
           <td>
             900
             /min
+          </td>
+          <td
+            style="color: rgb(195, 162, 34); font-weight: 600;"
+          >
+            4.0
           </td>
         </tr>
       </tbody>
@@ -1095,7 +1185,6 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
             style="cursor: pointer; user-select: none;"
           >
             Picks
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -1106,6 +1195,12 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -1162,6 +1257,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
             700
             /min
           </td>
+          <td
+            style="color: rgb(155, 195, 34); font-weight: 600;"
+          >
+            6.3
+          </td>
         </tr>
         <tr>
           <td>
@@ -1214,6 +1314,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
           <td>
             500
             /min
+          </td>
+          <td
+            style="color: rgb(158, 195, 34); font-weight: 600;"
+          >
+            6.2
           </td>
         </tr>
         <tr>
@@ -1268,6 +1373,11 @@ exports[`AugmentTable > default render — sorted by picks descending, All rarit
             900
             /min
           </td>
+          <td
+            style="color: rgb(195, 162, 34); font-weight: 600;"
+          >
+            4.0
+          </td>
         </tr>
       </tbody>
     </table>
@@ -1311,6 +1421,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
           >
             Avg DPM
              ▼
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
           </th>
         </tr>
       </thead>
@@ -1369,6 +1484,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
             950
             /min
           </td>
+          <td
+            style="color: rgb(168, 195, 34); font-weight: 600;"
+          >
+            5.8
+          </td>
         </tr>
         <tr>
           <td>
@@ -1424,6 +1544,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
             800
             /min
           </td>
+          <td
+            style="color: rgb(149, 195, 34); font-weight: 600;"
+          >
+            6.4
+          </td>
         </tr>
         <tr>
           <td>
@@ -1478,6 +1603,11 @@ exports[`ChampionTable > click Avg DPM — reorders rows by DPM descending 1`] =
           <td>
             600
             /min
+          </td>
+          <td
+            style="color: rgb(195, 177, 34); font-weight: 600;"
+          >
+            4.4
           </td>
         </tr>
       </tbody>
@@ -1523,6 +1653,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -1580,6 +1715,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
             600
             /min
           </td>
+          <td
+            style="color: rgb(195, 177, 34); font-weight: 600;"
+          >
+            4.4
+          </td>
         </tr>
         <tr>
           <td>
@@ -1635,6 +1775,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
             950
             /min
           </td>
+          <td
+            style="color: rgb(168, 195, 34); font-weight: 600;"
+          >
+            5.8
+          </td>
         </tr>
         <tr>
           <td>
@@ -1689,6 +1834,11 @@ exports[`ChampionTable > click Win Rate twice — shows ▲ (ascending) 1`] = `
           <td>
             800
             /min
+          </td>
+          <td
+            style="color: rgb(149, 195, 34); font-weight: 600;"
+          >
+            6.4
           </td>
         </tr>
       </tbody>
@@ -1734,6 +1884,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -1791,6 +1946,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
             800
             /min
           </td>
+          <td
+            style="color: rgb(149, 195, 34); font-weight: 600;"
+          >
+            6.4
+          </td>
         </tr>
         <tr>
           <td>
@@ -1846,6 +2006,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
             950
             /min
           </td>
+          <td
+            style="color: rgb(168, 195, 34); font-weight: 600;"
+          >
+            5.8
+          </td>
         </tr>
         <tr>
           <td>
@@ -1900,6 +2065,11 @@ exports[`ChampionTable > click Win Rate — reorders rows and shows ▼ on heade
           <td>
             600
             /min
+          </td>
+          <td
+            style="color: rgb(195, 177, 34); font-weight: 600;"
+          >
+            4.4
           </td>
         </tr>
       </tbody>
@@ -1925,7 +2095,6 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Games
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -1944,6 +2113,12 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -2002,6 +2177,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
             800
             /min
           </td>
+          <td
+            style="color: rgb(149, 195, 34); font-weight: 600;"
+          >
+            6.4
+          </td>
         </tr>
         <tr>
           <td>
@@ -2057,6 +2237,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
             950
             /min
           </td>
+          <td
+            style="color: rgb(168, 195, 34); font-weight: 600;"
+          >
+            5.8
+          </td>
         </tr>
         <tr>
           <td>
@@ -2111,6 +2296,11 @@ exports[`ChampionTable > default render — sorted by games descending 1`] = `
           <td>
             600
             /min
+          </td>
+          <td
+            style="color: rgb(195, 177, 34); font-weight: 600;"
+          >
+            4.4
           </td>
         </tr>
       </tbody>

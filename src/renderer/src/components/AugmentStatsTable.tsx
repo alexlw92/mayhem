@@ -9,6 +9,7 @@ export interface AugmentStat {
   pickCount: number
   wins: number
   avgDpm: number
+  wilsonScore: number
 }
 
 interface Props {
@@ -18,13 +19,20 @@ interface Props {
   showRarityFilter?: boolean
 }
 
-type SortKey = 'pickCount' | 'winRate' | 'avgDpm'
+type SortKey = 'pickCount' | 'winRate' | 'avgDpm' | 'wilson'
 
 const RARITY_LABEL = ['Silver', 'Gold', 'Prismatic']
 const RARITY_COLOR = ['#c0c0c0', '#f0b429', '#b44be1']
 
+function scoreStyle(score: number): React.CSSProperties {
+  return {
+    color: `hsl(${score * 12}, 70%, 45%)`,
+    fontWeight: 600,
+  }
+}
+
 export default function AugmentStatsTable({ data, augmentCache, onAugmentClick, showRarityFilter = false }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>('pickCount')
+  const [sortKey, setSortKey] = useState<SortKey>('wilson')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [rarityFilter, setRarityFilter] = useState<number | null>(null)
 
@@ -49,9 +57,11 @@ export default function AugmentStatsTable({ data, augmentCache, onAugmentClick, 
     .sort((a, b) => {
       const aVal = sortKey === 'winRate' ? (a.pickCount > 0 ? a.wins / a.pickCount : 0)
         : sortKey === 'avgDpm' ? a.avgDpm
+        : sortKey === 'wilson' ? a.wilsonScore
         : a.pickCount
       const bVal = sortKey === 'winRate' ? (b.pickCount > 0 ? b.wins / b.pickCount : 0)
         : sortKey === 'avgDpm' ? b.avgDpm
+        : sortKey === 'wilson' ? b.wilsonScore
         : b.pickCount
       return sortDir === 'desc' ? bVal - aVal : aVal - bVal
     })
@@ -90,6 +100,7 @@ export default function AugmentStatsTable({ data, augmentCache, onAugmentClick, 
               <th style={thStyle} onClick={() => onSort('pickCount')}>Picks{arrow('pickCount')}</th>
               <th style={thStyle} onClick={() => onSort('winRate')}>Win Rate{arrow('winRate')}</th>
               <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
+              <th style={thStyle} onClick={() => onSort('wilson')}>Score{arrow('wilson')}</th>
             </tr>
           </thead>
           <tbody>
@@ -127,6 +138,7 @@ export default function AugmentStatsTable({ data, augmentCache, onAugmentClick, 
                     </div>
                   </td>
                   <td>{Math.round(a.avgDpm)}/min</td>
+                  <td style={scoreStyle(a.wilsonScore)}>{a.wilsonScore.toFixed(1)}</td>
                 </tr>
               )
             })}

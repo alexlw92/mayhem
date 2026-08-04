@@ -61,6 +61,7 @@ export interface ChampionStat {
   deaths: number
   assists: number
   avgDpm: number
+  wilsonScore: number
 }
 
 export interface AugmentStat {
@@ -70,6 +71,7 @@ export interface AugmentStat {
   pickCount: number
   wins: number
   avgDpm: number
+  wilsonScore: number
 }
 
 export interface AugmentInfo {

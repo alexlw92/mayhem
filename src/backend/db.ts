@@ -4,6 +4,7 @@ const envFile = process.env.NODE_ENV !== 'production' ? '.env.dev' : '.env'
 dotenv.config({ path: path.resolve(__dirname, '../../', envFile), override: process.env.NODE_ENV !== 'test' })
 dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
+import { wilsonScore } from './lib/wilson'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
 const ARCHETYPE_CACHE_VERSION = 8
@@ -1565,6 +1566,7 @@ export interface ChampionStats {
   deaths: number
   assists: number
   avgDpm: number
+  wilsonScore: number
 }
 
 export async function getChampionStats(puuid?: string, patches?: string[], queueId = 2400): Promise<ChampionStats[]> {
@@ -1634,7 +1636,8 @@ export async function getChampionStats(puuid?: string, patches?: string[], queue
     kills: r.kills,
     deaths: r.deaths,
     assists: r.assists,
-    avgDpm: parseFloat(r.avgDpm)
+    avgDpm: parseFloat(r.avgDpm),
+    wilsonScore: wilsonScore(r.wins, r.games)
   }))
 }
 
@@ -1646,6 +1649,7 @@ export interface AugmentStats {
   pickCount: number
   wins: number
   avgDpm: number
+  wilsonScore: number
 }
 
 export async function getAugmentStats(puuid?: string, championId?: number, patches?: string[], augmentCache: Record<number, { name: string; rarity: number; iconPath: string }> = {}, queueId = 2400): Promise<AugmentStats[]> {
@@ -1728,7 +1732,8 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
       iconPath: meta?.iconPath ?? '',
       pickCount: r.pickCount,
       wins: r.wins,
-      avgDpm: parseFloat(r.avgDpm)
+      avgDpm: parseFloat(r.avgDpm),
+      wilsonScore: wilsonScore(r.wins, r.pickCount)
     }
   })
 }

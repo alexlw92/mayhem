@@ -119,6 +119,18 @@ describe('GET /api/champions', () => {
     expect(res.status).toBe(200)
     expect(Array.isArray(res.body)).toBe(true)
   })
+
+  it('includes wilsonScore as a number on each champion', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/champions')
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    res.body.forEach((c: any) => {
+      expect(typeof c.wilsonScore).toBe('number')
+      expect(c.wilsonScore).toBeGreaterThanOrEqual(0)
+      expect(c.wilsonScore).toBeLessThanOrEqual(10)
+    })
+  })
 })
 
 describe('POST /api/matches/bulk', () => {
@@ -190,6 +202,18 @@ describe('Sync queue endpoints', () => {
 })
 
 describe('GET /api/augments', () => {
+  it('includes wilsonScore as a number on each augment', async () => {
+    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await request(app).get('/api/augments')
+    expect(res.status).toBe(200)
+    expect(res.body.length).toBeGreaterThan(0)
+    res.body.forEach((a: any) => {
+      expect(typeof a.wilsonScore).toBe('number')
+      expect(a.wilsonScore).toBeGreaterThanOrEqual(0)
+      expect(a.wilsonScore).toBeLessThanOrEqual(10)
+    })
+  })
+
   it('returns fallback name and empty iconPath when no cache is injected', async () => {
     await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
     const res = await request(app).get('/api/augments')

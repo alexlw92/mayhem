@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import AugmentIcon from '../components/AugmentIcon'
 import AugmentStatsTable from '../components/AugmentStatsTable'
 import ChampionStatsTable from '../components/ChampionStatsTable'
+import PerformancePanel from './PerformancePanel'
 import './Dashboard.css'
 
 const api = (window as any).api
@@ -766,6 +767,12 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
           )}
         </div>
       )}
+
+      <PerformancePanel
+        puuid={puuid}
+        patches={selectedPatches}
+        queueId={selectedMode ?? 2400}
+      />
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
         {(['matches', 'champions', 'augments', 'coplayers', 'elo'] as Tab[]).map((t) => (

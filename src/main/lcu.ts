@@ -271,7 +271,7 @@ export async function getChampionIcon(championId: number): Promise<string> {
   }
 }
 
-export async function getChampionData(): Promise<Record<number, string>> {
+export async function getChampionData(): Promise<Record<number, { name: string; tags: string[] }>> {
   try {
     const versionRes = await axios.get(
       'https://ddragon.leagueoflegends.com/api/versions.json',
@@ -282,9 +282,9 @@ export async function getChampionData(): Promise<Record<number, string>> {
       `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`,
       { timeout: 10000 }
     )
-    const map: Record<number, string> = {}
-    for (const champ of Object.values(champRes.data.data) as { key: string; name: string }[]) {
-      map[parseInt(champ.key)] = champ.name
+    const map: Record<number, { name: string; tags: string[] }> = {}
+    for (const champ of Object.values(champRes.data.data) as { key: string; name: string; tags?: string[] }[]) {
+      map[parseInt(champ.key)] = { name: champ.name, tags: champ.tags ?? [] }
     }
     return map
   } catch {

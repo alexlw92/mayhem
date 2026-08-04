@@ -12,10 +12,10 @@ export interface ItemInfo {
   category: string
 }
 
-const META_VERSION = 4
+const META_VERSION = 5
 
 interface MetaCache {
-  champions: Record<number, string>
+  champions: Record<number, { name: string; tags: string[] }>
   augments: Record<number, AugmentInfo>
   items: Record<number, ItemInfo>
   fetchedAt: number
@@ -54,7 +54,7 @@ export function clearMetaCache(): void {
 }
 
 export function saveMetaCache(
-  champions: Record<number, string>,
+  champions: Record<number, { name: string; tags: string[] }>,
   augments: Record<number, AugmentInfo>,
   items: Record<number, ItemInfo>
 ): void {
@@ -62,7 +62,7 @@ export function saveMetaCache(
   saveMeta()
 }
 
-export function getChampionCache(): Record<number, string> {
+export function getChampionCache(): Record<number, { name: string; tags: string[] }> {
   return loadMeta().champions
 }
 

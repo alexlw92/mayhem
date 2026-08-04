@@ -205,7 +205,7 @@ async function refreshMetadata(): Promise<void> {
 
   saveMetaCache(champions, augments, items)
   console.log(`[meta] saved: ${Object.keys(champions).length} champions, ${Object.keys(augments).length} augments, ${Object.keys(items).length} items`)
-  setChampionNames(champions)
+  setChampionNames(Object.fromEntries(Object.entries(champions).map(([id, v]) => [id, v.name])))
   apiClient.syncItemMeta(Object.values(items), componentIds).catch(e => console.warn('[meta] item meta sync failed:', (e as Error).message))
   itemResultCache.clear()
   sendToWindow('meta-refreshed')
@@ -214,7 +214,8 @@ async function refreshMetadata(): Promise<void> {
 
 function ensureChampionNames(): void {
   if (Object.keys(getChampionNames()).length === 0) {
-    setChampionNames(getChampionCache())
+    const cache = getChampionCache()
+    setChampionNames(Object.fromEntries(Object.entries(cache).map(([id, v]) => [id, v.name])))
   }
 }
 
@@ -254,10 +255,6 @@ async function syncWorker(): Promise<void> {
         syncInProgress = false
         const reason = !isClientRunning() ? 'client-offline' : 'cancelled'
         if (draining) {
-          if (syncAccum.imported > 0) {
-            apiClient.recomputeElo(2400).catch(() => {})
-            apiClient.recomputeElo(2450).catch(() => {})
-          }
           sendToWindow('sync-complete', { ...syncAccum, reason })
         }
         return
@@ -265,10 +262,6 @@ async function syncWorker(): Promise<void> {
       if (!isClientRunning()) {
         if (draining && syncInProgress) {
           syncInProgress = false
-          if (syncAccum.imported > 0) {
-            apiClient.recomputeElo(2400).catch(() => {})
-            apiClient.recomputeElo(2450).catch(() => {})
-          }
           sendToWindow('sync-complete', { ...syncAccum, reason: 'client-offline' })
         }
         return
@@ -300,8 +293,6 @@ async function syncWorker(): Promise<void> {
       if (!puuid) {
         if (draining && syncInProgress) {
           syncInProgress = false
-          const affectedQueues = new Set([2400, 2450])
-          for (const q of affectedQueues) apiClient.recomputeElo(q).catch(() => {})
           sendToWindow('sync-complete', syncAccum)
         }
         return
@@ -310,12 +301,15 @@ async function syncWorker(): Promise<void> {
       const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
 
       try {
-        const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
+        const { imported, fetchFailed, affectedPuuids } = await importGamesForPuuid(puuid, () => syncCancelled)
         if (fetchFailed) {
           console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
           await apiClient.completeJob(puuid)
         } else {
           await apiClient.completeJob(puuid)
+          if (imported > 0 && affectedPuuids.length > 0) {
+            apiClient.recomputeAffectedElo(affectedPuuids).catch(() => {})
+          }
           if (draining) {
             syncAccum.playerssynced++
             if (imported > 0) syncAccum.imported += imported

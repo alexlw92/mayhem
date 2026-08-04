@@ -301,6 +301,8 @@ function PlayerList({
   selectedMode?: number
 }) {
   const [view, setView] = useState<PlayerListView>('recent')
+  const [leaderboardPuuids, setLeaderboardPuuids] = useState<string[]>([])
+  const [syncingAll, setSyncingAll] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [addInput, setAddInput] = useState('')
@@ -373,6 +375,17 @@ function PlayerList({
     }
   }, [addInput, onPlayersChange, recents])
 
+  const handleSyncAll = useCallback(async () => {
+    const puuids = view === 'leaderboard' ? leaderboardPuuids : recents.map(r => r.puuid)
+    if (puuids.length === 0) return
+    setSyncingAll(true)
+    try {
+      await api.lcu.syncCurrentGame(puuids)
+    } finally {
+      setSyncingAll(false)
+    }
+  }, [view, leaderboardPuuids, recents])
+
   const handleSelect = useCallback((puuid: string, player: PlayerStats) => {
     const next = [{ riotId: player.summonerName, puuid }, ...recents.filter(r => r.puuid !== puuid)].slice(0, MAX_RECENT)
     setRecents(next)
@@ -384,13 +397,21 @@ function PlayerList({
     <div>
       <h1 className="page-title">Players</h1>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, alignItems: 'center' }}>
         <button className={`mode-btn${view === 'recent' ? ' active' : ''}`} onClick={() => setView('recent')}>Recent</button>
         <button className={`mode-btn${view === 'leaderboard' ? ' active' : ''}`} onClick={() => setView('leaderboard')}>Leaderboard</button>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={handleSyncAll}
+          disabled={syncingAll || (view === 'leaderboard' ? leaderboardPuuids.length === 0 : recents.length === 0)}
+          style={{ padding: '4px 12px', background: 'var(--blue)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer', opacity: syncingAll ? 0.5 : 1 }}
+        >
+          {syncingAll ? 'Queued…' : view === 'leaderboard' ? 'Sync Leaderboard' : 'Sync Recent Players'}
+        </button>
       </div>
 
       {view === 'leaderboard' ? (
-        <EloLeaderboard selectedMode={selectedMode} onPlayerSelect={(puuid, name) => {
+        <EloLeaderboard selectedMode={selectedMode} onDataLoaded={setLeaderboardPuuids} onPlayerSelect={(puuid, name) => {
           const placeholder: PlayerStats = { puuid, summonerName: name, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, avgDpm: 0, avgGold: 0, syncedFull: false, syncedAt: 0, elo: null }
           onSelect(puuid, placeholder)
         }} />
@@ -535,15 +556,19 @@ function PlayerList({
 
 // ─── Elo leaderboard ─────────────────────────────────────────────────────────
 
-function EloLeaderboard({ selectedMode, onPlayerSelect }: { selectedMode?: number; onPlayerSelect: (puuid: string, name: string) => void }) {
+function EloLeaderboard({ selectedMode, onPlayerSelect, onDataLoaded }: {
+  selectedMode?: number
+  onPlayerSelect: (puuid: string, name: string) => void
+  onDataLoaded?: (puuids: string[]) => void
+}) {
   const [data, setData] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     api.db.eloLeaderboard(selectedMode ?? 2400)
-      .then(setData)
-      .catch(() => setData([]))
+      .then(rows => { setData(rows); onDataLoaded?.(rows.map(r => r.puuid)) })
+      .catch(() => { setData([]); onDataLoaded?.([]) })
       .finally(() => setLoading(false))
   }, [selectedMode])
 

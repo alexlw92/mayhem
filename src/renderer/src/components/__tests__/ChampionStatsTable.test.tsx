@@ -6,9 +6,9 @@ import ChampionStatsTable from '../ChampionStatsTable'
 afterEach(() => cleanup())
 
 const champions = [
-  { championId: 10, championName: 'Kayle',  games: 50, wins: 30, kills: 200, deaths: 100, assists: 150, avgDpm: 900 },
-  { championId: 20, championName: 'Teemo',  games: 30, wins: 12, kills: 90,  deaths: 90,  assists: 60,  avgDpm: 750 },
-  { championId: 30, championName: 'Annie',  games: 80, wins: 48, kills: 320, deaths: 160, assists: 240, avgDpm: 1050 },
+  { championId: 10, championName: 'Kayle',  games: 50, wins: 30, kills: 200, deaths: 100, assists: 150, avgDpm: 900,  wilsonScore: 5.93 },
+  { championId: 20, championName: 'Teemo',  games: 30, wins: 12, kills: 90,  deaths: 90,  assists: 60,  avgDpm: 750,  wilsonScore: 4.11 },
+  { championId: 30, championName: 'Annie',  games: 80, wins: 48, kills: 320, deaths: 160, assists: 240, avgDpm: 1050, wilsonScore: 5.96 },
 ]
 
 describe('ChampionStatsTable', () => {
@@ -31,10 +31,25 @@ describe('ChampionStatsTable', () => {
     expect(queryByRole('columnheader', { name: /K \/ D \/ A/ })).toBeNull()
   })
 
-  it('default sort is games descending — Annie (80) first', () => {
+  it('renders a Score column header', () => {
+    const { container } = render(<ChampionStatsTable data={champions} />)
+    expect(getByRole(container, 'columnheader', { name: /Score/ })).toBeTruthy()
+  })
+
+  it('default sort is wilson score descending — Annie first', () => {
     const { container } = render(<ChampionStatsTable data={champions} />)
     const rows = container.querySelectorAll('tbody tr')
+    // Annie: 60% WR, 80 games > Kayle: 60% WR, 50 games > Teemo: 40% WR, 30 games
     expect(rows[0].textContent).toContain('Annie')
+    expect(rows[2].textContent).toContain('Teemo')
+  })
+
+  it('click Score header toggles to ascending — Teemo first', () => {
+    const { container } = render(<ChampionStatsTable data={champions} />)
+    // click once: already on wilson desc, so toggles to asc
+    fireEvent.click(getByRole(container, 'columnheader', { name: /Score/ }))
+    const rows = container.querySelectorAll('tbody tr')
+    expect(rows[0].textContent).toContain('Teemo')
   })
 
   it('click Games header toggles to ascending', () => {
@@ -42,7 +57,7 @@ describe('ChampionStatsTable', () => {
     fireEvent.click(getByRole(container, 'columnheader', { name: /Games/ }))
     expect(container).toMatchSnapshot()
     const rows = container.querySelectorAll('tbody tr')
-    expect(rows[0].textContent).toContain('Teemo') // 30 games is lowest
+    expect(rows[0].textContent).toContain('Annie') // 80 games desc — Games sorts desc on first click
   })
 
   it('click Win Rate header sorts by win rate desc', () => {
@@ -69,7 +84,7 @@ describe('ChampionStatsTable', () => {
     const onClick = vi.fn()
     const { container } = render(<ChampionStatsTable data={champions} onChampionClick={onClick} />)
     const rows = container.querySelectorAll('tbody tr')
-    fireEvent.click(rows[0]) // Annie is first (80 games desc)
+    fireEvent.click(rows[0]) // Annie is first (wilson score desc: 5.96)
     expect(onClick).toHaveBeenCalledWith(30, 'Annie')
   })
 

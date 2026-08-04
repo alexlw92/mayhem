@@ -9,6 +9,7 @@ export interface ChampionStat {
   deaths?: number
   assists?: number
   avgDpm: number
+  wilsonScore: number
   puuid?: string
 }
 
@@ -18,15 +19,22 @@ interface Props {
   showKda?: boolean
 }
 
-type SortKey = 'championName' | 'games' | 'winRate' | 'kda' | 'avgDpm'
+type SortKey = 'championName' | 'games' | 'winRate' | 'kda' | 'avgDpm' | 'wilson'
 
 function kda(kills: number, deaths: number, assists: number): string {
   if (deaths === 0) return 'Perfect'
   return ((kills + assists) / deaths).toFixed(2)
 }
 
+function scoreStyle(score: number): React.CSSProperties {
+  return {
+    color: `hsl(${score * 12}, 70%, 45%)`,
+    fontWeight: 600,
+  }
+}
+
 export default function ChampionStatsTable({ data, onChampionClick, showKda = true }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>('games')
+  const [sortKey, setSortKey] = useState<SortKey>('wilson')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
   const onSort = (key: SortKey) => {
@@ -45,10 +53,12 @@ export default function ChampionStatsTable({ data, onChampionClick, showKda = tr
     const aVal = sortKey === 'winRate' ? a.wins / a.games
       : sortKey === 'kda' ? (a.kills! + a.assists!) / Math.max(1, a.deaths!)
       : sortKey === 'avgDpm' ? a.avgDpm
+      : sortKey === 'wilson' ? a.wilsonScore
       : a.games
     const bVal = sortKey === 'winRate' ? b.wins / b.games
       : sortKey === 'kda' ? (b.kills! + b.assists!) / Math.max(1, b.deaths!)
       : sortKey === 'avgDpm' ? b.avgDpm
+      : sortKey === 'wilson' ? b.wilsonScore
       : b.games
     return sortDir === 'desc' ? bVal - aVal : aVal - bVal
   })
@@ -67,6 +77,7 @@ export default function ChampionStatsTable({ data, onChampionClick, showKda = tr
               {showKda && <th style={thStyle} onClick={() => onSort('kda')}>KDA{arrow('kda')}</th>}
               {showKda && <th>K / D / A</th>}
               <th style={thStyle} onClick={() => onSort('avgDpm')}>Avg DPM{arrow('avgDpm')}</th>
+              <th style={thStyle} onClick={() => onSort('wilson')}>Score{arrow('wilson')}</th>
             </tr>
           </thead>
           <tbody>
@@ -108,6 +119,7 @@ export default function ChampionStatsTable({ data, onChampionClick, showKda = tr
                     </td>
                   )}
                   <td>{Math.round(c.avgDpm)}/min</td>
+                  <td style={scoreStyle(c.wilsonScore)}>{c.wilsonScore.toFixed(1)}</td>
                 </tr>
               )
             })}

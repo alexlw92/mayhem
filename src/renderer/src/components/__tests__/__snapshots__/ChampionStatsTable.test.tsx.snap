@@ -37,6 +37,11 @@ exports[`ChampionStatsTable > click Champion header sorts alphabetically ascendi
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -94,6 +99,11 @@ exports[`ChampionStatsTable > click Champion header sorts alphabetically ascendi
             1050
             /min
           </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
+          </td>
         </tr>
         <tr>
           <td>
@@ -149,6 +159,11 @@ exports[`ChampionStatsTable > click Champion header sorts alphabetically ascendi
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -203,6 +218,11 @@ exports[`ChampionStatsTable > click Champion header sorts alphabetically ascendi
           <td>
             750
             /min
+          </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
           </td>
         </tr>
       </tbody>
@@ -228,7 +248,7 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
             style="cursor: pointer; user-select: none;"
           >
             Games
-             ▲
+             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -248,6 +268,11 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -257,15 +282,15 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <img
-                alt="Teemo"
-                src="mayhem-asset://champion-icons/20.png"
+                alt="Annie"
+                src="mayhem-asset://champion-icons/30.png"
                 style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
               />
-              Teemo
+              Annie
             </div>
           </td>
           <td>
-            30
+            80
           </td>
           <td>
             <div
@@ -276,13 +301,13 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
               >
                 <div
                   class="wr-fill"
-                  style="width: 40%; background: var(--red);"
+                  style="width: 60%; background: var(--green);"
                 />
               </div>
               <span
-                class="loss"
+                class="win"
               >
-                40
+                60
                 %
               </span>
             </div>
@@ -290,20 +315,25 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
           <td
             class="kda"
           >
-            1.67
+            3.50
           </td>
           <td
             style="color: var(--text-secondary); font-size: 12px;"
           >
-            3.0
-             / 
-            3.0
+            4.0
              / 
             2.0
+             / 
+            3.0
           </td>
           <td>
-            750
+            1050
             /min
+          </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
           </td>
         </tr>
         <tr>
@@ -360,6 +390,11 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -367,15 +402,15 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
               style="display: flex; align-items: center; gap: 8px;"
             >
               <img
-                alt="Annie"
-                src="mayhem-asset://champion-icons/30.png"
+                alt="Teemo"
+                src="mayhem-asset://champion-icons/20.png"
                 style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);"
               />
-              Annie
+              Teemo
             </div>
           </td>
           <td>
-            80
+            30
           </td>
           <td>
             <div
@@ -386,13 +421,13 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
               >
                 <div
                   class="wr-fill"
-                  style="width: 60%; background: var(--green);"
+                  style="width: 40%; background: var(--red);"
                 />
               </div>
               <span
-                class="win"
+                class="loss"
               >
-                60
+                40
                 %
               </span>
             </div>
@@ -400,20 +435,25 @@ exports[`ChampionStatsTable > click Games header toggles to ascending 1`] = `
           <td
             class="kda"
           >
-            3.50
+            1.67
           </td>
           <td
             style="color: var(--text-secondary); font-size: 12px;"
           >
-            4.0
-             / 
-            2.0
+            3.0
              / 
             3.0
+             / 
+            2.0
           </td>
           <td>
-            1050
+            750
             /min
+          </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
           </td>
         </tr>
       </tbody>
@@ -459,6 +499,11 @@ exports[`ChampionStatsTable > click KDA header sorts by kda desc 1`] = `
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -516,6 +561,11 @@ exports[`ChampionStatsTable > click KDA header sorts by kda desc 1`] = `
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -571,6 +621,11 @@ exports[`ChampionStatsTable > click KDA header sorts by kda desc 1`] = `
             1050
             /min
           </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
+          </td>
         </tr>
         <tr>
           <td>
@@ -625,6 +680,11 @@ exports[`ChampionStatsTable > click KDA header sorts by kda desc 1`] = `
           <td>
             750
             /min
+          </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
           </td>
         </tr>
       </tbody>
@@ -670,6 +730,11 @@ exports[`ChampionStatsTable > click Win Rate header sorts by win rate desc 1`] =
           >
             Avg DPM
           </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -727,6 +792,11 @@ exports[`ChampionStatsTable > click Win Rate header sorts by win rate desc 1`] =
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -781,6 +851,11 @@ exports[`ChampionStatsTable > click Win Rate header sorts by win rate desc 1`] =
           <td>
             1050
             /min
+          </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
           </td>
         </tr>
         <tr>
@@ -837,6 +912,11 @@ exports[`ChampionStatsTable > click Win Rate header sorts by win rate desc 1`] =
             750
             /min
           </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
+          </td>
         </tr>
       </tbody>
     </table>
@@ -861,7 +941,6 @@ exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 
             style="cursor: pointer; user-select: none;"
           >
             Games
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -872,6 +951,12 @@ exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -916,6 +1001,11 @@ exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 
             1050
             /min
           </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
+          </td>
         </tr>
         <tr>
           <td>
@@ -957,6 +1047,11 @@ exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -997,6 +1092,11 @@ exports[`ChampionStatsTable > omits KDA and K/D/A columns when showKda is false 
           <td>
             750
             /min
+          </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
           </td>
         </tr>
       </tbody>
@@ -1038,7 +1138,6 @@ exports[`ChampionStatsTable > renders full table with KDA columns by default 1`]
             style="cursor: pointer; user-select: none;"
           >
             Games
-             ▼
           </th>
           <th
             style="cursor: pointer; user-select: none;"
@@ -1057,6 +1156,12 @@ exports[`ChampionStatsTable > renders full table with KDA columns by default 1`]
             style="cursor: pointer; user-select: none;"
           >
             Avg DPM
+          </th>
+          <th
+            style="cursor: pointer; user-select: none;"
+          >
+            Score
+             ▼
           </th>
         </tr>
       </thead>
@@ -1115,6 +1220,11 @@ exports[`ChampionStatsTable > renders full table with KDA columns by default 1`]
             1050
             /min
           </td>
+          <td
+            style="color: rgb(164, 195, 34); font-weight: 600;"
+          >
+            6.0
+          </td>
         </tr>
         <tr>
           <td>
@@ -1170,6 +1280,11 @@ exports[`ChampionStatsTable > renders full table with KDA columns by default 1`]
             900
             /min
           </td>
+          <td
+            style="color: rgb(165, 195, 34); font-weight: 600;"
+          >
+            5.9
+          </td>
         </tr>
         <tr>
           <td>
@@ -1224,6 +1339,11 @@ exports[`ChampionStatsTable > renders full table with KDA columns by default 1`]
           <td>
             750
             /min
+          </td>
+          <td
+            style="color: rgb(195, 167, 34); font-weight: 600;"
+          >
+            4.1
           </td>
         </tr>
       </tbody>

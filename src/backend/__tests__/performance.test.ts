@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -56,6 +56,89 @@ function makeGame(): Match {
     ]
   }
 }
+
+// p1 plays Kayle in 2 games on team 100.
+// Game 1: p1 (4k+3a, gold=12000, dur=1200), p2 on same team (3k), p3 on t200 (2k)
+// Game 2: p1 (1k+1a, gold=9000, dur=1000), p4 on same team (2k), p5 on t200 (3k)
+//
+// p1 KP%:  game1=(4+3)/(4+3)=1.0, game2=(1+1)/(1+2)=0.667 → weighted: (7+2)/(7+3)=0.9
+// Global Kayle KP% = same as p1 (only p1 plays Kayle) → kpDelta ≈ 0
+function makeGames(): Match[] {
+  return [
+    {
+      gameId: 9001, queueId: 2400, gameCreation: 1000, gameDuration: 1200, gameVersion: '15.12',
+      participants: [
+        { puuid: 'p1', summonerName: 'P1', championId: 10, championName: 'Kayle',
+          teamId: 100, win: true, kills: 4, deaths: 1, assists: 3,
+          damageDealt: 50000, damageTaken: 20000, goldEarned: 12000, champLevel: 15, augments: [100] },
+        { puuid: 'p2', summonerName: 'P2', championId: 11, championName: 'Other',
+          teamId: 100, win: true, kills: 3, deaths: 2, assists: 4,
+          damageDealt: 30000, damageTaken: 18000, goldEarned: 9000, champLevel: 13, augments: [] },
+        { puuid: 'p3', summonerName: 'P3', championId: 20, championName: 'Lux',
+          teamId: 200, win: false, kills: 2, deaths: 4, assists: 2,
+          damageDealt: 20000, damageTaken: 30000, goldEarned: 6000, champLevel: 11, augments: [] },
+      ]
+    },
+    {
+      gameId: 9002, queueId: 2400, gameCreation: 2000, gameDuration: 1000, gameVersion: '15.12',
+      participants: [
+        { puuid: 'p1', summonerName: 'P1', championId: 10, championName: 'Kayle',
+          teamId: 100, win: true, kills: 1, deaths: 0, assists: 1,
+          damageDealt: 30000, damageTaken: 10000, goldEarned: 9000, champLevel: 14, augments: [100] },
+        { puuid: 'p4', summonerName: 'P4', championId: 11, championName: 'Other',
+          teamId: 100, win: true, kills: 2, deaths: 1, assists: 3,
+          damageDealt: 25000, damageTaken: 15000, goldEarned: 8000, champLevel: 12, augments: [] },
+        { puuid: 'p5', summonerName: 'P5', championId: 20, championName: 'Lux',
+          teamId: 200, win: false, kills: 3, deaths: 2, assists: 2,
+          damageDealt: 22000, damageTaken: 28000, goldEarned: 7500, champLevel: 12, augments: [] },
+      ]
+    }
+  ]
+}
+
+const championMap: Record<number, { name: string; tags: string[] }> = {
+  10: { name: 'Kayle', tags: ['Fighter', 'Support'] },
+  11: { name: 'Other', tags: ['Tank'] },
+  20: { name: 'Lux',   tags: ['Mage', 'Support'] },
+}
+
+describe('getPlayerPerformance', () => {
+  it('returns zero metrics for unknown player', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('unknown', championMap, ['15.12'], 2400)
+    expect(result.poolUniqueChampions).toBe(0)
+    expect(result.kpDelta).toBe(0)
+    expect(result.dpmDelta).toBe(0)
+    expect(result.gpmDelta).toBe(0)
+    expect(result.classBuckets).toHaveLength(0)
+  })
+
+  it('reports correct pool depth', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    expect(result.poolUniqueChampions).toBe(1)
+    expect(result.poolTopChampions).toHaveLength(1)
+    expect(result.poolTopChampions[0].championId).toBe(10)
+    expect(result.poolTopChampions[0].games).toBe(2)
+    expect(result.poolTop3Concentration).toBe(1)
+  })
+
+  it('buckets champion games by primary role tag', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    expect(result.classBuckets).toHaveLength(1)
+    expect(result.classBuckets[0].class).toBe('Fighter')
+    expect(result.classBuckets[0].games).toBe(2)
+    expect(result.classBuckets[0].winRate).toBe(1)
+  })
+
+  it('kpDelta is ~0 when player is sole representative of their champion', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    // p1 is the only Kayle player so global Kayle KP% === p1's KP%
+    expect(Math.abs(result.kpDelta)).toBeLessThan(0.01)
+  })
+})
 
 describe('champion_stats_cache total_team_kills and total_gold', () => {
   it('accumulates correct team kills and gold per champion', async () => {

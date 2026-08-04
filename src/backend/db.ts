@@ -1791,6 +1791,263 @@ export async function getAugmentStats(puuid?: string, championId?: number, patch
   })
 }
 
+export interface ChampionMeta {
+  name: string
+  tags: string[]
+}
+
+export interface PlayerPerformance {
+  championPickQuality: number
+  augmentPickQuality: number
+  kpDelta: number
+  dpmDelta: number
+  gpmDelta: number
+  poolUniqueChampions: number
+  poolTop3Concentration: number
+  poolTopChampions: { championId: number; championName: string; games: number; share: number }[]
+  classBuckets: { class: string; games: number; wins: number; winRate: number }[]
+}
+
+export async function getPlayerPerformance(
+  puuid: string,
+  championMap: Record<number, ChampionMeta>,
+  patches?: string[],
+  queueId = 2400
+): Promise<PlayerPerformance> {
+  const empty: PlayerPerformance = {
+    championPickQuality: 0, augmentPickQuality: 0,
+    kpDelta: 0, dpmDelta: 0, gpmDelta: 0,
+    poolUniqueChampions: 0, poolTop3Concentration: 0,
+    poolTopChampions: [], classBuckets: []
+  }
+
+  // Query 1a: player champion stats (pool depth, DPM, pick quality numerator)
+  const playerChampRows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT "championId","championName",
+          SUM(games)::int AS games, SUM(wins)::int AS wins,
+          SUM(total_damage)::bigint AS total_damage,
+          SUM(total_duration)::bigint AS total_duration
+         FROM player_champion_stats_cache
+         WHERE puuid=$1 AND "queueId"=$2 AND "gameVersion"=ANY($3)
+         GROUP BY "championId","championName" ORDER BY games DESC`,
+        [puuid, queueId, patches]
+      )
+    : await sql_`
+        SELECT "championId","championName",
+          SUM(games)::int AS games, SUM(wins)::int AS wins,
+          SUM(total_damage)::bigint AS total_damage,
+          SUM(total_duration)::bigint AS total_duration
+        FROM player_champion_stats_cache
+        WHERE puuid=${puuid} AND "queueId"=${queueId}
+        GROUP BY "championId","championName" ORDER BY games DESC
+      `
+
+  if (playerChampRows.length === 0) return empty
+
+  const playerChampIds = playerChampRows.map((r: any) => r.championId as number)
+
+  // Query 1b: global champion baselines
+  const globalChampRows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT "championId",
+          SUM(games)::int AS games, SUM(wins)::int AS wins,
+          SUM(total_damage)::bigint AS total_damage,
+          SUM(total_duration)::bigint AS total_duration,
+          SUM(total_team_kills)::bigint AS total_team_kills,
+          SUM(total_gold)::bigint AS total_gold,
+          (SUM(total_kills)+SUM(total_assists))::bigint AS total_kp_num
+         FROM champion_stats_cache
+         WHERE "queueId"=$1 AND "gameVersion"=ANY($2) AND "championId"=ANY($3)
+         GROUP BY "championId"`,
+        [queueId, patches, playerChampIds]
+      )
+    : await sql_`
+        SELECT "championId",
+          SUM(games)::int AS games, SUM(wins)::int AS wins,
+          SUM(total_damage)::bigint AS total_damage,
+          SUM(total_duration)::bigint AS total_duration,
+          SUM(total_team_kills)::bigint AS total_team_kills,
+          SUM(total_gold)::bigint AS total_gold,
+          (SUM(total_kills)+SUM(total_assists))::bigint AS total_kp_num
+        FROM champion_stats_cache
+        WHERE "queueId"=${queueId} AND "championId"=ANY(${playerChampIds})
+        GROUP BY "championId"
+      `
+
+  const globalChampMap = new Map<number, any>(
+    globalChampRows.map((r: any) => [r.championId as number, r])
+  )
+
+  // Query 1c: global augment WRs
+  const globalAugRows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT "augmentId", SUM(pick_count)::int AS pick_count, SUM(wins)::int AS wins
+         FROM augment_stats_cache WHERE "queueId"=$1 AND "gameVersion"=ANY($2)
+         GROUP BY "augmentId"`,
+        [queueId, patches]
+      )
+    : await sql_`
+        SELECT "augmentId", SUM(pick_count)::int AS pick_count, SUM(wins)::int AS wins
+        FROM augment_stats_cache WHERE "queueId"=${queueId} GROUP BY "augmentId"
+      `
+
+  const globalAugWR = new Map<number, number>()
+  let totalAugWR = 0, totalAugCount = 0
+  for (const r of globalAugRows) {
+    if (r.pick_count > 0) {
+      const wr = r.wins / r.pick_count
+      globalAugWR.set(r.augmentId as number, wr)
+      totalAugWR += wr; totalAugCount++
+    }
+  }
+  const avgAugWR = totalAugCount > 0 ? totalAugWR / totalAugCount : 0.5
+
+  // Query 1d: player augment picks
+  const playerAugRows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT pa."augmentId", COUNT(*)::int AS pick_count
+         FROM participants p
+         JOIN participant_augments pa ON pa."participantId"=p.id
+         JOIN matches m ON m."gameId"=p."gameId"
+         WHERE p.puuid=$1 AND m."queueId"=$2 AND p."gameVersion"=ANY($3)
+         GROUP BY pa."augmentId"`,
+        [puuid, queueId, patches]
+      )
+    : await sql_`
+        SELECT pa."augmentId", COUNT(*)::int AS pick_count
+        FROM participants p
+        JOIN participant_augments pa ON pa."participantId"=p.id
+        JOIN matches m ON m."gameId"=p."gameId"
+        WHERE p.puuid=${puuid} AND m."queueId"=${queueId}
+        GROUP BY pa."augmentId"
+      `
+
+  // Query 2: raw KP%/GPM per champion for this player
+  const rawRows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT p."championId",
+          SUM(p.kills+p.assists)::int AS kp_num,
+          SUM(tk.team_kills)::bigint  AS kp_den,
+          SUM(p."goldEarned")::bigint AS total_gold,
+          SUM(p."gameDuration")::bigint AS total_duration
+         FROM participants p
+         JOIN (
+           SELECT "gameId","teamId",SUM(kills)::int AS team_kills
+           FROM participants GROUP BY "gameId","teamId"
+         ) tk ON p."gameId"=tk."gameId" AND p."teamId"=tk."teamId"
+         JOIN matches m ON p."gameId"=m."gameId"
+         WHERE p.puuid=$1 AND m."queueId"=$2 AND p."gameVersion"=ANY($3)
+         GROUP BY p."championId"`,
+        [puuid, queueId, patches]
+      )
+    : await sql_`
+        SELECT p."championId",
+          SUM(p.kills+p.assists)::int AS kp_num,
+          SUM(tk.team_kills)::bigint  AS kp_den,
+          SUM(p."goldEarned")::bigint AS total_gold,
+          SUM(p."gameDuration")::bigint AS total_duration
+        FROM participants p
+        JOIN (
+          SELECT "gameId","teamId",SUM(kills)::int AS team_kills
+          FROM participants GROUP BY "gameId","teamId"
+        ) tk ON p."gameId"=tk."gameId" AND p."teamId"=tk."teamId"
+        JOIN matches m ON p."gameId"=m."gameId"
+        WHERE p.puuid=${puuid} AND m."queueId"=${queueId}
+        GROUP BY p."championId"
+      `
+
+  // ─── Compute metrics ──────────────────────────────────────────────────────
+
+  // Champion pick quality: weighted avg global WR of picks, delta from 0.5
+  let cpqWR = 0, cpqGames = 0
+  for (const pc of playerChampRows) {
+    const g = globalChampMap.get(pc.championId)
+    if (!g || g.games === 0) continue
+    cpqWR += pc.games * (g.wins / g.games); cpqGames += pc.games
+  }
+  const championPickQuality = cpqGames > 0 ? cpqWR / cpqGames - 0.5 : 0
+
+  // Augment pick quality: weighted avg global WR of player's picks, delta from avgAugWR
+  let apqWR = 0, apqTotal = 0
+  for (const pa of playerAugRows) {
+    const gwr = globalAugWR.get(pa.augmentId) ?? avgAugWR
+    apqWR += gwr * pa.pick_count; apqTotal += pa.pick_count
+  }
+  const augmentPickQuality = apqTotal > 0 ? apqWR / apqTotal - avgAugWR : 0
+
+  // DPM delta
+  let playerDmg = 0, playerDurSec = 0, expDmgMin = 0, expDurMin = 0
+  for (const pc of playerChampRows) {
+    playerDmg += Number(pc.total_damage); playerDurSec += Number(pc.total_duration)
+    const g = globalChampMap.get(pc.championId)
+    if (g && Number(g.total_duration) > 0) {
+      const gDPM = Number(g.total_damage) / (Number(g.total_duration) / 60)
+      const durMin = Number(pc.total_duration) / 60
+      expDmgMin += gDPM * durMin; expDurMin += durMin
+    }
+  }
+  const playerDPM = playerDurSec > 0 ? playerDmg / (playerDurSec / 60) : 0
+  const expectedDPM = expDurMin > 0 ? expDmgMin / expDurMin : 0
+  const dpmDelta = playerDPM - expectedDPM
+
+  // KP% and GPM deltas (from raw query 2)
+  let pKPNum = 0, pKPDen = 0, eKPNum = 0, eKPDen = 0
+  let pGold = 0, pGoldDurSec = 0, eGoldMin = 0, eGoldDurMin = 0
+  for (const rr of rawRows) {
+    const kpn = Number(rr.kp_num), kpd = Number(rr.kp_den)
+    const gold = Number(rr.total_gold), dur = Number(rr.total_duration)
+    pKPNum += kpn; pKPDen += kpd
+    pGold += gold; pGoldDurSec += dur
+    const g = globalChampMap.get(rr.championId)
+    if (g && Number(g.total_team_kills) > 0) {
+      const gKP = Number(g.total_kp_num) / Number(g.total_team_kills)
+      eKPNum += gKP * kpd; eKPDen += kpd
+    }
+    if (g && Number(g.total_duration) > 0) {
+      const gGPM = Number(g.total_gold) / (Number(g.total_duration) / 60)
+      const durMin = dur / 60
+      eGoldMin += gGPM * durMin; eGoldDurMin += durMin
+    }
+  }
+  const kpDelta = (pKPDen > 0 ? pKPNum / pKPDen : 0) - (eKPDen > 0 ? eKPNum / eKPDen : 0)
+  const gpmDelta = (pGoldDurSec > 0 ? pGold / (pGoldDurSec / 60) : 0)
+                - (eGoldDurMin > 0 ? eGoldMin / eGoldDurMin : 0)
+
+  // Pool depth
+  const totalGames = playerChampRows.reduce((s: number, r: any) => s + r.games, 0)
+  const top3Games = playerChampRows.slice(0, 3).reduce((s: number, r: any) => s + r.games, 0)
+
+  // Class buckets (in-process, no DB query)
+  const bucketMap = new Map<string, { games: number; wins: number }>()
+  for (const pc of playerChampRows) {
+    const role = championMap[pc.championId]?.tags?.[0]
+    if (!role) continue
+    const b = bucketMap.get(role) ?? { games: 0, wins: 0 }
+    b.games += pc.games; b.wins += pc.wins
+    bucketMap.set(role, b)
+  }
+
+  return {
+    championPickQuality,
+    augmentPickQuality,
+    kpDelta,
+    dpmDelta,
+    gpmDelta,
+    poolUniqueChampions: playerChampRows.length,
+    poolTop3Concentration: totalGames > 0 ? top3Games / totalGames : 0,
+    poolTopChampions: playerChampRows.slice(0, 5).map((r: any) => ({
+      championId: r.championId as number,
+      championName: r.championName as string,
+      games: r.games as number,
+      share: totalGames > 0 ? r.games / totalGames : 0
+    })),
+    classBuckets: [...bucketMap.entries()]
+      .map(([cls, b]) => ({ class: cls, games: b.games, wins: b.wins, winRate: b.games > 0 ? b.wins / b.games : 0 }))
+      .sort((a, b) => b.games - a.games)
+  }
+}
+
 export interface AugmentChampionStat {
   championId: number
   championName: string

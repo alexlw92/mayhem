@@ -394,10 +394,10 @@ describe('Meta endpoints', () => {
 
   it('GET /api/meta/champions returns injected cache data', async () => {
     const appWithCache = createExpressApp({
-      getChampions: () => ({ 64: 'Lee Sin', 1: 'Annie' })
+      getChampions: () => ({ 64: { name: 'Lee Sin', tags: [] }, 1: { name: 'Annie', tags: [] } })
     })
     const res = await request(appWithCache).get('/api/meta/champions')
-    expect(res.body[64]).toBe('Lee Sin')
+    expect(res.body[64]).toEqual({ name: 'Lee Sin', tags: [] })
   })
 })
 

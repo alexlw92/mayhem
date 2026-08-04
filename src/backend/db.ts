@@ -1504,8 +1504,10 @@ export async function getBulkPlayerStats(
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
-          END AS "avgDpm"
+          END AS "avgDpm",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc.puuid = ANY(${puuids}) AND pc."queueId" = ${queueId} AND pc."gameVersion" = ANY(${patches})
         GROUP BY pc.puuid`
     : await sql_`
@@ -1515,8 +1517,10 @@ export async function getBulkPlayerStats(
           SUM(pc.total_kills)::int AS kills, SUM(pc.total_deaths)::int AS deaths, SUM(pc.total_assists)::int AS assists,
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
-          END AS "avgDpm"
+          END AS "avgDpm",
+          MAX(pe.elo) AS elo
         FROM player_stats_cache pc
+        LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
         WHERE pc.puuid = ANY(${puuids}) AND pc."queueId" = ${queueId}
         GROUP BY pc.puuid`
   const result: Record<string, PlayerStats> = {}
@@ -1534,7 +1538,7 @@ export async function getBulkPlayerStats(
       avgGold: 0,
       syncedFull: true,
       syncedAt: 0,
-      elo: null,
+      elo: r.elo != null ? parseFloat(r.elo) : null,
     }
   }
   return result
@@ -2182,7 +2186,7 @@ async function _computeArchetypes(
 
 // ─── Elo rating ───────────────────────────────────────────────────────────────
 
-const ELO_K = 32
+const ELO_K = 128
 const ELO_DEFAULT = 1500
 
 export async function updateElo(
@@ -2344,6 +2348,134 @@ export async function recomputeEloFull(queueId = 2400): Promise<number> {
     await sql_`ALTER TABLE elo_history ADD PRIMARY KEY (puuid, "gameId", "queueId")`
     await sql_`CREATE INDEX IF NOT EXISTS idx_elo_history_puuid_queue_gc ON elo_history (puuid, "queueId", "gameCreation")`
   }
+}
+
+export async function recomputePlayerElo(puuid: string, queueId = 2400): Promise<number> {
+  const [{ oldest }] = await sql_`
+    SELECT MIN(m."gameCreation") AS oldest
+    FROM matches m
+    JOIN participants p ON p."gameId" = m."gameId" AND p.puuid = ${puuid}
+    LEFT JOIN elo_history eh ON eh."gameId" = m."gameId" AND eh.puuid = ${puuid} AND eh."queueId" = ${queueId}
+    WHERE m."queueId" = ${queueId} AND eh."gameId" IS NULL
+  `
+  if (oldest == null) return 0
+
+  const oldestGc = Number(oldest)
+
+  const prior = await sql_`
+    SELECT elo_after FROM elo_history
+    WHERE puuid = ${puuid} AND "queueId" = ${queueId} AND "gameCreation" < ${oldestGc}
+    ORDER BY "gameCreation" DESC, "gameId" DESC
+    LIMIT 1
+  `
+  const startElo: number = prior.length > 0 ? parseFloat((prior[0] as any).elo_after) : ELO_DEFAULT
+
+  const matchRows = await sql_`
+    SELECT m."gameId", m."gameCreation", p2.puuid AS participant_puuid, p2."teamId", p2.win
+    FROM matches m
+    JOIN participants p ON p."gameId" = m."gameId" AND p.puuid = ${puuid}
+    JOIN participants p2 ON p2."gameId" = m."gameId"
+    WHERE m."queueId" = ${queueId} AND m."gameCreation" >= ${oldestGc}
+    ORDER BY m."gameCreation" ASC, m."gameId" ASC
+  `
+  if ((matchRows as any[]).length === 0) return 0
+
+  const allPuuids = [...new Set((matchRows as any[]).map(r => r.participant_puuid as string))]
+  const eloRows = await sql_`
+    SELECT puuid, elo FROM player_elo WHERE "queueId" = ${queueId} AND puuid = ANY(${allPuuids}::text[])
+  `
+  const eloMap = new Map<string, number>()
+  for (const r of eloRows as any[]) eloMap.set(r.puuid as string, parseFloat(r.elo))
+  eloMap.set(puuid, startElo)
+
+  type TeamEntry = { puuid: string; win: boolean }
+  const gameMap = new Map<number, { gameCreation: number; teams: Record<number, TeamEntry[]> }>()
+  for (const row of matchRows as any[]) {
+    const gid = Number(row.gameId)
+    if (!gameMap.has(gid)) gameMap.set(gid, { gameCreation: Number(row.gameCreation), teams: {} })
+    const g = gameMap.get(gid)!
+    const tid = row.teamId as number
+    if (!g.teams[tid]) g.teams[tid] = []
+    g.teams[tid].push({ puuid: row.participant_puuid as string, win: row.win as boolean })
+  }
+
+  const sorted = [...gameMap.entries()].sort((a, b) => a[1].gameCreation - b[1].gameCreation)
+
+  const histGameIds: number[] = []
+  const histEloBefores: number[] = []
+  const histEloAfters: number[] = []
+  const histDeltas: number[] = []
+  const histGCs: number[] = []
+  let maxGC = oldestGc
+
+  for (const [gameId, { gameCreation, teams }] of sorted) {
+    const teamIds = Object.keys(teams).map(Number)
+    if (teamIds.length < 2) continue
+
+    let myTeamId: number | undefined
+    let myWin: boolean | undefined
+    for (const tid of teamIds) {
+      const entry = teams[tid].find(e => e.puuid === puuid)
+      if (entry) { myTeamId = tid; myWin = entry.win; break }
+    }
+    if (myTeamId === undefined || myWin === undefined) continue
+
+    const oppTeamId = teamIds.find(t => t !== myTeamId)!
+    const oppTeam = teams[oppTeamId]
+    const before = eloMap.get(puuid) ?? ELO_DEFAULT
+    const oppAvg = oppTeam.reduce((s, p) => s + (eloMap.get(p.puuid) ?? ELO_DEFAULT), 0) / oppTeam.length
+    const expected = 1 / (1 + Math.pow(10, (oppAvg - before) / 400))
+    const delta = ELO_K * ((myWin ? 1 : 0) - expected)
+    const after = before + delta
+
+    eloMap.set(puuid, after)
+    histGameIds.push(gameId)
+    histEloBefores.push(before)
+    histEloAfters.push(after)
+    histDeltas.push(delta)
+    histGCs.push(gameCreation)
+    if (gameCreation > maxGC) maxGC = gameCreation
+  }
+
+  if (histGameIds.length === 0) return 0
+
+  await sql_.begin(async sql => {
+    await sql`DELETE FROM elo_history WHERE puuid = ${puuid} AND "queueId" = ${queueId} AND "gameCreation" >= ${oldestGc}`
+
+    await sql`
+      INSERT INTO elo_history (puuid, "gameId", "queueId", elo_before, elo_after, delta, "gameCreation")
+      SELECT * FROM UNNEST(
+        ${Array(histGameIds.length).fill(puuid)}::text[],
+        ${histGameIds}::bigint[],
+        ${Array(histGameIds.length).fill(queueId)}::int[],
+        ${histEloBefores}::float8[],
+        ${histEloAfters}::float8[],
+        ${histDeltas}::float8[],
+        ${histGCs}::bigint[]
+      )
+      ON CONFLICT (puuid, "gameId", "queueId") DO UPDATE SET
+        elo_before = EXCLUDED.elo_before,
+        elo_after = EXCLUDED.elo_after,
+        delta = EXCLUDED.delta
+    `
+
+    const [{ cnt }] = await sql`
+      SELECT COUNT(*)::int AS cnt FROM elo_history
+      WHERE puuid = ${puuid} AND "queueId" = ${queueId} AND "gameCreation" < ${oldestGc}
+    `
+
+    await sql`
+      INSERT INTO player_elo (puuid, "queueId", elo, games_rated, last_processed_game_creation, updated_at)
+      VALUES (${puuid}, ${queueId}, ${eloMap.get(puuid)!}, ${Number(cnt) + histGameIds.length}, ${maxGC}, now())
+      ON CONFLICT (puuid, "queueId") DO UPDATE SET
+        elo = EXCLUDED.elo,
+        games_rated = EXCLUDED.games_rated,
+        last_processed_game_creation = GREATEST(player_elo.last_processed_game_creation, EXCLUDED.last_processed_game_creation),
+        updated_at = now()
+    `
+  })
+
+  return histGameIds.length
 }
 
 export async function getEloLeaderboard(

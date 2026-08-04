@@ -196,3 +196,58 @@ git commit -m "feat: add sync-all button to Players page leaderboard and recent 
 - [ ] Switch to **Recent Players** tab — confirm button label changes to "Sync Recent Players"
 - [ ] Click "Sync Recent Players" — same behavior
 - [ ] Confirm button is disabled when the list is empty (no recents / no leaderboard data)
+
+---
+
+### Task 3: Playwright test for sync-all button
+
+**Files:**
+- Modify: `e2e/leaderboard.spec.ts`
+
+The existing `leaderboard.spec.ts` already has a `beforeEach` that navigates to Players → Leaderboard tab, so add these tests there.
+
+- [ ] **Add tests to `e2e/leaderboard.spec.ts`**
+
+Append to the end of the file:
+
+```typescript
+test('Sync Leaderboard button is visible and enabled when leaderboard data loads', async ({ window }) => {
+  // beforeEach already navigated to Leaderboard tab
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  const btn = window.locator('button', { hasText: 'Sync Leaderboard' })
+  await expect(btn).toBeVisible()
+  await expect(btn).toBeEnabled()
+})
+
+test('Sync Leaderboard button returns to ready state after click', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  const btn = window.locator('button', { hasText: 'Sync Leaderboard' })
+  await btn.click()
+  // Button may briefly show "Queued…" — verify it returns to normal label
+  await expect(window.locator('button', { hasText: 'Sync Leaderboard' })).toBeVisible({ timeout: 5_000 })
+})
+
+test('sync button label changes to "Sync Recent Players" when switching to Recent tab', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  await expect(window.locator('button', { hasText: 'Sync Leaderboard' })).toBeVisible()
+  await window.locator('button', { hasText: /^Recent$/ }).click()
+  await expect(window.locator('button', { hasText: 'Sync Recent Players' })).toBeVisible()
+})
+
+test('Sync Recent Players button is disabled when no recents are loaded', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  await window.locator('button', { hasText: /^Recent$/ }).click()
+  // No recents in a fresh e2e session — button should be visible but disabled
+  const btn = window.locator('button', { hasText: 'Sync Recent Players' })
+  await expect(btn).toBeVisible()
+  await expect(btn).toBeDisabled()
+})
+```
+
+- [ ] **Run the new tests**
+
+```bash
+npm run e2e -- --grep "sync button|Sync Leaderboard|Sync Recent"
+```
+
+Expected: 4 new tests pass.

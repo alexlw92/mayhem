@@ -54,3 +54,35 @@ test('Classic mode shows empty state when no players meet minGames threshold', a
   await window.locator('.mode-btn', { hasText: 'Classic' }).click()
   await expect(window.getByText('No elo ratings yet')).toBeVisible({ timeout: 5_000 })
 })
+
+test('Sync Leaderboard button is visible and enabled when leaderboard data loads', async ({ window }) => {
+  // beforeEach already navigated to Leaderboard tab
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  const btn = window.locator('button', { hasText: 'Sync Leaderboard' })
+  await expect(btn).toBeVisible()
+  await expect(btn).toBeEnabled()
+})
+
+test('Sync Leaderboard button returns to ready state after click', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  const btn = window.locator('button', { hasText: 'Sync Leaderboard' })
+  await btn.click()
+  // Button may briefly show "Queued…" — verify it returns to normal label
+  await expect(window.locator('button', { hasText: 'Sync Leaderboard' })).toBeVisible({ timeout: 5_000 })
+})
+
+test('sync button label changes to "Sync Recent Players" when switching to Recent tab', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  await expect(window.locator('button', { hasText: 'Sync Leaderboard' })).toBeVisible()
+  await window.locator('button', { hasText: /^Recent$/ }).click()
+  await expect(window.locator('button', { hasText: 'Sync Recent Players' })).toBeVisible()
+})
+
+test('Sync Recent Players button is disabled when no recents are loaded', async ({ window }) => {
+  await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
+  await window.locator('button', { hasText: /^Recent$/ }).click()
+  // No recents in a fresh e2e session — button should be visible but disabled
+  const btn = window.locator('button', { hasText: 'Sync Recent Players' })
+  await expect(btn).toBeVisible()
+  await expect(btn).toBeDisabled()
+})

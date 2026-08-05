@@ -60,46 +60,39 @@ function PoolCard({ unique, concentration }: { unique: number; concentration: nu
   )
 }
 
+const ALL_ROLES = ['Fighter', 'Mage', 'Assassin', 'Tank', 'Marksman', 'Support']
+
 function RoleBarChart({ buckets }: { buckets: ClassBucket[] }) {
-  if (buckets.length === 0) return null
-  const sorted = [...buckets].sort((a, b) => b.games - a.games)
-  const maxGames = sorted[0].games
+  const byClass = Object.fromEntries(buckets.map(b => [b.class, b]))
+  const rows = ALL_ROLES.map(role => byClass[role] ?? { class: role, games: 0, wins: 0, winRate: 0 })
+  const maxGames = Math.max(...rows.map(r => r.games), 1)
 
   return (
     <div style={{ width: '100%' }}>
-      {sorted.map(b => (
-        <div key={b.class} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <div style={{ width: 72, fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{b.class}</div>
-          <div style={{ flex: 1, height: 14, background: 'var(--bg-tertiary, #1a1a2a)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', height: '100%', width: `${(b.games / maxGames) * 100}%` }}>
-              <div style={{ width: `${(b.wins / b.games) * 100}%`, background: 'var(--accent, #7b68ee)' }} />
-              <div style={{ flex: 1, background: 'var(--bg-card, #2a2a3a)' }} />
+      {rows.map(b => {
+        const hasData = b.games > 0
+        return (
+          <div key={b.class} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 72, fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{b.class}</div>
+            <div style={{ flex: 1, height: 14, background: 'var(--bg-tertiary, #1a1a2a)', borderRadius: 3, overflow: 'hidden' }}>
+              {hasData && (
+                <div style={{ display: 'flex', height: '100%', width: `${(b.games / maxGames) * 100}%` }}>
+                  <div style={{ width: `${(b.wins / b.games) * 100}%`, background: '#4ecdc4' }} />
+                  <div style={{ flex: 1, background: '#7a3a40' }} />
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+              <div style={{ width: 34, fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right', opacity: hasData ? 1 : 0.35 }}>
+                {hasData ? `${(b.winRate * 100).toFixed(0)}%` : '—'}
+              </div>
+              <div style={{ width: 28, fontSize: 11, color: 'var(--text-secondary)', opacity: hasData ? 1 : 0.35 }}>
+                {b.wins}/{b.games}
+              </div>
             </div>
           </div>
-          <div style={{ width: 36, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right', flexShrink: 0 }}>
-            {(b.winRate * 100).toFixed(0)}%
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function PoolDepth({ champions }: { champions: ChampionPool[] }) {
-  return (
-    <div style={{ flex: 1, minWidth: 130 }}>
-      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Top Champions</div>
-      {champions.map(c => (
-        <div key={c.championId} style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-            <span style={{ color: 'var(--text-primary)' }}>{c.championName}</span>
-            <span style={{ color: 'var(--text-secondary)' }}>{c.games}g</span>
-          </div>
-          <div style={{ height: 3, background: 'var(--bg-tertiary, #1a1a2a)', borderRadius: 2 }}>
-            <div style={{ width: `${Math.round(c.share * 100)}%`, height: '100%', background: 'var(--accent, #7b68ee)', borderRadius: 2 }} />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -134,12 +127,9 @@ export default function PerformancePanel({ puuid, patches, queueId }: Props) {
         <DeltaCard label="GPM Δ" value={data.gpmDelta} format={fmtNum} />
         <PoolCard unique={data.poolUniqueChampions} concentration={data.poolTop3Concentration} />
       </div>
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Win Rate by Role</div>
-          <RoleBarChart buckets={data.classBuckets} />
-        </div>
-        <PoolDepth champions={data.poolTopChampions} />
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Win Rate by Role</div>
+        <RoleBarChart buckets={data.classBuckets} />
       </div>
     </div>
   )

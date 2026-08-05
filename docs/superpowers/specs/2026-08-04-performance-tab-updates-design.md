@@ -23,6 +23,16 @@ const [tab, setTab] = useState<Tab>('matches')
 const [tab, setTab] = useState<Tab>('performance')
 ```
 
+Move `'performance'` to the front of the tab button array so it renders as the leftmost tab:
+
+```typescript
+// before
+{(['matches', 'champions', 'augments', 'coplayers', 'elo', 'performance'] as Tab[]).map(...)}
+
+// after
+{(['performance', 'matches', 'champions', 'augments', 'coplayers', 'elo'] as Tab[]).map(...)}
+```
+
 ### `src/renderer/src/pages/PerformancePanel.tsx`
 
 **`RoleBarChart` — three updates:**

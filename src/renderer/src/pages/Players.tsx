@@ -628,7 +628,7 @@ function EloLeaderboard({ selectedMode, onPlayerSelect, onDataLoaded }: {
 // ─── Individual player view ───────────────────────────────────────────────────
 
 function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, onAugmentClick, onPlayerClick }: { puuid: string; player: PlayerStats; onBack: () => void; selectedPatches: string[] | null; selectedMode?: number; onAugmentClick?: (augmentId: number) => void; onPlayerClick?: (puuid: string, name: string) => void }) {
-  const [tab, setTab] = useState<Tab>('matches')
+  const [tab, setTab] = useState<Tab>('performance')
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [matches, setMatches] = useState<MatchView[]>([])
   const [championStats, setChampionStats] = useState<ChampionStat[]>([])
@@ -769,7 +769,7 @@ function PlayerDetail({ puuid, player, onBack, selectedPatches, selectedMode, on
       )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {(['matches', 'champions', 'augments', 'coplayers', 'elo', 'performance'] as Tab[]).map((t) => (
+        {(['performance', 'matches', 'champions', 'augments', 'coplayers', 'elo'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}

@@ -293,6 +293,18 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     await sql_`ALTER TABLE player_champion_stats_cache DROP CONSTRAINT IF EXISTS player_champion_stats_cache_pkey`
     await sql_`ALTER TABLE player_champion_stats_cache ADD PRIMARY KEY ("gameVersion", "queueId", puuid, "championId")`
   }
+  let needsPCSRebuild = false
+  if (!hasCol('player_champion_stats_cache', 'total_gold')) {
+    await sql_`ALTER TABLE player_champion_stats_cache ADD COLUMN total_gold BIGINT NOT NULL DEFAULT 0`
+    needsPCSRebuild = true
+  }
+  if (!hasCol('player_champion_stats_cache', 'total_team_kills')) {
+    await sql_`ALTER TABLE player_champion_stats_cache ADD COLUMN total_team_kills BIGINT NOT NULL DEFAULT 0`
+    needsPCSRebuild = true
+  }
+  if (needsPCSRebuild) {
+    await sql_`TRUNCATE player_champion_stats_cache`
+  }
   await sql_`
     CREATE TABLE IF NOT EXISTS augment_champion_stats_cache (
       "gameVersion"  TEXT    NOT NULL,
@@ -477,12 +489,18 @@ console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
         onProgress?.(`Rebuilding player/champion cache: ${gv} (${i + 1}/${missingPC.length})…`)
         await sql_`
           INSERT INTO player_champion_stats_cache
-            ("gameVersion","queueId",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+            ("gameVersion","queueId",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration,total_gold,total_team_kills)
           SELECT p."gameVersion",m."queueId",p.puuid,p."championId",MIN(p."championName"),
             COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
-            SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint
+            SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint,
+            SUM(p."goldEarned")::bigint,
+            SUM(tk.team_kills)::bigint
           FROM participants p
           JOIN matches m ON m."gameId" = p."gameId"
+          JOIN (
+            SELECT "gameId","teamId",SUM(kills)::bigint AS team_kills
+            FROM participants GROUP BY "gameId","teamId"
+          ) tk ON tk."gameId" = p."gameId" AND tk."teamId" = p."teamId"
           WHERE p."gameVersion" = ${gv} AND p.puuid != ''
           GROUP BY p."gameVersion",m."queueId",p.puuid,p."championId"
           ON CONFLICT DO NOTHING
@@ -1128,32 +1146,36 @@ export async function insertMatches(matches: Match[]): Promise<number> {
       `
     }
 
-    const playerChampAgg = new Map<string, [string, number, string, number, string, number, number, number, number, number, number, number]>()
+    const playerChampAgg = new Map<string, [string, number, string, number, string, number, number, number, number, number, number, number, number, number]>()
     for (const m of newMatches) {
       if (!m.gameVersion) continue
       for (const p of m.participants) {
         if (!p.puuid) continue
+        const teamKills = teamKillMap.get(`${m.gameId}:${p.teamId}`) ?? 0
         const key = `${m.gameVersion}:${m.queueId}:${p.puuid}:${p.championId}`
-        const cur = playerChampAgg.get(key) ?? [m.gameVersion, m.queueId, p.puuid, p.championId, p.championName, 0, 0, 0, 0, 0, 0, 0]
+        const cur = playerChampAgg.get(key) ?? [m.gameVersion, m.queueId, p.puuid, p.championId, p.championName, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         cur[5] += 1; cur[6] += p.win ? 1 : 0; cur[7] += p.kills; cur[8] += p.deaths
         cur[9] += p.assists; cur[10] += p.damageDealt; cur[11] += m.gameDuration
+        cur[12] += p.goldEarned; cur[13] += teamKills
         playerChampAgg.set(key, cur)
       }
     }
     if (playerChampAgg.size > 0) {
       await tx`
         INSERT INTO player_champion_stats_cache
-          ("gameVersion","queueId",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+          ("gameVersion","queueId",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration,total_gold,total_team_kills)
         VALUES ${tx([...playerChampAgg.values()])}
         ON CONFLICT ("gameVersion","queueId",puuid,"championId") DO UPDATE SET
-          "championName"  = EXCLUDED."championName",
-          games           = player_champion_stats_cache.games + EXCLUDED.games,
-          wins            = player_champion_stats_cache.wins + EXCLUDED.wins,
-          total_kills     = player_champion_stats_cache.total_kills + EXCLUDED.total_kills,
-          total_deaths    = player_champion_stats_cache.total_deaths + EXCLUDED.total_deaths,
-          total_assists   = player_champion_stats_cache.total_assists + EXCLUDED.total_assists,
-          total_damage    = player_champion_stats_cache.total_damage + EXCLUDED.total_damage,
-          total_duration  = player_champion_stats_cache.total_duration + EXCLUDED.total_duration
+          "championName"   = EXCLUDED."championName",
+          games            = player_champion_stats_cache.games + EXCLUDED.games,
+          wins             = player_champion_stats_cache.wins + EXCLUDED.wins,
+          total_kills      = player_champion_stats_cache.total_kills + EXCLUDED.total_kills,
+          total_deaths     = player_champion_stats_cache.total_deaths + EXCLUDED.total_deaths,
+          total_assists    = player_champion_stats_cache.total_assists + EXCLUDED.total_assists,
+          total_damage     = player_champion_stats_cache.total_damage + EXCLUDED.total_damage,
+          total_duration   = player_champion_stats_cache.total_duration + EXCLUDED.total_duration,
+          total_gold       = player_champion_stats_cache.total_gold + EXCLUDED.total_gold,
+          total_team_kills = player_champion_stats_cache.total_team_kills + EXCLUDED.total_team_kills
       `
     }
 

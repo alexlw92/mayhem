@@ -151,3 +151,24 @@ describe('champion_stats_cache total_team_kills and total_gold', () => {
     expect(Number(lux.total_gold)).toBe(7000)
   })
 })
+
+async function queryPlayerChampCache(puuid: string, championId: number, version = '15.12', queueId = 2400) {
+  const postgres = (await import('postgres')).default
+  const db = postgres(TEST_URL!, { onnotice: () => {} })
+  const rows = await db`
+    SELECT * FROM player_champion_stats_cache
+    WHERE puuid = ${puuid} AND "championId" = ${championId} AND "gameVersion" = ${version} AND "queueId" = ${queueId}
+  `
+  await db.end()
+  return rows[0]
+}
+
+describe('player_champion_stats_cache total_gold and total_team_kills', () => {
+  it('accumulates total_gold and total_team_kills per player-champion', async () => {
+    await insertMatches(makeGames())
+    const row = await queryPlayerChampCache('p1', 10)
+    // game1: gold=12000, team_kills=7 (4+3); game2: gold=9000, team_kills=3 (1+2)
+    expect(Number(row.total_gold)).toBe(21000)
+    expect(Number(row.total_team_kills)).toBe(10)
+  })
+})

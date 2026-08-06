@@ -8,9 +8,10 @@ The Performance tab currently shows five metric cards as raw deltas (e.g. `+4.1%
 
 ## Summary of Changes
 
-- **Schema extension:** Add `total_gold BIGINT` and `total_team_kills BIGINT` to `player_champion_stats_cache`. Backfill via truncate + rebuild (same pattern as the `champion_stats_cache` extension). This lets KP% and GPM be computed entirely from cache, matching how DPM is already handled.
-- **New DB table:** `player_performance_cache` — stores pre-computed metric values per player per patch per queue. Built incrementally in `initDb`, updated after each sync.
-- **New DB function:** `buildPlayerPerformanceCache(gameVersion, queueId)` — computes all players' metrics for a single patch. All metrics except APQ are now cache-only (no raw participants scan).
+- **Schema extension:** Add `total_gold BIGINT` and `total_team_kills BIGINT` to `player_champion_stats_cache`. Backfill via truncate + rebuild. Enables KP% and GPM to be computed from cache, matching DPM.
+- **New DB table:** `player_augment_stats_cache` — per-player per-patch per-augment pick counts. Populated by `buildCacheForGames`. Enables APQ to be computed from cache.
+- **New DB table:** `player_performance_cache` — stores pre-computed metric values per player per patch per queue. Built incrementally in `initDb`, updated after each sync. All five metrics are now fully cache-based (no raw participants scans).
+- **New DB function:** `buildPlayerPerformanceCache(gameVersion, queueId)` — single-pass join across all player caches.
 - **New DB function:** `getPerformancePercentiles(puuid, patches, queueId)` — reads from cache, aggregates across patches, returns five 0–100 percentile ranks.
 - **Route change:** `GET /players/:puuid/performance` response gains a `percentiles` field.
 - **Frontend:** `DeltaCard` → `PercentileCard` (big ordinal on top, small delta below); `PoolCard` removed; DPM/GPM formatted as relative `%` deltas.
@@ -51,22 +52,41 @@ With `total_kills` and `total_assists` already present, KP% numerator = `total_k
 
 ---
 
+## New Table: `player_augment_stats_cache`
+
+```sql
+CREATE TABLE IF NOT EXISTS player_augment_stats_cache (
+  puuid         TEXT    NOT NULL,
+  "queueId"     INTEGER NOT NULL,
+  "gameVersion" TEXT    NOT NULL,
+  "augmentId"   INTEGER NOT NULL,
+  pick_count    INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (puuid, "queueId", "gameVersion", "augmentId")
+)
+```
+
+`buildCacheForGames` already iterates each game's participants and their augments to build `augment_stats_cache`. Extend it to also accumulate per-player augment picks into `player_augment_stats_cache` using the same batch-upsert pattern.
+
+Backfill: add a missing-patch loop in `initDb` (same pattern as `player_champion_stats_cache`) that computes all players' augment picks per patch from raw `participant_augments` for any patches not yet cached.
+
+---
+
 ## Build Process
 
-`buildPlayerPerformanceCache(gameVersion: string, queueId: number)` runs two SQL passes over all players at once for the given patch:
+`buildPlayerPerformanceCache(gameVersion: string, queueId: number)` is a single all-cache pass — no raw table scans. It runs two joins, both cache-only, and combines the results by `puuid`:
 
-**Pass 1 — CPQ + DPM% + KP% + GPM%** (cache-only, fast):
-Join `player_champion_stats_cache` × `champion_stats_cache` on `(championId, queueId, gameVersion)`. Group by `puuid`. Compute:
+**Join A — CPQ + DPM% + KP% + GPM%:**
+`player_champion_stats_cache` × `champion_stats_cache` on `(championId, queueId, gameVersion)`, grouped by `puuid`. Compute:
 - `cpq` = `SUM(pcs.games × globalWR) / SUM(pcs.games) − 0.5`
-- `dpm_pct` = `(playerDPM − expectedDPM) / expectedDPM` where `playerDPM = SUM(pcs.total_damage) × 60 / SUM(pcs.total_duration)` and `expectedDPM` is weighted by per-champion global DPM from `champion_stats_cache`
-- `kp_delta` = `SUM(pcs.total_kills + pcs.total_assists) / SUM(pcs.total_team_kills) − expectedKP%` (champion-weighted using `cs.total_kp_num / cs.total_team_kills`)
-- `gpm_pct` = `(playerGPM − expectedGPM) / expectedGPM` where `playerGPM = SUM(pcs.total_gold) × 60 / SUM(pcs.total_duration)` and `expectedGPM` weighted by per-champion global GPM
+- `dpm_pct` = `(playerDPM − expectedDPM) / expectedDPM` (playerDPM from `pcs.total_damage / pcs.total_duration`; expectedDPM champion-weighted from `cs`)
+- `kp_delta` = `SUM(pcs.total_kills + pcs.total_assists) / SUM(pcs.total_team_kills) − expectedKP%` (expectedKP champion-weighted from `cs.total_kp_num / cs.total_team_kills`)
+- `gpm_pct` = `(playerGPM − expectedGPM) / expectedGPM` (playerGPM from `pcs.total_gold / pcs.total_duration`; expectedGPM champion-weighted from `cs`)
 
-**Pass 2 — APQ** (participant_augments scan, one pass per patch):
-Join `participant_augments` × `participants` × `augment_stats_cache`. Group by `puuid`. Compute:
+**Join B — APQ:**
+`player_augment_stats_cache` × `augment_stats_cache` on `(augmentId, queueId, gameVersion)`, grouped by `puuid`. Compute:
 - `apq` = `SUM(pick_count × globalAugWR) / SUM(pick_count) − avgAugWR`
 
-Results from both passes are merged by `puuid` and upserted into `player_performance_cache`. Players with no data in a given pass get 0 for those columns.
+Results from both joins are merged by `puuid` and upserted into `player_performance_cache`. Players absent from one join get 0 for those columns.
 
 **Integration into `initDb`:** After the existing `player_champion_stats_cache` backfill loop, add a similar loop that checks which `(gameVersion, queueId)` pairs are missing from `player_performance_cache` and runs `buildPlayerPerformanceCache` for each. Progress reported via `onProgress`.
 

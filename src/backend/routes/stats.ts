@@ -22,6 +22,7 @@ import {
   recomputePlayerElo,
   AugmentInfo,
   getPlayerPerformance,
+  getPerformancePercentiles,
   ChampionMeta,
 } from '../db'
 
@@ -184,7 +185,11 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const patches = parsePatches(req.query.patches)
     const queueId = parseQueueId(req.query.queueId)
     const championMap = (opts.getChampions?.() ?? {}) as Record<number, ChampionMeta>
-    res.json(await getPlayerPerformance(puuid, championMap, patches, queueId))
+    const [perf, percentiles] = await Promise.all([
+      getPlayerPerformance(puuid, championMap, patches, queueId),
+      getPerformancePercentiles(puuid, patches, queueId),
+    ])
+    res.json({ ...perf, percentiles })
   })
 
   return router

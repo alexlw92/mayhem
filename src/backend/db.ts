@@ -1927,10 +1927,19 @@ export interface PlayerPerformance {
   kpDelta: number
   dpmDelta: number
   gpmDelta: number
+  dpmPct: number
+  gpmPct: number
   poolUniqueChampions: number
   poolTop3Concentration: number
   poolTopChampions: { championId: number; championName: string; games: number; share: number }[]
   classBuckets: { class: string; games: number; wins: number; winRate: number }[]
+  percentiles: {
+    cpq: number | null
+    apq: number | null
+    kpDelta: number | null
+    dpmPct: number | null
+    gpmPct: number | null
+  } | null
 }
 
 export async function getPlayerPerformance(
@@ -1941,9 +1950,9 @@ export async function getPlayerPerformance(
 ): Promise<PlayerPerformance> {
   const empty: PlayerPerformance = {
     championPickQuality: 0, augmentPickQuality: 0,
-    kpDelta: 0, dpmDelta: 0, gpmDelta: 0,
+    kpDelta: 0, dpmDelta: 0, gpmDelta: 0, dpmPct: 0, gpmPct: 0,
     poolUniqueChampions: 0, poolTop3Concentration: 0,
-    poolTopChampions: [], classBuckets: []
+    poolTopChampions: [], classBuckets: [], percentiles: null
   }
 
   // Query 1a: player champion stats (pool depth, DPM, pick quality numerator)
@@ -2115,6 +2124,7 @@ export async function getPlayerPerformance(
   const playerDPM = playerDurSec > 0 ? playerDmg / (playerDurSec / 60) : 0
   const expectedDPM = expDurMin > 0 ? expDmgMin / expDurMin : 0
   const dpmDelta = playerDPM - expectedDPM
+  const dpmPct = expectedDPM > 0 ? dpmDelta / expectedDPM : 0
 
   // KP% and GPM deltas (from raw query 2)
   let pKPNum = 0, pKPDen = 0, eKPNum = 0, eKPDen = 0
@@ -2136,8 +2146,10 @@ export async function getPlayerPerformance(
     }
   }
   const kpDelta = (pKPDen > 0 ? pKPNum / pKPDen : 0) - (eKPDen > 0 ? eKPNum / eKPDen : 0)
-  const gpmDelta = (pGoldDurSec > 0 ? pGold / (pGoldDurSec / 60) : 0)
-                - (eGoldDurMin > 0 ? eGoldMin / eGoldDurMin : 0)
+  const playerGPM = pGoldDurSec > 0 ? pGold / (pGoldDurSec / 60) : 0
+  const expectedGPM = eGoldDurMin > 0 ? eGoldMin / eGoldDurMin : 0
+  const gpmDelta = playerGPM - expectedGPM
+  const gpmPct = expectedGPM > 0 ? gpmDelta / expectedGPM : 0
 
   // Pool depth
   const totalGames = playerChampRows.reduce((s: number, r: any) => s + r.games, 0)
@@ -2159,6 +2171,8 @@ export async function getPlayerPerformance(
     kpDelta,
     dpmDelta,
     gpmDelta,
+    dpmPct,
+    gpmPct,
     poolUniqueChampions: playerChampRows.length,
     poolTop3Concentration: totalGames > 0 ? top3Games / totalGames : 0,
     poolTopChampions: playerChampRows.slice(0, 5).map((r: any) => ({
@@ -2169,7 +2183,8 @@ export async function getPlayerPerformance(
     })),
     classBuckets: [...bucketMap.entries()]
       .map(([cls, b]) => ({ class: cls, games: b.games, wins: b.wins, winRate: b.games > 0 ? b.wins / b.games : 0 }))
-      .sort((a, b) => b.games - a.games)
+      .sort((a, b) => b.games - a.games),
+    percentiles: null,
   }
 }
 
@@ -2255,6 +2270,64 @@ export async function buildPlayerPerformanceCache(gameVersion: string, queueId: 
       dpm_pct  = EXCLUDED.dpm_pct,
       gpm_pct  = EXCLUDED.gpm_pct
   `
+}
+
+export async function getPerformancePercentiles(
+  puuid: string,
+  patches: string[] | undefined,
+  queueId: number
+): Promise<{ cpq: number | null; apq: number | null; kpDelta: number | null; dpmPct: number | null; gpmPct: number | null } | null> {
+  const rows: any[] = patches?.length
+    ? await sql_.unsafe(
+        `SELECT puuid,
+          SUM(games)::int AS games,
+          SUM(cpq * games) / NULLIF(SUM(games)::float, 0) AS cpq,
+          SUM(apq * games) / NULLIF(SUM(games)::float, 0) AS apq,
+          SUM(kp_delta * games) / NULLIF(SUM(games)::float, 0) AS kp_delta,
+          SUM(dpm_pct * games) / NULLIF(SUM(games)::float, 0) AS dpm_pct,
+          SUM(gpm_pct * games) / NULLIF(SUM(games)::float, 0) AS gpm_pct
+         FROM player_performance_cache
+         WHERE "queueId" = $1 AND "gameVersion" = ANY($2)
+         GROUP BY puuid
+         HAVING SUM(games) >= 5`,
+        [queueId, patches]
+      )
+    : await sql_`
+        SELECT puuid,
+          SUM(games)::int AS games,
+          SUM(cpq * games) / NULLIF(SUM(games)::float, 0) AS cpq,
+          SUM(apq * games) / NULLIF(SUM(games)::float, 0) AS apq,
+          SUM(kp_delta * games) / NULLIF(SUM(games)::float, 0) AS kp_delta,
+          SUM(dpm_pct * games) / NULLIF(SUM(games)::float, 0) AS dpm_pct,
+          SUM(gpm_pct * games) / NULLIF(SUM(games)::float, 0) AS gpm_pct
+        FROM player_performance_cache
+        WHERE "queueId" = ${queueId}
+        GROUP BY puuid
+        HAVING SUM(games) >= 5
+      `
+
+  if (rows.length < 10) return null
+
+  const playerRow = rows.find((r: any) => r.puuid === puuid)
+  if (!playerRow) return null
+
+  const pct = (metric: string): number | null => {
+    const val = Number(playerRow[metric])
+    const sorted = rows.map((r: any) => Number(r[metric])).sort((a, b) => a - b)
+    const n = sorted.length
+    if (n === 1) return 50
+    const below = sorted.filter(v => v < val).length
+    const equal = sorted.filter(v => v === val).length
+    return Math.round((below + equal * 0.5) / n * 100)
+  }
+
+  return {
+    cpq: pct('cpq'),
+    apq: pct('apq'),
+    kpDelta: pct('kp_delta'),
+    dpmPct: pct('dpm_pct'),
+    gpmPct: pct('gpm_pct'),
+  }
 }
 
 export interface AugmentChampionStat {

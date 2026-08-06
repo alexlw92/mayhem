@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -221,5 +221,28 @@ describe('player_performance_cache / buildPlayerPerformanceCache', () => {
     await db.end()
     // insertMatches should have triggered buildPlayerPerformanceCache
     expect(rows.length).toBeGreaterThan(0)
+  })
+})
+
+describe('getPerformancePercentiles', () => {
+  it('returns null when fewer than 10 qualifying players', async () => {
+    await insertMatches(makeGames())
+    // makeGames has only 5 distinct players
+    const result = await getPerformancePercentiles('p1', ['15.12'], 2400)
+    expect(result).toBeNull()
+  })
+})
+
+describe('getPlayerPerformance dpmPct and gpmPct', () => {
+  it('includes dpmPct and gpmPct as fractional deltas', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    expect(result).toHaveProperty('dpmPct')
+    expect(result).toHaveProperty('gpmPct')
+    expect(typeof result.dpmPct).toBe('number')
+    expect(typeof result.gpmPct).toBe('number')
+    // p1 is sole Kayle player, so delta from expected ≈ 0
+    expect(Math.abs(result.dpmPct)).toBeLessThan(0.01)
+    expect(Math.abs(result.gpmPct)).toBeLessThan(0.01)
   })
 })

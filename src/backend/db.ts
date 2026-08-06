@@ -339,6 +339,20 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     )
   `
   await sql_`
+    CREATE TABLE IF NOT EXISTS player_performance_cache (
+      puuid         TEXT    NOT NULL,
+      "queueId"     INTEGER NOT NULL,
+      "gameVersion" TEXT    NOT NULL,
+      games         INTEGER NOT NULL DEFAULT 0,
+      cpq           FLOAT   NOT NULL DEFAULT 0,
+      apq           FLOAT   NOT NULL DEFAULT 0,
+      kp_delta      FLOAT   NOT NULL DEFAULT 0,
+      dpm_pct       FLOAT   NOT NULL DEFAULT 0,
+      gpm_pct       FLOAT   NOT NULL DEFAULT 0,
+      PRIMARY KEY (puuid, "queueId", "gameVersion")
+    )
+  `
+  await sql_`
     CREATE TABLE IF NOT EXISTS item_builds_cache (
       "gameVersion"  TEXT      NOT NULL,
       "championId"   INTEGER   NOT NULL,
@@ -546,6 +560,22 @@ console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
         `
       }
       console.log(`[db] player_augment_stats_cache backfill complete (${Date.now() - _t5}ms total)`)
+    }
+    {
+      const existingPerfRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_performance_cache`
+      const existingPerf = new Set(existingPerfRows.map((r: any) => `${r.gameVersion}:${r.queueId}`))
+      const pcsVersionRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_champion_stats_cache`
+      const missingPerf = pcsVersionRows
+        .map((r: any) => ({ gv: r.gameVersion as string, queueId: r.queueId as number }))
+        .filter(({ gv, queueId: qId }) => !existingPerf.has(`${gv}:${qId}`))
+      if (missingPerf.length > 0) {
+        console.log(`[db] backfilling player_performance_cache (${missingPerf.length} patch-queue pairs)...`)
+        for (const { gv, queueId: qId } of missingPerf) {
+          onProgress?.(`Rebuilding performance cache: ${gv}…`)
+          await buildPlayerPerformanceCache(gv, qId)
+        }
+        console.log('[db] player_performance_cache backfill complete')
+      }
     }
   }
 
@@ -1272,6 +1302,18 @@ export async function insertMatches(matches: Match[]): Promise<number> {
 
   const puuids = [...new Set(matches.flatMap(m => m.participants.map(p => p.puuid).filter(Boolean)))]
   await enqueueAll(puuids)
+  if (insertedCount > 0) {
+    const pairs = [...new Set(
+      matches.filter(m => m.gameVersion).map(m => `${m.gameVersion}:${m.queueId}`)
+    )]
+    for (const pair of pairs) {
+      const colonIdx = pair.indexOf(':')
+      const gv = pair.slice(0, colonIdx)
+      const qId = Number(pair.slice(colonIdx + 1))
+      await sql_`DELETE FROM player_performance_cache WHERE "gameVersion" = ${gv} AND "queueId" = ${qId}`
+      await buildPlayerPerformanceCache(gv, qId)
+    }
+  }
   return insertedCount
 }
 
@@ -2129,6 +2171,90 @@ export async function getPlayerPerformance(
       .map(([cls, b]) => ({ class: cls, games: b.games, wins: b.wins, winRate: b.games > 0 ? b.wins / b.games : 0 }))
       .sort((a, b) => b.games - a.games)
   }
+}
+
+export async function buildPlayerPerformanceCache(gameVersion: string, queueId: number): Promise<void> {
+  const champRows: any[] = await sql_`
+    SELECT
+      pcs.puuid,
+      SUM(pcs.games)::int AS games,
+      COALESCE(
+        SUM(pcs.games * cs.wins::float / NULLIF(cs.games, 0)) / NULLIF(SUM(pcs.games)::float, 0) - 0.5,
+        0
+      ) AS cpq,
+      COALESCE(
+        SUM(pcs.total_kills + pcs.total_assists)::float / NULLIF(SUM(pcs.total_team_kills)::float, 0)
+        - SUM((cs.total_kills + cs.total_assists)::float / NULLIF(cs.total_team_kills::float, 0) * pcs.total_team_kills::float)
+          / NULLIF(SUM(pcs.total_team_kills)::float, 0),
+        0
+      ) AS kp_delta,
+      COALESCE(
+        SUM(pcs.total_damage)::float
+        / NULLIF(SUM(cs.total_damage::float * pcs.total_duration::float / NULLIF(cs.total_duration::float, 0)), 0)
+        - 1,
+        0
+      ) AS dpm_pct,
+      COALESCE(
+        SUM(pcs.total_gold)::float
+        / NULLIF(SUM(cs.total_gold::float * pcs.total_duration::float / NULLIF(cs.total_duration::float, 0)), 0)
+        - 1,
+        0
+      ) AS gpm_pct
+    FROM player_champion_stats_cache pcs
+    JOIN champion_stats_cache cs
+      ON cs."championId" = pcs."championId"
+      AND cs."queueId" = pcs."queueId"
+      AND cs."gameVersion" = pcs."gameVersion"
+    WHERE pcs."queueId" = ${queueId} AND pcs."gameVersion" = ${gameVersion}
+    GROUP BY pcs.puuid
+  `
+  if (champRows.length === 0) return
+
+  const augRows: any[] = await sql_`
+    WITH aug_wr AS (
+      SELECT "augmentId",
+        SUM(wins)::float / NULLIF(SUM(pick_count)::float, 0) AS wr
+      FROM augment_stats_cache
+      WHERE "queueId" = ${queueId} AND "gameVersion" = ${gameVersion}
+      GROUP BY "augmentId"
+    ),
+    avg_aug AS (SELECT COALESCE(AVG(wr), 0.5) AS avg_wr FROM aug_wr)
+    SELECT
+      pas.puuid,
+      COALESCE(
+        SUM(pas.pick_count * COALESCE(aw.wr, (SELECT avg_wr FROM avg_aug))) / NULLIF(SUM(pas.pick_count)::float, 0)
+        - (SELECT avg_wr FROM avg_aug),
+        0
+      ) AS apq
+    FROM player_augment_stats_cache pas
+    LEFT JOIN aug_wr aw ON aw."augmentId" = pas."augmentId"
+    WHERE pas."queueId" = ${queueId} AND pas."gameVersion" = ${gameVersion}
+    GROUP BY pas.puuid
+  `
+
+  const apqMap = new Map<string, number>(augRows.map((r: any) => [r.puuid as string, Number(r.apq)]))
+
+  const rows = champRows.map((r: any) => [
+    r.puuid, queueId, gameVersion,
+    Number(r.games),
+    Number(r.cpq),
+    apqMap.get(r.puuid) ?? 0,
+    Number(r.kp_delta),
+    Number(r.dpm_pct),
+    Number(r.gpm_pct),
+  ])
+
+  await sql_`
+    INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
+    VALUES ${sql_(rows)}
+    ON CONFLICT (puuid,"queueId","gameVersion") DO UPDATE SET
+      games    = EXCLUDED.games,
+      cpq      = EXCLUDED.cpq,
+      apq      = EXCLUDED.apq,
+      kp_delta = EXCLUDED.kp_delta,
+      dpm_pct  = EXCLUDED.dpm_pct,
+      gpm_pct  = EXCLUDED.gpm_pct
+  `
 }
 
 export interface AugmentChampionStat {

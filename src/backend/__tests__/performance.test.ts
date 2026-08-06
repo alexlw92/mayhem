@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -14,7 +14,8 @@ async function truncate() {
   await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
     champion_stats_cache, augment_stats_cache, player_stats_cache,
     player_champion_stats_cache, augment_champion_stats_cache, player_augment_stats_cache,
-    item_builds_cache, item_picks_cache, item_archetypes_cache, player_elo, elo_history
+    player_performance_cache, item_builds_cache, item_picks_cache,
+    item_archetypes_cache, player_elo, elo_history
     RESTART IDENTITY CASCADE`
   await db.end()
 }
@@ -185,5 +186,40 @@ describe('player_augment_stats_cache', () => {
     await db.end()
     // p1 picks augId=100 in both games
     expect(Number(row.pick_count)).toBe(2)
+  })
+})
+
+describe('player_performance_cache / buildPlayerPerformanceCache', () => {
+  it('populates correct metrics for sole champion representative', async () => {
+    await insertMatches(makeGames())
+    await buildPlayerPerformanceCache('15.12', 2400)
+
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+    const [row] = await db`
+      SELECT * FROM player_performance_cache
+      WHERE puuid = 'p1' AND "gameVersion" = '15.12' AND "queueId" = 2400
+    `
+    await db.end()
+
+    expect(row.games).toBe(2)
+    // p1 plays Kayle with 100% WR → cpq = 1.0 - 0.5 = 0.5
+    expect(Number(row.cpq)).toBeCloseTo(0.5)
+    // p1 is sole Kayle player → delta vs expected ≈ 0
+    expect(Math.abs(Number(row.kp_delta))).toBeLessThan(0.01)
+    expect(Math.abs(Number(row.dpm_pct))).toBeLessThan(0.01)
+    expect(Math.abs(Number(row.gpm_pct))).toBeLessThan(0.01)
+    // p1 is sole aug 100 picker → apq ≈ 0
+    expect(Math.abs(Number(row.apq))).toBeLessThan(0.01)
+  })
+
+  it('buildPlayerPerformanceCache is called by insertMatches', async () => {
+    await insertMatches(makeGames())
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+    const rows = await db`SELECT * FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
+    await db.end()
+    // insertMatches should have triggered buildPlayerPerformanceCache
+    expect(rows.length).toBeGreaterThan(0)
   })
 })

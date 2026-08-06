@@ -69,6 +69,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       'item_picks_cache','item_builds_cache',
       'champion_stats_cache','augment_stats_cache',
       'player_stats_cache','player_champion_stats_cache','augment_champion_stats_cache',
+      'player_augment_stats_cache',
       'meta_champions'
     )
   `
@@ -323,6 +324,20 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     await sql_`ALTER TABLE augment_champion_stats_cache DROP CONSTRAINT IF EXISTS augment_champion_stats_cache_pkey`
     await sql_`ALTER TABLE augment_champion_stats_cache ADD PRIMARY KEY ("gameVersion", "queueId", "augmentId", "championId")`
   }
+  if (hasCol('player_augment_stats_cache', 'wins')) {
+    // Old incompatible schema (had wins/total_damage/total_duration); drop and recreate
+    await sql_`DROP TABLE player_augment_stats_cache`
+  }
+  await sql_`
+    CREATE TABLE IF NOT EXISTS player_augment_stats_cache (
+      puuid         TEXT    NOT NULL,
+      "queueId"     INTEGER NOT NULL,
+      "gameVersion" TEXT    NOT NULL,
+      "augmentId"   INTEGER NOT NULL,
+      pick_count    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (puuid, "queueId", "gameVersion", "augmentId")
+    )
+  `
   await sql_`
     CREATE TABLE IF NOT EXISTS item_builds_cache (
       "gameVersion"  TEXT      NOT NULL,
@@ -508,6 +523,29 @@ console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
         console.log(`[db] player_champion_stats ${gv} done (${Date.now() - _tpc}ms)`)
       }
       console.log(`[db] player_champion_stats_cache backfill complete (${Date.now() - _t4}ms total)`)
+    }
+    const existingPARows = await sql_`SELECT DISTINCT "gameVersion" FROM player_augment_stats_cache`
+    const existingPA = new Set(existingPARows.map((r: any) => r.gameVersion as string))
+    const missingPA = pvList.filter(gv => !existingPA.has(gv))
+    if (missingPA.length > 0) {
+      console.log(`[db] backfilling player_augment_stats_cache (${missingPA.length} patches)...`)
+      const _t5 = Date.now()
+      for (let i = 0; i < missingPA.length; i++) {
+        const gv = missingPA[i]
+        console.log(`[db] player_augment_stats ${gv} (${i + 1}/${missingPA.length})...`)
+        onProgress?.(`Rebuilding player/augment cache: ${gv} (${i + 1}/${missingPA.length})…`)
+        await sql_`
+          INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
+          SELECT p."gameVersion",m."queueId",p.puuid,pa."augmentId",COUNT(*)::int
+          FROM participants p
+          JOIN matches m ON m."gameId" = p."gameId"
+          JOIN participant_augments pa ON pa."participantId" = p.id
+          WHERE p."gameVersion" = ${gv} AND p.puuid != ''
+          GROUP BY p."gameVersion",m."queueId",p.puuid,pa."augmentId"
+          ON CONFLICT DO NOTHING
+        `
+      }
+      console.log(`[db] player_augment_stats_cache backfill complete (${Date.now() - _t5}ms total)`)
     }
   }
 
@@ -1203,6 +1241,29 @@ export async function insertMatches(matches: Match[]): Promise<number> {
           wins            = augment_champion_stats_cache.wins + EXCLUDED.wins,
           total_damage    = augment_champion_stats_cache.total_damage + EXCLUDED.total_damage,
           total_duration  = augment_champion_stats_cache.total_duration + EXCLUDED.total_duration
+      `
+    }
+
+    const playerAugAgg = new Map<string, [string, number, string, number, number]>()
+    for (const m of newMatches) {
+      if (!m.gameVersion) continue
+      for (const p of m.participants) {
+        if (!p.puuid) continue
+        for (const augId of p.augments) {
+          if (!augId) continue
+          const key = `${m.gameVersion}:${m.queueId}:${p.puuid}:${augId}`
+          const cur = playerAugAgg.get(key) ?? [m.gameVersion, m.queueId, p.puuid, augId, 0]
+          cur[4] += 1
+          playerAugAgg.set(key, cur)
+        }
+      }
+    }
+    if (playerAugAgg.size > 0) {
+      await tx`
+        INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
+        VALUES ${tx([...playerAugAgg.values()])}
+        ON CONFLICT ("gameVersion","queueId",puuid,"augmentId") DO UPDATE SET
+          pick_count = player_augment_stats_cache.pick_count + EXCLUDED.pick_count
       `
     }
 

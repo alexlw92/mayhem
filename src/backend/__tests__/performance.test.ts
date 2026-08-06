@@ -13,8 +13,8 @@ async function truncate() {
   const db = postgres(TEST_URL!, { onnotice: () => {} })
   await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
     champion_stats_cache, augment_stats_cache, player_stats_cache,
-    player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache, item_picks_cache,
-    item_archetypes_cache, player_elo, elo_history
+    player_champion_stats_cache, augment_champion_stats_cache, player_augment_stats_cache,
+    item_builds_cache, item_picks_cache, item_archetypes_cache, player_elo, elo_history
     RESTART IDENTITY CASCADE`
   await db.end()
 }
@@ -170,5 +170,20 @@ describe('player_champion_stats_cache total_gold and total_team_kills', () => {
     // game1: gold=12000, team_kills=7 (4+3); game2: gold=9000, team_kills=3 (1+2)
     expect(Number(row.total_gold)).toBe(21000)
     expect(Number(row.total_team_kills)).toBe(10)
+  })
+})
+
+describe('player_augment_stats_cache', () => {
+  it('accumulates player augment pick counts', async () => {
+    await insertMatches(makeGames())
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+    const [row] = await db`
+      SELECT pick_count FROM player_augment_stats_cache
+      WHERE puuid = 'p1' AND "augmentId" = 100 AND "gameVersion" = '15.12' AND "queueId" = 2400
+    `
+    await db.end()
+    // p1 picks augId=100 in both games
+    expect(Number(row.pick_count)).toBe(2)
   })
 })

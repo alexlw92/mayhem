@@ -22,10 +22,19 @@ interface PlayerPerformance {
   kpDelta: number
   dpmDelta: number
   gpmDelta: number
+  dpmPct: number
+  gpmPct: number
   poolUniqueChampions: number
   poolTop3Concentration: number
   poolTopChampions: ChampionPool[]
   classBuckets: ClassBucket[]
+  percentiles: {
+    cpq: number | null
+    apq: number | null
+    kpDelta: number | null
+    dpmPct: number | null
+    gpmPct: number | null
+  } | null
 }
 
 interface Props {
@@ -34,28 +43,33 @@ interface Props {
   queueId: number
 }
 
-function DeltaCard({ label, value, format }: {
-  label: string; value: number; format: (v: number) => string
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+function PercentileCard({ label, percentile, rawValue, delta }: {
+  label: string; percentile: number | null; rawValue: number; delta: string
 }) {
-  const color = value > 0.005
-    ? 'var(--green, #4caf50)'
-    : value < -0.005
-    ? 'var(--red, #f44336)'
-    : 'var(--text-secondary)'
+  const color = percentile !== null
+    ? percentile >= 67 ? 'var(--green, #4caf50)'
+      : percentile <= 33 ? 'var(--red, #f44336)'
+      : 'var(--text-primary)'
+    : rawValue > 0.005 ? 'var(--green, #4caf50)'
+      : rawValue < -0.005 ? 'var(--red, #f44336)'
+      : 'var(--text-secondary)'
   return (
     <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '10px 14px', flex: '1 1 0', minWidth: 90 }}>
       <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 600, color }}>{format(value)}</div>
-    </div>
-  )
-}
-
-function PoolCard({ unique, concentration }: { unique: number; concentration: number }) {
-  return (
-    <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '10px 14px', flex: '1 1 0', minWidth: 90 }}>
-      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Champion Pool</div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>{unique}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{(concentration * 100).toFixed(0)}% on top 3</div>
+      {percentile !== null ? (
+        <>
+          <div style={{ fontSize: 18, fontWeight: 600, color }}>{ordinal(percentile)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{delta}</div>
+        </>
+      ) : (
+        <div style={{ fontSize: 18, fontWeight: 600, color }}>{delta}</div>
+      )}
     </div>
   )
 }
@@ -115,17 +129,15 @@ export default function PerformancePanel({ puuid, patches, queueId }: Props) {
   if (!data || data.poolUniqueChampions === 0) return null
 
   const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`
-  const fmtNum = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}`
 
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        <DeltaCard label="Champ Picks" value={data.championPickQuality} format={fmtPct} />
-        <DeltaCard label="Aug Picks" value={data.augmentPickQuality} format={fmtPct} />
-        <DeltaCard label="KP% Δ" value={data.kpDelta} format={fmtPct} />
-        <DeltaCard label="DPM Δ" value={data.dpmDelta} format={fmtNum} />
-        <DeltaCard label="GPM Δ" value={data.gpmDelta} format={fmtNum} />
-        <PoolCard unique={data.poolUniqueChampions} concentration={data.poolTop3Concentration} />
+        <PercentileCard label="Champ Picks" percentile={data.percentiles?.cpq ?? null}    rawValue={data.championPickQuality} delta={fmtPct(data.championPickQuality)} />
+        <PercentileCard label="Aug Picks"   percentile={data.percentiles?.apq ?? null}    rawValue={data.augmentPickQuality}   delta={fmtPct(data.augmentPickQuality)} />
+        <PercentileCard label="KP% Δ"       percentile={data.percentiles?.kpDelta ?? null} rawValue={data.kpDelta}             delta={fmtPct(data.kpDelta)} />
+        <PercentileCard label="DPM Δ"       percentile={data.percentiles?.dpmPct ?? null}  rawValue={data.dpmPct}              delta={fmtPct(data.dpmPct)} />
+        <PercentileCard label="GPM Δ"       percentile={data.percentiles?.gpmPct ?? null}  rawValue={data.gpmPct}              delta={fmtPct(data.gpmPct)} />
       </div>
       <div>
         <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Win Rate by Role</div>

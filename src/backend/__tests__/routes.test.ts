@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import { initDb, Match } from '../db'
 import { createExpressApp } from '../server'
+import { clearAll } from '../queryCache'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -28,6 +29,7 @@ async function truncate() {
 
 beforeEach(async () => {
   await truncate()
+  clearAll()
 })
 
 const sampleMatch: Match = {

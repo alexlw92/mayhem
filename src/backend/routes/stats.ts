@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { getOrFetch } from '../queryCache'
 import {
   getPatches,
   getPlayerStats,
@@ -43,12 +44,19 @@ const parseQueueId = (raw: unknown): number =>
 export function createStatsRouter(opts: StatsOptions = {}): Router {
   const router = Router()
 
+  const patchKey = (patches: string[] | undefined) => (patches ?? []).slice().sort().join(',')
+
   router.get('/patches', async (_req, res) => {
     res.json(await getPatches())
   })
 
   router.get('/players', async (req, res) => {
-    res.json(await getPlayerStats(parsePatches(req.query.patches), parseQueueId(req.query.queueId)))
+    const patches = parsePatches(req.query.patches)
+    const queueId = parseQueueId(req.query.queueId)
+    res.json(await getOrFetch(
+      `players:${patchKey(patches)}:${queueId}`,
+      () => getPlayerStats(patches, queueId)
+    ))
   })
 
   router.get('/players/search', async (req, res) => {
@@ -95,7 +103,12 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
   })
 
   router.get('/champions', async (req, res) => {
-    res.json(await getChampionStats(undefined, parsePatches(req.query.patches), parseQueueId(req.query.queueId)))
+    const patches = parsePatches(req.query.patches)
+    const queueId = parseQueueId(req.query.queueId)
+    res.json(await getOrFetch(
+      `champions:${patchKey(patches)}:${queueId}`,
+      () => getChampionStats(undefined, patches, queueId)
+    ))
   })
 
   router.get('/augments', async (req, res) => {
@@ -103,7 +116,15 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const rawPatches = parsePatches(req.query.patches)
     const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
     const championId = req.query.championId ? parseInt(req.query.championId as string) : undefined
-    res.json(await getAugmentStats(undefined, championId, patches, augCache, parseQueueId(req.query.queueId)))
+    const queueId = parseQueueId(req.query.queueId)
+    if (championId !== undefined) {
+      res.json(await getAugmentStats(undefined, championId, patches, augCache, queueId))
+    } else {
+      res.json(await getOrFetch(
+        `augments:${patchKey(patches)}:${queueId}`,
+        () => getAugmentStats(undefined, undefined, patches, augCache, queueId)
+      ))
+    }
   })
 
   router.get('/augments/:augmentId/champions', async (req, res) => {
@@ -121,7 +142,10 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
       ? req.query.allowed.split(',').map(Number).filter(Boolean)
       : []
     const queueId = parseQueueId(req.query.queueId)
-    res.json(await getItemBuilds(championId, patches, allowedIds, queueId))
+    res.json(await getOrFetch(
+      `item_builds:${championId}:${patchKey(patches)}:${allowedIds.slice().sort().join(',')}:${queueId}`,
+      () => getItemBuilds(championId, patches, allowedIds, queueId)
+    ))
   })
 
   router.get('/items/picks', async (req, res) => {
@@ -129,7 +153,11 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     if (!championId) return res.status(400).json({ error: 'championId required' })
     const rawPatches = parsePatches(req.query.patches)
     const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
-    res.json(await getItemPickRates(championId, patches, parseQueueId(req.query.queueId)))
+    const queueId = parseQueueId(req.query.queueId)
+    res.json(await getOrFetch(
+      `item_picks:${championId}:${patchKey(patches)}:${queueId}`,
+      () => getItemPickRates(championId, patches, queueId)
+    ))
   })
 
   router.get('/items/archetypes', async (req, res) => {
@@ -137,7 +165,11 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     if (!championId) return res.status(400).json({ error: 'championId required' })
     const rawPatches = parsePatches(req.query.patches)
     const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
-    res.json(await getOrComputeArchetypes(championId, patches, parseQueueId(req.query.queueId)))
+    const queueId = parseQueueId(req.query.queueId)
+    res.json(await getOrFetch(
+      `item_archetypes:${championId}:${patchKey(patches)}:${queueId}`,
+      () => getOrComputeArchetypes(championId, patches, queueId)
+    ))
   })
 
   router.get('/items/summary', async (req, res) => {
@@ -147,8 +179,14 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const patches = rawPatches ?? (opts.latestPatch?.value ? [opts.latestPatch.value] : undefined)
     const queueId = parseQueueId(req.query.queueId)
     const [archetypes, picks] = await Promise.all([
-      getOrComputeArchetypes(championId, patches, queueId),
-      getItemPickRates(championId, patches, queueId),
+      getOrFetch(
+        `item_archetypes:${championId}:${patchKey(patches)}:${queueId}`,
+        () => getOrComputeArchetypes(championId, patches, queueId)
+      ),
+      getOrFetch(
+        `item_picks:${championId}:${patchKey(patches)}:${queueId}`,
+        () => getItemPickRates(championId, patches, queueId)
+      ),
     ])
     res.json({ archetypes, totalGames: picks.totalGames, items: picks.items })
   })
@@ -187,7 +225,10 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const championMap = (opts.getChampions?.() ?? {}) as Record<number, ChampionMeta>
     const [perf, percentiles] = await Promise.all([
       getPlayerPerformance(puuid, championMap, patches, queueId),
-      getPerformancePercentiles(puuid, patches, queueId),
+      getOrFetch(
+        `perf:${puuid}:${patchKey(patches)}:${queueId}`,
+        () => getPerformancePercentiles(puuid, patches, queueId)
+      ),
     ])
     res.json({ ...perf, percentiles })
   })

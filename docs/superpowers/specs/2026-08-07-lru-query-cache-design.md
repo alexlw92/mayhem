@@ -2,14 +2,14 @@
 
 ## Context
 
-Several Express routes serve data from pre-computed SQL cache tables (item builds, item picks, item archetypes, performance percentiles). The SQL tables already avoid expensive full-table scans; the remaining overhead is repeated reads of the same (patch, queueId) combo within a session — e.g., every time the user switches champion in the Items tab, or opens the Performance tab for a different player. An in-memory LRU layer eliminates these redundant Postgres round-trips without changing the schema or DB functions.
+Several Express routes serve data from pre-computed SQL cache tables (champion stats, augment stats, item builds, item picks, item archetypes, performance percentiles, player list). The SQL tables already avoid expensive full-table scans; the remaining overhead is repeated reads of the same (patch, queueId) combo within a session — e.g., every time the user switches champion in the Items tab, opens the Champions tab, or opens the Performance tab for a different player. An in-memory LRU layer eliminates these redundant Postgres round-trips without changing the schema or DB functions.
 
 ---
 
 ## Summary of Changes
 
 - **New module:** `src/backend/queryCache.ts` — wraps `lru-cache` v10, exposes `getOrFetch`, `invalidate`, and `invalidatePrefix`.
-- **Route changes:** Wrap `getPerformancePercentiles` and item route queries with `cache.getOrFetch(...)`. No other logic changes.
+- **Route changes:** Wrap `getPerformancePercentiles`, global `getChampionStats`, global `getAugmentStats`, `getPlayerStats`, and all item route queries with `cache.getOrFetch(...)`. No other logic changes.
 - **Post-sync invalidation:** After each sync, the existing `insertMatches` post-sync hook additionally calls `cache.invalidatePrefix(...)` for affected `(gameVersion, queueId)` pairs.
 - **No schema changes.** SQL tables remain the persistent source of truth.
 
@@ -54,12 +54,17 @@ export function invalidatePrefix(prefix: string): void {
 
 | Data | Key format |
 |------|-----------|
+| Champion stats (global) | `champions:{sortedPatchesJoined}:{queueId}` |
+| Player list | `players:{sortedPatchesJoined}:{queueId}` |
+| Augment stats (global) | `augments:{sortedPatchesJoined}:{queueId}` |
 | Performance percentiles | `perf:{puuid}:{sortedPatchesJoined}:{queueId}` |
 | Item builds | `item_builds:{championId}:{sortedPatchesJoined}:{sortedAllowedIdsJoined}:{queueId}` |
 | Item picks | `item_picks:{championId}:{sortedPatchesJoined}:{queueId}` |
-| Item archetypes | `item_archetypes:{championId}:{patchesKey}:{queueId}` |
+| Item archetypes | `item_archetypes:{championId}:{sortedPatchesJoined}:{queueId}` |
 
 Arrays are sorted and joined with `,` before inclusion in the key. The `allowedIds` list (player-owned items filter for item builds) is also sorted — this is stable within a session since a player's item pool doesn't change between requests.
+
+Per-player routes (`/players/:puuid/stats`, `/players/:puuid/champions`, `/players/:puuid/augments`) are **not** cached — they vary per player and read from pre-computed tables that are already fast.
 
 ---
 
@@ -68,26 +73,54 @@ Arrays are sorted and joined with `,` before inclusion in the key. The `allowedI
 **`src/backend/routes/stats.ts`** — wrap the DB fetch with `getOrFetch`:
 
 ```typescript
+const patchKey = (patches: string[] | undefined) => (patches ?? []).slice().sort().join(',')
+
+// Global champion stats  (/champions)
+res.json(await getOrFetch(
+  `champions:${patchKey(patches)}:${queueId}`,
+  () => getChampionStats(undefined, patches, queueId)
+))
+
+// Player list  (/players)
+res.json(await getOrFetch(
+  `players:${patchKey(patches)}:${queueId}`,
+  () => getPlayerStats(patches, queueId)
+))
+
+// Global augment stats  (/augments, no championId filter)
+res.json(await getOrFetch(
+  `augments:${patchKey(patches)}:${queueId}`,
+  () => getAugmentStats(undefined, undefined, patches, augCache, queueId)
+))
+
 // Performance percentiles
 const percentiles = await getOrFetch(
-  `perf:${puuid}:${(patches ?? []).slice().sort().join(',')}:${queueId}`,
+  `perf:${puuid}:${patchKey(patches)}:${queueId}`,
   () => getPerformancePercentiles(puuid, patches, queueId)
 )
 
 // Item builds
 const builds = await getOrFetch(
-  `item_builds:${championId}:${(patches ?? []).slice().sort().join(',')}:${allowedIds.slice().sort().join(',')}:${queueId}`,
+  `item_builds:${championId}:${patchKey(patches)}:${allowedIds.slice().sort().join(',')}:${queueId}`,
   () => getItemBuilds(championId, patches, allowedIds, queueId)
 )
 
-// Item picks (same pattern, no allowedIds)
+// Item picks
 const picks = await getOrFetch(
-  `item_picks:${championId}:${(patches ?? []).slice().sort().join(',')}:${queueId}`,
+  `item_picks:${championId}:${patchKey(patches)}:${queueId}`,
   () => getItemPickRates(championId, patches, queueId)
+)
+
+// Item archetypes
+const archetypes = await getOrFetch(
+  `item_archetypes:${championId}:${patchKey(patches)}:${queueId}`,
+  () => getOrComputeArchetypes(championId, patches, queueId)
 )
 ```
 
-`getPlayerPerformance` is **not** cached — it is fast (reads `player_champion_stats_cache`, not raw tables) and its result varies per player.
+`getPlayerPerformance` and per-player routes are **not** cached — they read from pre-computed tables that are already fast and their results vary per player.
+
+The `/augments` route with a `championId` filter (per-champion augment breakdown) is also **not** cached — the per-champion result set is less likely to repeat within a session.
 
 ---
 
@@ -96,13 +129,16 @@ const picks = await getOrFetch(
 **Post-sync** — in `insertMatches` (after the existing `buildPlayerPerformanceCache` calls), call:
 
 ```typescript
-invalidatePrefix(`item_builds:${gv}:${qId}`)
-invalidatePrefix(`item_picks:${gv}:${qId}`)
-invalidatePrefix(`item_archetypes:${gv}:${qId}`)
-invalidatePrefix(`perf:`)   // invalidate all perf entries; player list may have changed
+invalidatePrefix(`champions:`)      // global champion stats may change
+invalidatePrefix(`players:`)        // player list and stats may change
+invalidatePrefix(`augments:`)       // global augment stats may change
+invalidatePrefix(`perf:`)           // all perf percentiles; population may have shifted
+invalidatePrefix(`item_builds:`)    // item cache keyed by championId, easier to wipe all
+invalidatePrefix(`item_picks:`)
+invalidatePrefix(`item_archetypes:`)
 ```
 
-The performance percentile cache is invalidated globally (all puuids) because a sync may add new players to the population, shifting everyone's rank.
+All prefixes are invalidated globally (not filtered by `gv`/`queueId`) because the invalidation runs only when new games were actually inserted, so the overhead is negligible and the logic stays simple.
 
 **TTL backstop:** 30 minutes. Ensures stale entries don't accumulate if a sync callback is missed.
 
@@ -111,7 +147,8 @@ The performance percentile cache is invalidated globally (all puuids) because a 
 ## What Is Not Cached
 
 - `getPlayerPerformance` — fast, player-specific, not worth caching
-- `getPlayerStats`, `getChampionStats`, `getAugmentStats` — already fast from pre-computed tables; no measured pain point
+- Per-player routes (`/players/:puuid/stats`, `/players/:puuid/champions`, `/players/:puuid/augments`) — fast from pre-computed tables, player-specific
+- `/augments` with `championId` filter — per-champion result unlikely to repeat within a session
 - Any write path
 
 ---

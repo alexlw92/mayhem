@@ -5,6 +5,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../', envFile), override: proc
 dotenv.config({ path: path.resolve(process.cwd(), envFile), override: false })
 import postgres from 'postgres'
 import { wilsonScore } from './lib/wilson'
+import { invalidatePrefix } from './queryCache'
 
 const SYNC_LEASE_MS = 5 * 60 * 1000
 const ARCHETYPE_CACHE_VERSION = 8
@@ -544,21 +545,17 @@ console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
     if (missingPA.length > 0) {
       console.log(`[db] backfilling player_augment_stats_cache (${missingPA.length} patches)...`)
       const _t5 = Date.now()
-      for (let i = 0; i < missingPA.length; i++) {
-        const gv = missingPA[i]
-        console.log(`[db] player_augment_stats ${gv} (${i + 1}/${missingPA.length})...`)
-        onProgress?.(`Rebuilding player/augment cache: ${gv} (${i + 1}/${missingPA.length})…`)
-        await sql_`
-          INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
-          SELECT p."gameVersion",m."queueId",p.puuid,pa."augmentId",COUNT(*)::int
-          FROM participants p
-          JOIN matches m ON m."gameId" = p."gameId"
-          JOIN participant_augments pa ON pa."participantId" = p.id
-          WHERE p."gameVersion" = ${gv} AND p.puuid != ''
-          GROUP BY p."gameVersion",m."queueId",p.puuid,pa."augmentId"
-          ON CONFLICT DO NOTHING
-        `
-      }
+      onProgress?.(`Rebuilding player/augment cache (${missingPA.length} patches)…`)
+      await sql_`
+        INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
+        SELECT p."gameVersion",m."queueId",p.puuid,pa."augmentId",COUNT(*)::int
+        FROM participants p
+        JOIN matches m ON m."gameId" = p."gameId"
+        JOIN participant_augments pa ON pa."participantId" = p.id
+        WHERE p."gameVersion" = ANY(${missingPA}) AND p.puuid != ''
+        GROUP BY p."gameVersion",m."queueId",p.puuid,pa."augmentId"
+        ON CONFLICT DO NOTHING
+      `
       console.log(`[db] player_augment_stats_cache backfill complete (${Date.now() - _t5}ms total)`)
     }
     {
@@ -1313,6 +1310,13 @@ export async function insertMatches(matches: Match[]): Promise<number> {
       await sql_`DELETE FROM player_performance_cache WHERE "gameVersion" = ${gv} AND "queueId" = ${qId}`
       await buildPlayerPerformanceCache(gv, qId)
     }
+    invalidatePrefix('champions:')
+    invalidatePrefix('players:')
+    invalidatePrefix('augments:')
+    invalidatePrefix('perf:')
+    invalidatePrefix('item_builds:')
+    invalidatePrefix('item_picks:')
+    invalidatePrefix('item_archetypes:')
   }
   return insertedCount
 }

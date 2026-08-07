@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache'
 
-const cache = new LRUCache<string, unknown>({
+const cache = new LRUCache<string, NonNullable<unknown>>({
   max: 200,
   ttl: 30 * 60 * 1000,
 })
@@ -9,7 +9,7 @@ export async function getOrFetch<T>(key: string, fetchFn: () => Promise<T>): Pro
   const hit = cache.get(key)
   if (hit !== undefined) return hit as T
   const value = await fetchFn()
-  cache.set(key, value)
+  cache.set(key, value as NonNullable<unknown>)
   return value
 }
 

@@ -356,7 +356,7 @@ async function syncWorker(): Promise<void> {
       const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
 
       try {
-        const { imported, fetchFailed, affectedPuuids } = await importGamesForPuuid(puuid, () => syncCancelled)
+        const { imported, fetchFailed } = await importGamesForPuuid(puuid, () => syncCancelled)
         if (fetchFailed) {
           console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
           await apiClient.completeJob(puuid)

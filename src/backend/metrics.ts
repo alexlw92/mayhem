@@ -20,6 +20,7 @@ export interface MetricsSnapshot {
   totalErrors: number
   globalP50: number
   globalP95: number
+  globalP99: number
   routes: RouteSnapshot[]
 }
 
@@ -31,10 +32,11 @@ let startTime = Date.now()
 
 export function recordRequest(method: string, route: string, status: number, ms: number): void {
   const key = `${method} ${route}`
-  if (!store.has(key)) {
-    store.set(key, { requests: 0, errors: 0, latencies: new Array(1000).fill(0), head: 0 })
+  let m = store.get(key)
+  if (!m) {
+    m = { requests: 0, errors: 0, latencies: new Array(1000).fill(0), head: 0 }
+    store.set(key, m)
   }
-  const m = store.get(key)!
   m.requests++
   if (status >= 500) m.errors++
   m.latencies[m.head % 1000] = ms
@@ -75,6 +77,7 @@ export function getMetrics(): MetricsSnapshot {
     totalErrors: routes.reduce((s, r) => s + r.errors, 0),
     globalP50: percentile(gSample, 50),
     globalP95: percentile(gSample, 95),
+    globalP99: percentile(gSample, 99),
     routes,
   }
 }

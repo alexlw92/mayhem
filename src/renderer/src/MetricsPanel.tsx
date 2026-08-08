@@ -37,7 +37,9 @@ export default function MetricsPanel() {
   }
 
   async function reset() {
-    await api.metrics.reset()
+    try {
+      await api.metrics.reset()
+    } catch { /* backend not ready */ }
     fetchMetrics()
   }
 
@@ -80,6 +82,7 @@ export default function MetricsPanel() {
           { label: 'Errors', value: String(data.totalErrors), color: data.totalErrors > 0 ? '#ff6b6b' : '#eee' },
           { label: 'P50 (global)', value: `${data.globalP50}ms`, color: msColor(data.globalP50) },
           { label: 'P95 (global)', value: `${data.globalP95}ms`, color: msColor(data.globalP95) },
+          { label: 'P99 (global)', value: `${data.globalP99}ms`, color: msColor(data.globalP99) },
         ].map(({ label, value, color }, i, arr) => (
           <div key={label} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRight: i < arr.length - 1 ? '1px solid #2a2a2a' : undefined }}>
             <div style={{ fontSize: 22, fontWeight: 600, color }}>{value}</div>

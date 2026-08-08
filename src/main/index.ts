@@ -362,8 +362,8 @@ async function syncWorker(): Promise<void> {
           await apiClient.completeJob(puuid)
         } else {
           await apiClient.completeJob(puuid)
-          if (imported > 0 && affectedPuuids.length > 0) {
-            apiClient.recomputeAffectedElo(affectedPuuids).catch(() => {})
+          if (imported > 0) {
+            await apiClient.recomputeAffectedElo([puuid]).catch(() => {})
           }
           if (draining) {
             syncAccum.playerssynced++

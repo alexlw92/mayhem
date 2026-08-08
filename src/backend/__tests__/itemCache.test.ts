@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import postgres from 'postgres'
-import { initDb, insertMatches, getItemBuilds, getItemPickRates } from '../db'
+import { initDb, insertMatches, flushPendingCaches, getItemBuilds, getItemPickRates } from '../db'
 import type { Match } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
@@ -16,7 +16,7 @@ beforeAll(async () => {
 afterAll(async () => { await sql.end() })
 
 beforeEach(async () => {
-  await sql`TRUNCATE participant_item_sets, item_picks_cache, item_builds_cache, champion_stats_cache, participant_items, participant_augments, participants, matches RESTART IDENTITY CASCADE`
+  await sql`TRUNCATE participant_item_sets, item_picks_cache, item_builds_cache, champion_stats_cache, participant_items, participant_augments, participants, matches, pending_cache_games RESTART IDENTITY CASCADE`
 })
 
 const CHAMP_ID = 42
@@ -64,6 +64,7 @@ describe('item_builds_cache table', () => {
 describe('item_builds_cache incremental update via insertMatches', () => {
   it('inserts one row after a participant with 5 items', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     const rows = await sql`SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     // C(5,5) = 1 combination
     expect(rows).toHaveLength(1)
@@ -75,7 +76,9 @@ describe('item_builds_cache incremental update via insertMatches', () => {
 
   it('increments games and wins on a second match with the same build', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     await insertMatches([matchWith(2, ITEMS_A, false)])
+    await flushPendingCaches()
     const rows = await sql`
       SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}
     `
@@ -86,7 +89,9 @@ describe('item_builds_cache incremental update via insertMatches', () => {
 
   it('does not double-count duplicate insertMatches calls (idempotent gameId)', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     await insertMatches([matchWith(1, ITEMS_A, true)]) // same gameId — no-op
+    await flushPendingCaches()
     const rows = await sql`SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     expect(rows).toHaveLength(1)
     expect(rows[0].games).toBe(1)
@@ -95,19 +100,23 @@ describe('item_builds_cache incremental update via insertMatches', () => {
   it('inserts C(6,5)=6 rows when a participant has 6 items', async () => {
     const sixItems = [1001, 1002, 1003, 1004, 1005, 1006]
     await insertMatches([matchWith(1, sixItems, true)])
+    await flushPendingCaches()
     const rows = await sql`SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     expect(rows).toHaveLength(6)
   })
 
   it('skips participants with fewer than 5 items', async () => {
     await insertMatches([matchWith(1, [1001, 1002, 1003, 1004], true)])
+    await flushPendingCaches()
     const rows = await sql`SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     expect(rows).toHaveLength(0)
   })
 
   it('stores builds from two different patches separately', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true, '15.11')])
+    await flushPendingCaches()
     await insertMatches([matchWith(2, ITEMS_A, true, '15.12')])
+    await flushPendingCaches()
     const rows = await sql`SELECT * FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     const patches = rows.map((r: any) => r.gameVersion).sort()
     expect(patches).toEqual(['15.11', '15.12'])
@@ -122,6 +131,7 @@ describe('getItemBuilds reads from cache', () => {
 
   it('returns the pre-computed build after insertMatches', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A)
     expect(result).toHaveLength(1)
     expect(result[0].games).toBe(1)
@@ -131,6 +141,7 @@ describe('getItemBuilds reads from cache', () => {
 
   it('allowedIds filter: returns build when all items are allowed', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     // allowedIds is a superset of the build — should return it
     const result = await getItemBuilds(CHAMP_ID, [PATCH], [...ITEMS_A, 9999])
     expect(result).toHaveLength(1)
@@ -138,6 +149,7 @@ describe('getItemBuilds reads from cache', () => {
 
   it('allowedIds filter: excludes build when one item is not allowed', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     // Exclude item 1005 from allowed list
     const allowed = ITEMS_A.slice(0, 4) // [1001, 1002, 1003, 1004]
     const result = await getItemBuilds(CHAMP_ID, [PATCH], allowed)
@@ -146,13 +158,16 @@ describe('getItemBuilds reads from cache', () => {
 
   it('patch filter: excludes builds from other patches', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true, '15.11')])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, ['15.12'], ITEMS_A)
     expect(result).toHaveLength(0)
   })
 
   it('aggregates builds across patches when no patch filter given', async () => {
     await insertMatches([matchWith(1, ITEMS_A, true, '15.11')])
+    await flushPendingCaches()
     await insertMatches([matchWith(2, ITEMS_A, true, '15.12')])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, undefined, ITEMS_A)
     expect(result).toHaveLength(1)
     expect(result[0].games).toBe(2)
@@ -161,9 +176,13 @@ describe('getItemBuilds reads from cache', () => {
   it('returns builds ordered by games descending', async () => {
     // ITEMS_A: 1 game, ITEMS_B: 3 games (share 3 items but different combos)
     await insertMatches([matchWith(1, ITEMS_A, true)])
+    await flushPendingCaches()
     await insertMatches([matchWith(2, ITEMS_B, true)])
+    await flushPendingCaches()
     await insertMatches([matchWith(3, ITEMS_B, false)])
+    await flushPendingCaches()
     await insertMatches([matchWith(4, ITEMS_B, true)])
+    await flushPendingCaches()
     const allowed = [...new Set([...ITEMS_A, ...ITEMS_B])]
     const result = await getItemBuilds(CHAMP_ID, [PATCH], allowed)
     for (let i = 0; i < result.length - 1; i++) {
@@ -189,7 +208,9 @@ describe('item_builds_cache queue ID isolation', () => {
 
   it('stores separate rows per queueId for the same champion and build', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2400)])
+    await flushPendingCaches()
     await insertMatches([matchWithQueue(2, ITEMS_A, false, 2450)])
+    await flushPendingCaches()
     const rows = await sql`SELECT "queueId", games FROM item_builds_cache WHERE "championId" = ${CHAMP_ID}`
     const q2400 = rows.filter((r: any) => r.queueId === 2400)
     const q2450 = rows.filter((r: any) => r.queueId === 2450)
@@ -201,18 +222,21 @@ describe('item_builds_cache queue ID isolation', () => {
 
   it('getItemBuilds with queueId=2400 does not return 2450 games', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2450)])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A, 2400)
     expect(result).toHaveLength(0)
   })
 
   it('getItemBuilds with queueId=2450 does not return 2400 games', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2400)])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A, 2450)
     expect(result).toHaveLength(0)
   })
 
   it('getItemBuilds returns 2450 data when queried with queueId=2450', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2450)])
+    await flushPendingCaches()
     const result = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A, 2450)
     expect(result).toHaveLength(1)
     expect(result[0].games).toBe(1)
@@ -221,8 +245,11 @@ describe('item_builds_cache queue ID isolation', () => {
 
   it('accumulates multiple 2450 games without affecting 2400 total', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2400)])
+    await flushPendingCaches()
     await insertMatches([matchWithQueue(2, ITEMS_A, true, 2450)])
+    await flushPendingCaches()
     await insertMatches([matchWithQueue(3, ITEMS_A, false, 2450)])
+    await flushPendingCaches()
     const r2400 = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A, 2400)
     const r2450 = await getItemBuilds(CHAMP_ID, [PATCH], ITEMS_A, 2450)
     expect(r2400[0].games).toBe(1)
@@ -242,7 +269,9 @@ describe('item_picks_cache queue ID isolation', () => {
 
   it('stores separate pick rows per queueId', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2400)])
+    await flushPendingCaches()
     await insertMatches([matchWithQueue(2, ITEMS_A, false, 2450)])
+    await flushPendingCaches()
     const rows = await sql`
       SELECT "queueId", picks FROM item_picks_cache
       WHERE "championId" = ${CHAMP_ID} AND "itemId" = ${ITEMS_A[0]}
@@ -255,6 +284,7 @@ describe('item_picks_cache queue ID isolation', () => {
 
   it('item_picks_cache has no rows for 2400 when only 2450 games inserted', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2450)])
+    await flushPendingCaches()
     const rows = await sql`
       SELECT * FROM item_picks_cache
       WHERE "championId" = ${CHAMP_ID} AND "queueId" = 2400
@@ -264,7 +294,9 @@ describe('item_picks_cache queue ID isolation', () => {
 
   it('item_picks_cache stores picks with correct wins per queue', async () => {
     await insertMatches([matchWithQueue(1, ITEMS_A, true, 2400)])
+    await flushPendingCaches()
     await insertMatches([matchWithQueue(2, ITEMS_A, false, 2450)])
+    await flushPendingCaches()
     const row2400 = await sql`
       SELECT picks, wins FROM item_picks_cache
       WHERE "championId" = ${CHAMP_ID} AND "queueId" = 2400 AND "itemId" = ${ITEMS_A[0]}

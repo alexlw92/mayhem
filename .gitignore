@@ -13,3 +13,4 @@ mayhem.pem
 release.ps1
 *.tsbuildinfo
 eng.traineddata
+.superpowers/

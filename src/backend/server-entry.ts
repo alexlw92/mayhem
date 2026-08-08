@@ -8,7 +8,12 @@ import {
   upsertItemMeta,
   flushDirtyPerfCache,
   rebuildMissingPerfPairs,
+  flushPendingCaches,
+  getPlayerStats,
+  getChampionStats,
+  getAugmentStats,
 } from './db'
+import { getOrFetch } from './queryCache'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
 
@@ -85,6 +90,23 @@ async function main() {
   const champRef = { value: await getChampionsFromDb() }
   const augRef   = { value: await getAugmentsFromDb() }
   const latestPatchRef = { value: null as string | null }
+
+  async function warmLruCaches(): Promise<void> {
+    const patches = await getPatches()
+    const latestPatch = patches[0] ?? null
+    const augCache = augRef.value
+    await Promise.all([
+      getOrFetch('players::2400', () => getPlayerStats(undefined, 2400)),
+      getOrFetch('players::2450', () => getPlayerStats(undefined, 2450)),
+      getOrFetch('champions::2400', () => getChampionStats(undefined, undefined, 2400)),
+      getOrFetch('champions::2450', () => getChampionStats(undefined, undefined, 2450)),
+      ...(latestPatch ? [
+        getOrFetch(`augments:${latestPatch}:2400`, () => getAugmentStats(undefined, undefined, [latestPatch], augCache, 2400)),
+        getOrFetch(`augments:${latestPatch}:2450`, () => getAugmentStats(undefined, undefined, [latestPatch], augCache, 2450)),
+      ] : []),
+    ])
+    console.log('[cache] LRU warmed')
+  }
   console.log(`[meta] loaded from DB — ${Object.keys(champRef.value).length} champions, ${Object.keys(augRef.value).length} augments`)
 
   const patches = await getPatches()
@@ -104,6 +126,10 @@ async function main() {
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
     rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
     setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
+    flushPendingCaches()
+      .then(() => warmLruCaches())
+      .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
+    setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
   })
 }
 

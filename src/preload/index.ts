@@ -47,6 +47,10 @@ const api = {
   app: {
     reload: () => ipcRenderer.invoke('app:reload'),
   },
+  metrics: {
+    get: () => ipcRenderer.invoke('metrics:get'),
+    reset: () => ipcRenderer.invoke('metrics:reset'),
+  },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)
     ipcRenderer.on(channel, handler)

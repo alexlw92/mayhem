@@ -14,10 +14,10 @@
 
 | File | Change |
 |---|---|
-| `src/backend/db.ts` | Add `dirtyPerfPairs` Set, `markPerfDirty()`, `flushDirtyPerfCache()` exports; replace fire-and-forget IIFE in `insertMatches` with inline DELETE + `markPerfDirty` |
-| `src/backend/server-entry.ts` | Import `flushDirtyPerfCache`; add `setInterval` call inside `.listen` callback |
+| `src/backend/db.ts` | Add `dirtyPerfPairs` Set, `markPerfDirty()`, `flushDirtyPerfCache()`, `rebuildMissingPerfPairs()` exports; replace fire-and-forget IIFE in `insertMatches` with inline DELETE + `markPerfDirty` |
+| `src/backend/server-entry.ts` | Import `flushDirtyPerfCache`, `rebuildMissingPerfPairs`; add startup call + `setInterval` inside `.listen` callback |
 | `src/main/index.ts` | Replace `recomputeAffectedElo(affectedPuuids)` with `await recomputeAffectedElo([puuid])` |
-| `src/backend/__tests__/performance.test.ts` | Add tests for new dirty-set behavior and DELETE-on-insert |
+| `src/backend/__tests__/performance.test.ts` | Add tests for dirty-set behavior, DELETE-on-insert, and missing-pair recovery |
 
 ---
 
@@ -33,7 +33,7 @@ Open `src/backend/__tests__/performance.test.ts`. Add these imports at the top o
 
 ```ts
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache, rebuildMissingPerfPairs } from '../db'
 ```
 
 Then add this new `describe` block at the bottom of the file:
@@ -80,6 +80,33 @@ describe('dirty perf cache machinery', () => {
     // Calling again is a no-op (set was cleared)
     await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
   })
+
+  it('rebuildMissingPerfPairs is a no-op when all pairs are present', async () => {
+    // No data in player_champion_stats_cache — nothing to rebuild
+    await expect(rebuildMissingPerfPairs()).resolves.toBeUndefined()
+  })
+
+  it('rebuildMissingPerfPairs rebuilds pairs missing from player_performance_cache', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    // insertMatches populates player_champion_stats_cache and champion_stats_cache
+    // and deletes player_performance_cache — simulating the state after a crash mid-flush
+    await insertMatches(makeGames())
+
+    // Confirm perf cache is absent for this pair
+    const before = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
+    expect(Number(before[0].count)).toBe(0)
+
+    // Recovery: rebuild missing pairs (dirty set is empty, as it would be after a crash/restart)
+    await rebuildMissingPerfPairs()
+
+    // Perf cache should now have rows for the affected players
+    const after = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
+    expect(Number(after[0].count)).toBeGreaterThan(0)
+
+    await db.end()
+  })
 })
 ```
 
@@ -91,7 +118,7 @@ npx vitest run src/backend/__tests__/performance.test.ts
 
 Expected: the three new tests in `dirty perf cache machinery` fail with `markPerfDirty is not a function` or similar — the existing tests should still pass.
 
-- [ ] **Step 3: Add `dirtyPerfPairs`, `markPerfDirty`, and `flushDirtyPerfCache` to `db.ts`**
+- [ ] **Step 3: Add `dirtyPerfPairs`, `markPerfDirty`, `flushDirtyPerfCache`, and `rebuildMissingPerfPairs` to `db.ts`**
 
 Near the top of `src/backend/db.ts`, after the `sql_` variable declaration (around line 57), add:
 
@@ -114,6 +141,20 @@ export async function flushDirtyPerfCache(): Promise<void> {
       await buildPlayerPerformanceCache(gv, qId)
     } catch (err) {
       console.error('[flushDirtyPerfCache] failed:', gv, qId, err)
+    }
+  }
+}
+
+export async function rebuildMissingPerfPairs(): Promise<void> {
+  const existingRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_performance_cache`
+  const existing = new Set((existingRows as any[]).map(r => `${r.gameVersion}:${r.queueId}`))
+  const pcsRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_champion_stats_cache`
+  const missing = (pcsRows as any[]).filter(r => !existing.has(`${r.gameVersion}:${r.queueId}`))
+  for (const r of missing) {
+    try {
+      await buildPlayerPerformanceCache(r.gameVersion as string, Number(r.queueId))
+    } catch (err) {
+      console.error('[rebuildMissingPerfPairs] failed:', r.gameVersion, r.queueId, err)
     }
   }
 }
@@ -179,7 +220,7 @@ Expected: all tests pass.
 
 ```
 git add src/backend/db.ts src/backend/__tests__/performance.test.ts
-git commit -m "feat: defer perf cache rebuild — delete immediately, flush on interval"
+git commit -m "feat: defer perf cache rebuild — delete immediately, flush on interval, recover missing pairs on startup"
 ```
 
 ---
@@ -189,7 +230,7 @@ git commit -m "feat: defer perf cache rebuild — delete immediately, flush on i
 **Files:**
 - Modify: `src/backend/server-entry.ts`
 
-- [ ] **Step 1: Import `flushDirtyPerfCache`**
+- [ ] **Step 1: Import `flushDirtyPerfCache` and `rebuildMissingPerfPairs`**
 
 In `src/backend/server-entry.ts`, find the existing import from `./db`:
 
@@ -204,7 +245,7 @@ import {
 } from './db'
 ```
 
-Add `flushDirtyPerfCache` to it:
+Add both new exports:
 
 ```ts
 import {
@@ -215,12 +256,13 @@ import {
   getPatches,
   upsertItemMeta,
   flushDirtyPerfCache,
+  rebuildMissingPerfPairs,
 } from './db'
 ```
 
-(If `backfillDetailCaches` has already been removed by the remove-startup-backfills plan, omit it from the import — just add `flushDirtyPerfCache` alongside the remaining imports.)
+(If `backfillDetailCaches` has already been removed by the remove-startup-backfills plan, omit it — just add the two new imports alongside the remaining ones.)
 
-- [ ] **Step 2: Add the flush interval inside the `.listen` callback**
+- [ ] **Step 2: Add startup recovery call and flush interval inside the `.listen` callback**
 
 Find the `.listen(PORT, () => { ... })` callback. It currently contains (or a subset of, depending on whether remove-startup-backfills has run):
 
@@ -233,7 +275,7 @@ Find the `.listen(PORT, () => { ... })` callback. It currently contains (or a su
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
 ```
 
-Add the flush interval line after the existing `setInterval`:
+Add the recovery call and flush interval after the existing `setInterval`:
 
 ```ts
     ;(process as any).parentPort?.postMessage({ type: 'ready' })
@@ -242,10 +284,11 @@ Add the flush interval line after the existing `setInterval`:
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
+    rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
     setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
 ```
 
-(If `backfillDetailCaches` and `sendProgress` have already been removed, just add the new `setInterval` line alongside the remaining ones.)
+(If `backfillDetailCaches` and `sendProgress` have already been removed, just add the two new lines alongside the remaining ones.)
 
 - [ ] **Step 3: Verify TypeScript compiles**
 
@@ -316,16 +359,6 @@ git commit -m "perf: recompute elo for current player only during sync, await re
 
 ---
 
-## Notes
-
-**Crash recovery:** The spec originally noted that startup backfills in `initDb` would recover a missing performance cache after a crash. If the `remove-startup-backfills` plan has been executed, that automatic recovery is gone. After a server crash mid-sync, any `(gameVersion, queueId)` pairs that were marked dirty but not yet flushed will have no cache entry until manually rebuilt:
-
-```
-node scripts/rebuild-caches.mjs --caches=performance
-```
-
----
-
 ## Self-Review
 
 **Spec coverage:**
@@ -333,10 +366,11 @@ node scripts/rebuild-caches.mjs --caches=performance
 - ✅ Perf cache: immediate DELETE on insert → Task 1 Step 4
 - ✅ Perf cache: `markPerfDirty` instead of fire-and-forget rebuild → Task 1 Steps 3–4
 - ✅ `flushDirtyPerfCache` 60s interval in server-entry → Task 2
-- ✅ `dirtyPerfPairs` Set, `markPerfDirty`, `flushDirtyPerfCache` exports → Task 1 Step 3
+- ✅ `dirtyPerfPairs` Set, `markPerfDirty`, `flushDirtyPerfCache`, `rebuildMissingPerfPairs` exports → Task 1 Step 3
+- ✅ Crash recovery: `rebuildMissingPerfPairs` called fire-and-forget at server startup → Task 2 Step 2
 - ✅ No new routes needed (confirmed: existing `/api/players/elo/recompute-affected` handles single-element arrays)
-- ✅ Crash recovery note updated to reflect remove-startup-backfills plan
+- ✅ Tests: DELETE-on-insert, flush no-op, flush clears dirty set, recovery no-op, recovery rebuilds → Task 1 Step 1
 
 **Placeholder scan:** None found. All code blocks are complete.
 
-**Type consistency:** `markPerfDirty(gameVersion: string, queueId: number)` defined in Task 1 Step 3, called in Task 1 Step 4 with `(gv, qId)` (matching types). `flushDirtyPerfCache()` defined in Task 1 Step 3, imported and used in Task 2 Step 1–2.
+**Type consistency:** `markPerfDirty(gameVersion: string, queueId: number)` defined in Task 1 Step 3, called in Task 1 Step 4 with `(gv, qId)` (matching types). `flushDirtyPerfCache()` and `rebuildMissingPerfPairs()` defined in Task 1 Step 3, imported and used in Task 2 Steps 1–2.

@@ -6,6 +6,8 @@ import {
   getChampionsFromDb, getAugmentsFromDb,
   getPatches,
   upsertItemMeta,
+  flushDirtyPerfCache,
+  rebuildMissingPerfPairs,
 } from './db'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
@@ -100,6 +102,8 @@ async function main() {
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
+    rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
+    setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
   })
 }
 

@@ -224,7 +224,10 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     const queueId = parseQueueId(req.query.queueId)
     const championMap = (opts.getChampions?.() ?? {}) as Record<number, ChampionMeta>
     const [perf, percentiles] = await Promise.all([
-      getPlayerPerformance(puuid, championMap, patches, queueId),
+      getOrFetch(
+        `perf_data:${puuid}:${patchKey(patches)}:${queueId}`,
+        () => getPlayerPerformance(puuid, championMap, patches, queueId)
+      ),
       getOrFetch(
         `perf:${puuid}:${patchKey(patches)}:${queueId}`,
         () => getPerformancePercentiles(puuid, patches, queueId)

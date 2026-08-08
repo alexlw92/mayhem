@@ -1295,6 +1295,7 @@ export async function insertMatches(matches: Match[]): Promise<number> {
     invalidatePrefix('players:')
     invalidatePrefix('augments:')
     invalidatePrefix('perf:')
+    invalidatePrefix('perf_data:')
     invalidatePrefix('item_builds:')
     invalidatePrefix('item_picks:')
     invalidatePrefix('item_archetypes:')

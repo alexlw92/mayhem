@@ -246,3 +246,27 @@ describe('getPlayerPerformance dpmPct and gpmPct', () => {
     expect(Math.abs(result.gpmPct)).toBeLessThan(0.01)
   })
 })
+
+describe('getPlayerPerformance cache-based computation', () => {
+  it('computes kpDelta from cache tables', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    // p1 is sole Kayle player so kpDelta ≈ 0
+    expect(Math.abs(result.kpDelta)).toBeLessThan(0.01)
+  })
+
+  it('computes dpmPct and gpmPct from cache tables', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    expect(Math.abs(result.dpmPct)).toBeLessThan(0.01)
+    expect(Math.abs(result.gpmPct)).toBeLessThan(0.01)
+  })
+
+  it('computes augmentPickQuality from player_augment_stats_cache', async () => {
+    await insertMatches(makeGames())
+    const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
+    expect(typeof result.augmentPickQuality).toBe('number')
+    // p1 is sole picker of augId 100 so apq ≈ 0
+    expect(Math.abs(result.augmentPickQuality)).toBeLessThan(0.01)
+  })
+})

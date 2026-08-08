@@ -539,25 +539,6 @@ console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
       }
       console.log(`[db] player_champion_stats_cache backfill complete (${Date.now() - _t4}ms total)`)
     }
-    const existingPARows = await sql_`SELECT DISTINCT "gameVersion" FROM player_augment_stats_cache`
-    const existingPA = new Set(existingPARows.map((r: any) => r.gameVersion as string))
-    const missingPA = pvList.filter(gv => !existingPA.has(gv))
-    if (missingPA.length > 0) {
-      console.log(`[db] backfilling player_augment_stats_cache (${missingPA.length} patches)...`)
-      const _t5 = Date.now()
-      onProgress?.(`Rebuilding player/augment cache (${missingPA.length} patches)…`)
-      await sql_`
-        INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
-        SELECT p."gameVersion",m."queueId",p.puuid,pa."augmentId",COUNT(*)::int
-        FROM participants p
-        JOIN matches m ON m."gameId" = p."gameId"
-        JOIN participant_augments pa ON pa."participantId" = p.id
-        WHERE p."gameVersion" = ANY(${missingPA}) AND p.puuid != ''
-        GROUP BY p."gameVersion",m."queueId",p.puuid,pa."augmentId"
-        ON CONFLICT DO NOTHING
-      `
-      console.log(`[db] player_augment_stats_cache backfill complete (${Date.now() - _t5}ms total)`)
-    }
     {
       const existingPerfRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_performance_cache`
       const existingPerf = new Set(existingPerfRows.map((r: any) => `${r.gameVersion}:${r.queueId}`))
@@ -1959,13 +1940,17 @@ export async function getPlayerPerformance(
     poolTopChampions: [], classBuckets: [], percentiles: null
   }
 
-  // Query 1a: player champion stats (pool depth, DPM, pick quality numerator)
+  // Query 1a: player champion stats — includes KP%/GPM columns from cache
   const playerChampRows: any[] = patches?.length
     ? await sql_.unsafe(
         `SELECT "championId","championName",
           SUM(games)::int AS games, SUM(wins)::int AS wins,
           SUM(total_damage)::bigint AS total_damage,
-          SUM(total_duration)::bigint AS total_duration
+          SUM(total_duration)::bigint AS total_duration,
+          SUM(total_kills)::bigint AS total_kills,
+          SUM(total_assists)::bigint AS total_assists,
+          SUM(total_team_kills)::bigint AS total_team_kills,
+          SUM(total_gold)::bigint AS total_gold
          FROM player_champion_stats_cache
          WHERE puuid=$1 AND "queueId"=$2 AND "gameVersion"=ANY($3)
          GROUP BY "championId","championName" ORDER BY games DESC`,
@@ -1975,7 +1960,11 @@ export async function getPlayerPerformance(
         SELECT "championId","championName",
           SUM(games)::int AS games, SUM(wins)::int AS wins,
           SUM(total_damage)::bigint AS total_damage,
-          SUM(total_duration)::bigint AS total_duration
+          SUM(total_duration)::bigint AS total_duration,
+          SUM(total_kills)::bigint AS total_kills,
+          SUM(total_assists)::bigint AS total_assists,
+          SUM(total_team_kills)::bigint AS total_team_kills,
+          SUM(total_gold)::bigint AS total_gold
         FROM player_champion_stats_cache
         WHERE puuid=${puuid} AND "queueId"=${queueId}
         GROUP BY "championId","championName" ORDER BY games DESC
@@ -1985,7 +1974,7 @@ export async function getPlayerPerformance(
 
   const playerChampIds = playerChampRows.map((r: any) => r.championId as number)
 
-  // Query 1b: global champion baselines
+  // Query 1b: global champion baselines (unchanged)
   const globalChampRows: any[] = patches?.length
     ? await sql_.unsafe(
         `SELECT "championId",
@@ -2017,7 +2006,7 @@ export async function getPlayerPerformance(
     globalChampRows.map((r: any) => [r.championId as number, r])
   )
 
-  // Query 1c: global augment WRs
+  // Query 1c: global augment WRs (unchanged)
   const globalAugRows: any[] = patches?.length
     ? await sql_.unsafe(
         `SELECT "augmentId", SUM(pick_count)::int AS pick_count, SUM(wins)::int AS wins
@@ -2041,58 +2030,20 @@ export async function getPlayerPerformance(
   }
   const avgAugWR = totalAugCount > 0 ? totalAugWR / totalAugCount : 0.5
 
-  // Query 1d: player augment picks
+  // Query 1d: player augment picks — from player_augment_stats_cache (not raw participants)
   const playerAugRows: any[] = patches?.length
     ? await sql_.unsafe(
-        `SELECT pa."augmentId", COUNT(*)::int AS pick_count
-         FROM participants p
-         JOIN participant_augments pa ON pa."participantId"=p.id
-         JOIN matches m ON m."gameId"=p."gameId"
-         WHERE p.puuid=$1 AND m."queueId"=$2 AND p."gameVersion"=ANY($3)
-         GROUP BY pa."augmentId"`,
+        `SELECT "augmentId", SUM(pick_count)::int AS pick_count
+         FROM player_augment_stats_cache
+         WHERE puuid=$1 AND "queueId"=$2 AND "gameVersion"=ANY($3)
+         GROUP BY "augmentId"`,
         [puuid, queueId, patches]
       )
     : await sql_`
-        SELECT pa."augmentId", COUNT(*)::int AS pick_count
-        FROM participants p
-        JOIN participant_augments pa ON pa."participantId"=p.id
-        JOIN matches m ON m."gameId"=p."gameId"
-        WHERE p.puuid=${puuid} AND m."queueId"=${queueId}
-        GROUP BY pa."augmentId"
-      `
-
-  // Query 2: raw KP%/GPM per champion for this player
-  const rawRows: any[] = patches?.length
-    ? await sql_.unsafe(
-        `SELECT p."championId",
-          SUM(p.kills+p.assists)::int AS kp_num,
-          SUM(tk.team_kills)::bigint  AS kp_den,
-          SUM(p."goldEarned")::bigint AS total_gold,
-          SUM(p."gameDuration")::bigint AS total_duration
-         FROM participants p
-         JOIN (
-           SELECT "gameId","teamId",SUM(kills)::int AS team_kills
-           FROM participants GROUP BY "gameId","teamId"
-         ) tk ON p."gameId"=tk."gameId" AND p."teamId"=tk."teamId"
-         JOIN matches m ON p."gameId"=m."gameId"
-         WHERE p.puuid=$1 AND m."queueId"=$2 AND p."gameVersion"=ANY($3)
-         GROUP BY p."championId"`,
-        [puuid, queueId, patches]
-      )
-    : await sql_`
-        SELECT p."championId",
-          SUM(p.kills+p.assists)::int AS kp_num,
-          SUM(tk.team_kills)::bigint  AS kp_den,
-          SUM(p."goldEarned")::bigint AS total_gold,
-          SUM(p."gameDuration")::bigint AS total_duration
-        FROM participants p
-        JOIN (
-          SELECT "gameId","teamId",SUM(kills)::int AS team_kills
-          FROM participants GROUP BY "gameId","teamId"
-        ) tk ON p."gameId"=tk."gameId" AND p."teamId"=tk."teamId"
-        JOIN matches m ON p."gameId"=m."gameId"
-        WHERE p.puuid=${puuid} AND m."queueId"=${queueId}
-        GROUP BY p."championId"
+        SELECT "augmentId", SUM(pick_count)::int AS pick_count
+        FROM player_augment_stats_cache
+        WHERE puuid=${puuid} AND "queueId"=${queueId}
+        GROUP BY "augmentId"
       `
 
   // ─── Compute metrics ──────────────────────────────────────────────────────
@@ -2114,7 +2065,7 @@ export async function getPlayerPerformance(
   }
   const augmentPickQuality = apqTotal > 0 ? apqWR / apqTotal - avgAugWR : 0
 
-  // DPM delta
+  // DPM delta (unchanged — uses playerChampRows total_damage/total_duration)
   let playerDmg = 0, playerDurSec = 0, expDmgMin = 0, expDurMin = 0
   for (const pc of playerChampRows) {
     playerDmg += Number(pc.total_damage); playerDurSec += Number(pc.total_duration)
@@ -2130,15 +2081,17 @@ export async function getPlayerPerformance(
   const dpmDelta = playerDPM - expectedDPM
   const dpmPct = expectedDPM > 0 ? dpmDelta / expectedDPM : 0
 
-  // KP% and GPM deltas (from raw query 2)
+  // KP% and GPM — now from playerChampRows cache columns instead of raw query 2
   let pKPNum = 0, pKPDen = 0, eKPNum = 0, eKPDen = 0
   let pGold = 0, pGoldDurSec = 0, eGoldMin = 0, eGoldDurMin = 0
-  for (const rr of rawRows) {
-    const kpn = Number(rr.kp_num), kpd = Number(rr.kp_den)
-    const gold = Number(rr.total_gold), dur = Number(rr.total_duration)
+  for (const pc of playerChampRows) {
+    const kpn = Number(pc.total_kills) + Number(pc.total_assists)
+    const kpd = Number(pc.total_team_kills)
+    const gold = Number(pc.total_gold)
+    const dur = Number(pc.total_duration)
     pKPNum += kpn; pKPDen += kpd
     pGold += gold; pGoldDurSec += dur
-    const g = globalChampMap.get(rr.championId)
+    const g = globalChampMap.get(pc.championId)
     if (g && Number(g.total_team_kills) > 0) {
       const gKP = Number(g.total_kp_num) / Number(g.total_team_kills)
       eKPNum += gKP * kpd; eKPDen += kpd
@@ -2263,17 +2216,21 @@ export async function buildPlayerPerformanceCache(gameVersion: string, queueId: 
     Number(r.gpm_pct),
   ])
 
-  await sql_`
-    INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
-    VALUES ${sql_(rows)}
-    ON CONFLICT (puuid,"queueId","gameVersion") DO UPDATE SET
-      games    = EXCLUDED.games,
-      cpq      = EXCLUDED.cpq,
-      apq      = EXCLUDED.apq,
-      kp_delta = EXCLUDED.kp_delta,
-      dpm_pct  = EXCLUDED.dpm_pct,
-      gpm_pct  = EXCLUDED.gpm_pct
-  `
+  const CHUNK = 5000
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK)
+    await sql_`
+      INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
+      VALUES ${sql_(chunk)}
+      ON CONFLICT (puuid,"queueId","gameVersion") DO UPDATE SET
+        games    = EXCLUDED.games,
+        cpq      = EXCLUDED.cpq,
+        apq      = EXCLUDED.apq,
+        kp_delta = EXCLUDED.kp_delta,
+        dpm_pct  = EXCLUDED.dpm_pct,
+        gpm_pct  = EXCLUDED.gpm_pct
+    `
+  }
 }
 
 export async function getPerformancePercentiles(

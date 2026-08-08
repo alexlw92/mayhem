@@ -95,6 +95,9 @@ export async function flushPendingCaches(): Promise<void> {
   if ((batchRows as any[]).length === 0) return
   const batch = (batchRows as any[]).map(r => Number(r.game_id))
 
+  // Claim this batch immediately — prevents double-counting if process crashes mid-flush
+  await sql_`DELETE FROM pending_cache_games WHERE game_id = ANY(${batch})`
+
   // champion_stats_cache
   await sql_`
     WITH tk AS (
@@ -325,8 +328,6 @@ export async function flushPendingCaches(): Promise<void> {
     markPerfDirty(r.gameVersion as string, Number(r.queueId))
   }
 
-  // Remove processed games from pending table
-  await sql_`DELETE FROM pending_cache_games WHERE game_id = ANY(${batch})`
 }
 
 export async function connectDb(url?: string): Promise<void> {

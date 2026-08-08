@@ -71,6 +71,7 @@ export async function flushDirtyPerfCache(): Promise<void> {
       await buildPlayerPerformanceCache(gv, qId)
     } catch (err) {
       console.error('[flushDirtyPerfCache] failed:', gv, qId, err)
+      dirtyPerfPairs.add(pair)  // retry next interval
     }
   }
 }

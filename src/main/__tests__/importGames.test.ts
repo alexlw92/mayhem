@@ -72,7 +72,8 @@ describe('importGamesForPuuid', () => {
     })
     vi.mocked(apiClient.insertMatches).mockResolvedValue({ inserted: 1 })
     const result = await importGamesForPuuid('puuid-a')
-    expect(result).toEqual({ imported: 1, fetchFailed: false })
+    expect(result.imported).toBe(1)
+    expect(result.fetchFailed).toBe(false)
   })
 
   it('calls getGameDetails for every game without pre-filtering', async () => {

@@ -27,6 +27,13 @@ describe('getOrFetch', () => {
     expect(fetchA).toHaveBeenCalledTimes(1)
     expect(fetchB).toHaveBeenCalledTimes(1)
   })
+
+  it('does not cache null — fetchFn is called again on second invocation', async () => {
+    const fetch = vi.fn().mockResolvedValue(null)
+    await getOrFetch('key1', fetch)
+    await getOrFetch('key1', fetch)
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('invalidate', () => {

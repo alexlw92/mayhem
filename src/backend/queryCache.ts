@@ -9,7 +9,7 @@ export async function getOrFetch<T>(key: string, fetchFn: () => Promise<T>): Pro
   const hit = cache.get(key)
   if (hit !== undefined) return hit as T
   const value = await fetchFn()
-  cache.set(key, value as NonNullable<unknown>)
+  if (value != null) cache.set(key, value as NonNullable<unknown>)
   return value
 }
 

@@ -10,6 +10,6 @@ const level = process.env.NODE_ENV === 'test'
 export const logger = logFile
   ? pino({ level }, pino.transport({
       target: 'pino-roll',
-      options: { file: logFile, size: '10m', limit: { count: 3 } },
+      options: { file: logFile, size: '10m', limit: { count: 3 }, mkdir: true },
     }))
   : pino({ level })

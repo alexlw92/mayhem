@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache, rebuildMissingPerfPairs } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -213,13 +213,14 @@ describe('player_performance_cache / buildPlayerPerformanceCache', () => {
     expect(Math.abs(Number(row.apq))).toBeLessThan(0.01)
   })
 
-  it('buildPlayerPerformanceCache is called by insertMatches', async () => {
+  it('buildPlayerPerformanceCache populates cache after insertMatches+flush', async () => {
     await insertMatches(makeGames())
+    // insertMatches now only deletes stale cache and marks dirty — must flush to rebuild
+    await flushDirtyPerfCache()
     const postgres = (await import('postgres')).default
     const db = postgres(TEST_URL!, { onnotice: () => {} })
     const rows = await db`SELECT * FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
     await db.end()
-    // insertMatches should have triggered buildPlayerPerformanceCache
     expect(rows.length).toBeGreaterThan(0)
   })
 })
@@ -268,5 +269,75 @@ describe('getPlayerPerformance cache-based computation', () => {
     expect(typeof result.augmentPickQuality).toBe('number')
     // p1 is sole picker of augId 100 so apq ≈ 0
     expect(Math.abs(result.augmentPickQuality)).toBeLessThan(0.01)
+  })
+})
+
+describe('dirty perf cache machinery', () => {
+  it('insertMatches immediately deletes player_performance_cache for affected pairs', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    // Pre-populate a perf cache row for ('15.12', 2400)
+    await db`
+      INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
+      VALUES ('p1', 2400, '15.12', 5, 0.1, 0.05, 0.02, 0.1, 0.1)
+    `
+
+    // Insert a match for that pair
+    await insertMatches([{
+      gameId: 99001, queueId: 2400, gameCreation: 1000, gameDuration: 1200, gameVersion: '15.12',
+      participants: [
+        { puuid: 'p1', summonerName: 'P1', championId: 10, championName: 'Kayle',
+          teamId: 100, win: true, kills: 1, deaths: 0, assists: 0,
+          damageDealt: 1000, damageTaken: 500, goldEarned: 3000, champLevel: 10, augments: [] },
+        { puuid: 'p2', summonerName: 'P2', championId: 20, championName: 'Lux',
+          teamId: 200, win: false, kills: 0, deaths: 1, assists: 0,
+          damageDealt: 500, damageTaken: 1000, goldEarned: 2000, champLevel: 8, augments: [] },
+      ]
+    }])
+
+    // Row must be gone immediately — not deferred
+    const [row] = await db`SELECT * FROM player_performance_cache WHERE puuid = 'p1' AND "queueId" = 2400 AND "gameVersion" = '15.12'`
+    expect(row).toBeUndefined()
+    await db.end()
+  })
+
+  it('flushDirtyPerfCache is a no-op when nothing is dirty', async () => {
+    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
+  })
+
+  it('flushDirtyPerfCache runs and clears the dirty set', async () => {
+    markPerfDirty('15.12', 2400)
+    // buildPlayerPerformanceCache returns early when no player_champion_stats_cache data exists
+    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
+    // Calling again is a no-op (set was cleared)
+    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
+  })
+
+  it('rebuildMissingPerfPairs is a no-op when all pairs are present', async () => {
+    // No data in player_champion_stats_cache — nothing to rebuild
+    await expect(rebuildMissingPerfPairs()).resolves.toBeUndefined()
+  })
+
+  it('rebuildMissingPerfPairs rebuilds pairs missing from player_performance_cache', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    // insertMatches populates player_champion_stats_cache and champion_stats_cache
+    // and deletes player_performance_cache — simulating the state after a crash mid-flush
+    await insertMatches(makeGames())
+
+    // Confirm perf cache is absent for this pair
+    const before = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
+    expect(Number(before[0].count)).toBe(0)
+
+    // Recovery: rebuild missing pairs (dirty set is empty, as it would be after a crash/restart)
+    await rebuildMissingPerfPairs()
+
+    // Perf cache should now have rows for the affected players
+    const after = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
+    expect(Number(after[0].count)).toBeGreaterThan(0)
+
+    await db.end()
   })
 })

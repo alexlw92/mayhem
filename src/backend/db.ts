@@ -51,6 +51,44 @@ export interface Match {
 
 let sql_: ReturnType<typeof postgres>
 
+// ─── Dirty-set machinery for deferred perf cache rebuilds ────────────────────
+
+const dirtyPerfPairs = new Set<string>()
+
+export function markPerfDirty(gameVersion: string, queueId: number): void {
+  dirtyPerfPairs.add(`${gameVersion}:${queueId}`)
+}
+
+export async function flushDirtyPerfCache(): Promise<void> {
+  if (dirtyPerfPairs.size === 0) return
+  const pairs = [...dirtyPerfPairs]
+  dirtyPerfPairs.clear()
+  for (const pair of pairs) {
+    const colonIdx = pair.indexOf(':')
+    const gv = pair.slice(0, colonIdx)
+    const qId = Number(pair.slice(colonIdx + 1))
+    try {
+      await buildPlayerPerformanceCache(gv, qId)
+    } catch (err) {
+      console.error('[flushDirtyPerfCache] failed:', gv, qId, err)
+    }
+  }
+}
+
+export async function rebuildMissingPerfPairs(): Promise<void> {
+  const existingRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_performance_cache`
+  const existing = new Set((existingRows as any[]).map(r => `${r.gameVersion}:${r.queueId}`))
+  const pcsRows = await sql_`SELECT DISTINCT "gameVersion","queueId" FROM player_champion_stats_cache`
+  const missing = (pcsRows as any[]).filter(r => !existing.has(`${r.gameVersion}:${r.queueId}`))
+  for (const r of missing) {
+    try {
+      await buildPlayerPerformanceCache(r.gameVersion as string, Number(r.queueId))
+    } catch (err) {
+      console.error('[rebuildMissingPerfPairs] failed:', r.gameVersion, r.queueId, err)
+    }
+  }
+}
+
 export async function connectDb(url?: string): Promise<void> {
   const connectionUrl = url ?? process.env.DATABASE_URL
   if (!connectionUrl) throw new Error('DATABASE_URL is not set')
@@ -1281,16 +1319,6 @@ export async function insertMatches(matches: Match[]): Promise<number> {
   const puuids = [...new Set(matches.flatMap(m => m.participants.map(p => p.puuid).filter(Boolean)))]
   await enqueueAll(puuids)
   if (insertedCount > 0) {
-    const pairs = [...new Set(
-      matches.filter(m => m.gameVersion).map(m => `${m.gameVersion}:${m.queueId}`)
-    )]
-    for (const pair of pairs) {
-      const colonIdx = pair.indexOf(':')
-      const gv = pair.slice(0, colonIdx)
-      const qId = Number(pair.slice(colonIdx + 1))
-      await sql_`DELETE FROM player_performance_cache WHERE "gameVersion" = ${gv} AND "queueId" = ${qId}`
-      await buildPlayerPerformanceCache(gv, qId)
-    }
     invalidatePrefix('champions:')
     invalidatePrefix('players:')
     invalidatePrefix('augments:')
@@ -1299,6 +1327,17 @@ export async function insertMatches(matches: Match[]): Promise<number> {
     invalidatePrefix('item_builds:')
     invalidatePrefix('item_picks:')
     invalidatePrefix('item_archetypes:')
+
+    const pairs = [...new Set(
+      matches.filter(m => m.gameVersion).map(m => `${m.gameVersion}:${m.queueId}`)
+    )]
+    for (const pair of pairs) {
+      const colonIdx = pair.indexOf(':')
+      const gv = pair.slice(0, colonIdx)
+      const qId = Number(pair.slice(colonIdx + 1))
+      await sql_`DELETE FROM player_performance_cache WHERE "gameVersion" = ${gv} AND "queueId" = ${qId}`
+      markPerfDirty(gv, qId)
+    }
   }
   return insertedCount
 }

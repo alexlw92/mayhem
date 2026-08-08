@@ -470,6 +470,16 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     )
   `
   await sql_`CREATE INDEX IF NOT EXISTS idx_elo_history_puuid_queue_gc ON elo_history (puuid, "queueId", "gameCreation")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_player_stats_cache_queueId           ON player_stats_cache ("queueId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_player_champion_stats_cache_queueId  ON player_champion_stats_cache ("queueId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_champion_stats_cache_queueId         ON champion_stats_cache ("queueId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_augment_stats_cache_queueId          ON augment_stats_cache ("queueId")`
+  await sql_`CREATE INDEX IF NOT EXISTS idx_augment_champion_stats_cache_queueId ON augment_champion_stats_cache ("queueId")`
+  await sql_`
+    CREATE TABLE IF NOT EXISTS pending_cache_games (
+      game_id BIGINT PRIMARY KEY
+    )
+  `
 
 console.log(`[db] indexes done (${Date.now() - _t1}ms)`)
   const [{ count: champCacheCount }] = await sql_`SELECT COUNT(*) FROM champion_stats_cache`

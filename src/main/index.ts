@@ -10,7 +10,7 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: join(dirname(process.execPath), '..', '.env') })
   dotenv.config()
 }
-import { app, BrowserWindow, ipcMain, shell, protocol, net, desktopCapturer, utilityProcess } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, protocol, net, desktopCapturer, utilityProcess, Menu } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import axios from 'axios'
@@ -53,6 +53,44 @@ let syncInProgress = false
 let syncCancelled = false
 let syncAccum = { imported: 0, playerssynced: 0 }
 let backendProcess: Electron.UtilityProcess | null = null
+let metricsWindow: BrowserWindow | null = null
+
+function openMetricsWindow(): void {
+  if (metricsWindow && !metricsWindow.isDestroyed()) {
+    metricsWindow.focus()
+    return
+  }
+  metricsWindow = new BrowserWindow({
+    width: 900,
+    height: 600,
+    title: 'API Metrics',
+    backgroundColor: '#0a0e1a',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+  })
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    metricsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#metrics')
+  } else {
+    metricsWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'metrics' })
+  }
+  metricsWindow.on('closed', () => { metricsWindow = null })
+}
+
+function buildAppMenu(): void {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'View',
+      submenu: [
+        ...(is.dev ? [{ role: 'toggleDevTools' as const }] : []),
+        { label: 'API Metrics', click: openMetricsWindow },
+      ],
+    },
+  ]))
+}
+
 let backendReady = false
 let windowLoaded = false
 
@@ -80,9 +118,13 @@ function spawnLocalBackend(): void {
     return
   }
 
+  const logFile = app.isPackaged
+    ? join(app.getPath('logs'), 'mayhem-backend.log')
+    : join(os.tmpdir(), 'mayhem-backend.log')
+
   backendProcess = utilityProcess.fork(serverPath, [], {
     stdio: 'pipe',
-    env: { ...process.env },
+    env: { ...process.env, MAYHEM_LOG_FILE: logFile },
   })
   backendProcess.stdout?.on('data', (d: Buffer) => process.stdout.write('[backend] ' + d))
   backendProcess.stderr?.on('data', (d: Buffer) => process.stderr.write('[backend] ' + d))
@@ -394,6 +436,7 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+  buildAppMenu()
 
   if (!is.dev) autoUpdater.checkForUpdatesAndNotify()
 
@@ -640,4 +683,7 @@ ipcMain.handle('overlay:ocrScreen', async () => {
   const dataUrl = `data:image/png;base64,${imageBuffer.toString('base64')}`
   return { text: text ?? null, dataUrl }
 })
+
+ipcMain.handle('metrics:get', () => apiClient.metrics())
+ipcMain.handle('metrics:reset', () => apiClient.metricsReset())
 

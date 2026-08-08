@@ -122,4 +122,10 @@ export const apiClient = {
       params: { patches: patches?.join(','), queueId },
       timeout: 30_000,
     }).then((r) => r.data),
+
+  metrics: (): Promise<import('../backend/metrics').MetricsSnapshot> =>
+    http.get('/api/metrics').then((r) => r.data),
+
+  metricsReset: (): Promise<{ ok: boolean }> =>
+    http.post('/api/metrics/reset').then((r) => r.data),
 }

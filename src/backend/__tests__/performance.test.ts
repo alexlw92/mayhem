@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache, rebuildMissingPerfPairs } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache, rebuildMissingPerfPairs, flushPendingCaches } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -15,7 +15,7 @@ async function truncate() {
     champion_stats_cache, augment_stats_cache, player_stats_cache,
     player_champion_stats_cache, augment_champion_stats_cache, player_augment_stats_cache,
     player_performance_cache, item_builds_cache, item_picks_cache,
-    item_archetypes_cache, player_elo, elo_history
+    item_archetypes_cache, player_elo, elo_history, pending_cache_games
     RESTART IDENTITY CASCADE`
   await db.end()
 }
@@ -339,5 +339,105 @@ describe('dirty perf cache machinery', () => {
     expect(Number(after[0].count)).toBeGreaterThan(0)
 
     await db.end()
+  })
+})
+
+describe('flushPendingCaches', () => {
+  it('is a no-op when pending_cache_games is empty', async () => {
+    await expect(flushPendingCaches()).resolves.toBeUndefined()
+  })
+
+  it('populates all cache tables from pending games', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    // Insert raw data directly — simulating what insertMatches will do after Task 3
+    await db`
+      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
+      VALUES (9001, 2400, 1000, 1200, '15.12'), (9002, 2400, 2000, 1000, '15.12')
+    `
+    await db`
+      INSERT INTO participants
+        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
+      VALUES
+        (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200),
+        (9001,'p2','P2',11,'Other',100,true,3,2,4,30000,18000,9000,13,'15.12',1200),
+        (9001,'p3','P3',20,'Lux',200,false,2,4,2,20000,30000,6000,11,'15.12',1200),
+        (9002,'p1','P1',10,'Kayle',100,true,1,0,1,30000,10000,9000,14,'15.12',1000),
+        (9002,'p4','P4',11,'Other',100,true,2,1,3,25000,15000,8000,12,'15.12',1000),
+        (9002,'p5','P5',20,'Lux',200,false,3,2,2,22000,28000,7500,12,'15.12',1000)
+    `
+    await db`
+      INSERT INTO participant_augments ("participantId","augmentId")
+      SELECT id, 100 FROM participants WHERE puuid = 'p1'
+    `
+    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001), (9002)`
+    await db.end()
+
+    await flushPendingCaches()
+
+    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
+    const champRow = await db2`SELECT games FROM champion_stats_cache WHERE "championId" = 10 AND "gameVersion" = '15.12' AND "queueId" = 2400`
+    const playerRow = await db2`SELECT games FROM player_stats_cache WHERE puuid = 'p1' AND "gameVersion" = '15.12' AND "queueId" = 2400`
+    const playerChampRow = await db2`SELECT games FROM player_champion_stats_cache WHERE puuid = 'p1' AND "championId" = 10 AND "gameVersion" = '15.12' AND "queueId" = 2400`
+    const augRow = await db2`SELECT pick_count FROM player_augment_stats_cache WHERE puuid = 'p1' AND "augmentId" = 100 AND "gameVersion" = '15.12' AND "queueId" = 2400`
+    await db2.end()
+
+    expect(Number(champRow[0].games)).toBe(2)
+    expect(Number(playerRow[0].games)).toBe(2)
+    expect(Number(playerChampRow[0].games)).toBe(2)
+    expect(Number(augRow[0].pick_count)).toBe(2)
+  })
+
+  it('clears pending_cache_games after processing', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    await db`
+      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
+      VALUES (9001, 2400, 1000, 1200, '15.12')
+    `
+    await db`
+      INSERT INTO participants
+        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
+      VALUES (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200)
+    `
+    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001)`
+    await db.end()
+
+    await flushPendingCaches()
+
+    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
+    const [{ count }] = await db2`SELECT COUNT(*) FROM pending_cache_games`
+    await db2.end()
+    expect(Number(count)).toBe(0)
+  })
+
+  it('deletes player_performance_cache and marks pairs dirty for later flush', async () => {
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+
+    await db`
+      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
+      VALUES (9001, 2400, 1000, 1200, '15.12')
+    `
+    await db`
+      INSERT INTO participants
+        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
+      VALUES (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200)
+    `
+    await db`
+      INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
+      VALUES ('p1', 2400, '15.12', 5, 0.1, 0.05, 0.02, 0.1, 0.1)
+    `
+    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001)`
+    await db.end()
+
+    await flushPendingCaches()
+
+    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
+    const [row] = await db2`SELECT * FROM player_performance_cache WHERE puuid = 'p1' AND "queueId" = 2400 AND "gameVersion" = '15.12'`
+    await db2.end()
+    expect(row).toBeUndefined()
   })
 })

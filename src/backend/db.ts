@@ -90,6 +90,245 @@ export async function rebuildMissingPerfPairs(): Promise<void> {
   }
 }
 
+export async function flushPendingCaches(): Promise<void> {
+  const batchRows = await sql_`SELECT game_id FROM pending_cache_games LIMIT 500`
+  if ((batchRows as any[]).length === 0) return
+  const batch = (batchRows as any[]).map(r => Number(r.game_id))
+
+  // champion_stats_cache
+  await sql_`
+    WITH tk AS (
+      SELECT "gameId", "teamId", SUM(kills)::bigint AS team_kills
+      FROM participants WHERE "gameId" = ANY(${batch})
+      GROUP BY "gameId", "teamId"
+    )
+    INSERT INTO champion_stats_cache
+      ("gameVersion","queueId","championId","championName",games,wins,
+       total_kills,total_deaths,total_assists,total_damage,total_duration,total_team_kills,total_gold)
+    SELECT p."gameVersion", m."queueId", p."championId", MIN(p."championName"),
+      COUNT(*)::int, SUM(p.win::int)::int,
+      SUM(p.kills)::int, SUM(p.deaths)::int, SUM(p.assists)::int,
+      SUM(p."damageDealt"), SUM(p."gameDuration"),
+      SUM(tk.team_kills)::bigint, SUM(p."goldEarned")::bigint
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN tk ON tk."gameId" = p."gameId" AND tk."teamId" = p."teamId"
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL
+    GROUP BY p."gameVersion", m."queueId", p."championId"
+    ON CONFLICT ("gameVersion","queueId","championId") DO UPDATE SET
+      "championName"   = EXCLUDED."championName",
+      games            = champion_stats_cache.games + EXCLUDED.games,
+      wins             = champion_stats_cache.wins + EXCLUDED.wins,
+      total_kills      = champion_stats_cache.total_kills + EXCLUDED.total_kills,
+      total_deaths     = champion_stats_cache.total_deaths + EXCLUDED.total_deaths,
+      total_assists    = champion_stats_cache.total_assists + EXCLUDED.total_assists,
+      total_damage     = champion_stats_cache.total_damage + EXCLUDED.total_damage,
+      total_duration   = champion_stats_cache.total_duration + EXCLUDED.total_duration,
+      total_team_kills = champion_stats_cache.total_team_kills + EXCLUDED.total_team_kills,
+      total_gold       = champion_stats_cache.total_gold + EXCLUDED.total_gold
+  `
+
+  // augment_stats_cache
+  await sql_`
+    INSERT INTO augment_stats_cache ("gameVersion","queueId","augmentId",pick_count,wins,total_damage,total_duration)
+    SELECT p."gameVersion", m."queueId", pa."augmentId",
+      COUNT(*)::int, SUM(p.win::int)::int, SUM(p."damageDealt"), SUM(p."gameDuration")
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN participant_augments pa ON pa."participantId" = p.id
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL
+    GROUP BY p."gameVersion", m."queueId", pa."augmentId"
+    ON CONFLICT ("gameVersion","queueId","augmentId") DO UPDATE SET
+      pick_count     = augment_stats_cache.pick_count + EXCLUDED.pick_count,
+      wins           = augment_stats_cache.wins + EXCLUDED.wins,
+      total_damage   = augment_stats_cache.total_damage + EXCLUDED.total_damage,
+      total_duration = augment_stats_cache.total_duration + EXCLUDED.total_duration
+  `
+
+  // player_stats_cache
+  await sql_`
+    INSERT INTO player_stats_cache ("gameVersion","queueId",puuid,"summonerName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration)
+    SELECT p."gameVersion", m."queueId", p.puuid, MAX(p."summonerName"),
+      COUNT(*)::int, SUM(p.win::int)::int,
+      SUM(p.kills)::int, SUM(p.deaths)::int, SUM(p.assists)::int,
+      SUM(p."damageDealt")::bigint, SUM(p."gameDuration")::bigint
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL AND p.puuid != ''
+    GROUP BY p."gameVersion", m."queueId", p.puuid
+    ON CONFLICT ("gameVersion","queueId",puuid) DO UPDATE SET
+      "summonerName"  = EXCLUDED."summonerName",
+      games           = player_stats_cache.games + EXCLUDED.games,
+      wins            = player_stats_cache.wins + EXCLUDED.wins,
+      total_kills     = player_stats_cache.total_kills + EXCLUDED.total_kills,
+      total_deaths    = player_stats_cache.total_deaths + EXCLUDED.total_deaths,
+      total_assists   = player_stats_cache.total_assists + EXCLUDED.total_assists,
+      total_damage    = player_stats_cache.total_damage + EXCLUDED.total_damage,
+      total_duration  = player_stats_cache.total_duration + EXCLUDED.total_duration
+  `
+
+  // player_champion_stats_cache
+  await sql_`
+    WITH tk AS (
+      SELECT "gameId", "teamId", SUM(kills)::bigint AS team_kills
+      FROM participants WHERE "gameId" = ANY(${batch})
+      GROUP BY "gameId", "teamId"
+    )
+    INSERT INTO player_champion_stats_cache
+      ("gameVersion","queueId",puuid,"championId","championName",games,wins,total_kills,total_deaths,total_assists,total_damage,total_duration,total_gold,total_team_kills)
+    SELECT p."gameVersion",m."queueId",p.puuid,p."championId",MIN(p."championName"),
+      COUNT(*)::int,SUM(p.win::int)::int,SUM(p.kills)::int,SUM(p.deaths)::int,SUM(p.assists)::int,
+      SUM(p."damageDealt")::bigint,SUM(p."gameDuration")::bigint,
+      SUM(p."goldEarned")::bigint, SUM(tk.team_kills)::bigint
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN tk ON tk."gameId" = p."gameId" AND tk."teamId" = p."teamId"
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL AND p.puuid != ''
+    GROUP BY p."gameVersion",m."queueId",p.puuid,p."championId"
+    ON CONFLICT ("gameVersion","queueId",puuid,"championId") DO UPDATE SET
+      "championName"   = EXCLUDED."championName",
+      games            = player_champion_stats_cache.games + EXCLUDED.games,
+      wins             = player_champion_stats_cache.wins + EXCLUDED.wins,
+      total_kills      = player_champion_stats_cache.total_kills + EXCLUDED.total_kills,
+      total_deaths     = player_champion_stats_cache.total_deaths + EXCLUDED.total_deaths,
+      total_assists    = player_champion_stats_cache.total_assists + EXCLUDED.total_assists,
+      total_damage     = player_champion_stats_cache.total_damage + EXCLUDED.total_damage,
+      total_duration   = player_champion_stats_cache.total_duration + EXCLUDED.total_duration,
+      total_gold       = player_champion_stats_cache.total_gold + EXCLUDED.total_gold,
+      total_team_kills = player_champion_stats_cache.total_team_kills + EXCLUDED.total_team_kills
+  `
+
+  // augment_champion_stats_cache
+  await sql_`
+    INSERT INTO augment_champion_stats_cache
+      ("gameVersion","queueId","augmentId","championId","championName",pick_count,wins,total_damage,total_duration)
+    SELECT p."gameVersion", m."queueId", pa."augmentId", p."championId", MIN(p."championName"),
+      COUNT(*)::int, SUM(p.win::int)::int, SUM(p."damageDealt"), SUM(p."gameDuration")
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN participant_augments pa ON pa."participantId" = p.id
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL
+    GROUP BY p."gameVersion", m."queueId", pa."augmentId", p."championId"
+    ON CONFLICT ("gameVersion","queueId","augmentId","championId") DO UPDATE SET
+      "championName"  = EXCLUDED."championName",
+      pick_count      = augment_champion_stats_cache.pick_count + EXCLUDED.pick_count,
+      wins            = augment_champion_stats_cache.wins + EXCLUDED.wins,
+      total_damage    = augment_champion_stats_cache.total_damage + EXCLUDED.total_damage,
+      total_duration  = augment_champion_stats_cache.total_duration + EXCLUDED.total_duration
+  `
+
+  // player_augment_stats_cache
+  await sql_`
+    INSERT INTO player_augment_stats_cache ("gameVersion","queueId",puuid,"augmentId",pick_count)
+    SELECT p."gameVersion", m."queueId", p.puuid, pa."augmentId", COUNT(*)::int
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN participant_augments pa ON pa."participantId" = p.id
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL AND p.puuid != ''
+    GROUP BY p."gameVersion", m."queueId", p.puuid, pa."augmentId"
+    ON CONFLICT (puuid,"queueId","gameVersion","augmentId") DO UPDATE SET
+      pick_count = player_augment_stats_cache.pick_count + EXCLUDED.pick_count
+  `
+
+  // item_builds_cache (C(n,5) LATERAL unnest)
+  await sql_`
+    WITH agg AS (
+      SELECT p."gameVersion", m."queueId", p."championId", p.win::int AS win,
+        array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+      FROM participants p
+      JOIN matches m ON m."gameId" = p."gameId"
+      JOIN participant_items pi ON pi."participantId" = p.id
+      WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL
+      GROUP BY p."gameVersion", m."queueId", p.id, p."championId", p.win
+      HAVING count(*) >= 5
+    ),
+    combos AS (
+      SELECT agg."gameVersion", agg."queueId", agg."championId", agg.win,
+        ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+      FROM agg,
+        LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+        LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+        LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+        LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+        LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+      WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+    )
+    INSERT INTO item_builds_cache ("gameVersion","queueId","championId",build,games,wins)
+    SELECT "gameVersion","queueId","championId",build,COUNT(*)::int,SUM(win)::int
+    FROM combos GROUP BY "gameVersion","queueId","championId",build
+    ON CONFLICT ("gameVersion","queueId","championId",build) DO UPDATE SET
+      games = item_builds_cache.games + EXCLUDED.games,
+      wins  = item_builds_cache.wins  + EXCLUDED.wins
+  `
+
+  // item_picks_cache
+  await sql_`
+    INSERT INTO item_picks_cache ("gameVersion","queueId","championId","itemId",picks,wins,slot_emptiness_sum,slot_emptiness_count)
+    SELECT p."gameVersion", m."queueId", p."championId", pi."itemId",
+           COUNT(*)::int, SUM(p.win::int)::int,
+           SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float,
+           COUNT(*)::int
+    FROM participants p
+    JOIN matches m ON m."gameId" = p."gameId"
+    JOIN participant_items pi ON pi."participantId" = p.id
+    LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
+    WHERE p."gameId" = ANY(${batch}) AND p."gameVersion" IS NOT NULL
+    GROUP BY p."gameVersion", m."queueId", p."championId", pi."itemId"
+    ON CONFLICT ("gameVersion","queueId","championId","itemId") DO UPDATE SET
+      picks                = item_picks_cache.picks + EXCLUDED.picks,
+      wins                 = item_picks_cache.wins  + EXCLUDED.wins,
+      slot_emptiness_sum   = item_picks_cache.slot_emptiness_sum   + EXCLUDED.slot_emptiness_sum,
+      slot_emptiness_count = item_picks_cache.slot_emptiness_count + EXCLUDED.slot_emptiness_count
+  `
+
+  // Mark affected champion archetypes stale so next request recomputes
+  const affectedChampRows = await sql_`
+    SELECT DISTINCT "championId" FROM participants WHERE "gameId" = ANY(${batch})
+  `
+  const affectedChampIds = (affectedChampRows as any[]).map(r => Number(r.championId))
+  if (affectedChampIds.length > 0) {
+    await sql_`
+      UPDATE item_archetypes_cache
+      SET computed_at = NOW() - INTERVAL '16 minutes'
+      WHERE "championId" = ANY(${affectedChampIds})
+    `
+  }
+
+  // Derive current patch and kick off archetype recompute for both queues
+  const matchMetaRows = await sql_`
+    SELECT DISTINCT "gameVersion", "queueId" FROM matches
+    WHERE "gameId" = ANY(${batch}) AND "gameVersion" IS NOT NULL
+  `
+  const versions = [...new Set((matchMetaRows as any[]).map(r => r.gameVersion as string))].sort().reverse()
+  const currentPatch = versions[0]
+  if (currentPatch && affectedChampIds.length > 0) {
+    for (const queueId of [2400, 2450]) {
+      await Promise.all(affectedChampIds.map(id =>
+        getOrComputeArchetypes(id, [currentPatch], queueId).catch(console.error)
+      ))
+    }
+  }
+
+  // Invalidate LRU after writes so next GET caches fresh data
+  invalidatePrefix('champions:')
+  invalidatePrefix('players:')
+  invalidatePrefix('augments:')
+  invalidatePrefix('perf:')
+  invalidatePrefix('perf_data:')
+  invalidatePrefix('item_builds:')
+  invalidatePrefix('item_picks:')
+  invalidatePrefix('item_archetypes:')
+
+  // Delete stale player_performance_cache and mark pairs for rebuild
+  for (const r of matchMetaRows as any[]) {
+    await sql_`DELETE FROM player_performance_cache WHERE "gameVersion" = ${r.gameVersion} AND "queueId" = ${r.queueId}`
+    markPerfDirty(r.gameVersion as string, Number(r.queueId))
+  }
+
+  // Remove processed games from pending table
+  await sql_`DELETE FROM pending_cache_games WHERE game_id = ANY(${batch})`
+}
+
 export async function connectDb(url?: string): Promise<void> {
   const connectionUrl = url ?? process.env.DATABASE_URL
   if (!connectionUrl) throw new Error('DATABASE_URL is not set')

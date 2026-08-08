@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
-import { initDb, Match } from '../db'
+import { initDb, Match, flushPendingCaches } from '../db'
 import { createExpressApp } from '../server'
 import { clearAll } from '../queryCache'
 
@@ -31,6 +31,14 @@ beforeEach(async () => {
   await truncate()
   clearAll()
 })
+
+/** Insert matches via the HTTP route, then flush the pending cache so tests
+ *  that query cache tables see the data immediately. */
+async function bulkInsert(appInstance: ReturnType<typeof createExpressApp>, matches: Match[]) {
+  const res = await request(appInstance).post('/api/matches/bulk').send({ matches })
+  await flushPendingCaches()
+  return res
+}
 
 const sampleMatch: Match = {
   gameId: 5001,
@@ -100,7 +108,7 @@ describe('GET /api/patches', () => {
   })
 
   it('returns patches after a match is inserted', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/patches')
     expect(res.status).toBe(200)
     expect(res.body).toContain('15.12')
@@ -123,7 +131,7 @@ describe('GET /api/champions', () => {
   })
 
   it('includes wilsonScore as a number on each champion', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/champions')
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
@@ -137,14 +145,14 @@ describe('GET /api/champions', () => {
 
 describe('POST /api/matches/bulk', () => {
   it('inserts matches and returns inserted count', async () => {
-    const res = await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    const res = await bulkInsert(app, [sampleMatch])
     expect(res.status).toBe(200)
     expect(res.body.inserted).toBe(1)
   })
 
   it('is idempotent — duplicate insert returns 0 inserted', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
-    const res = await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
+    const res = await bulkInsert(app, [sampleMatch])
     expect(res.status).toBe(200)
     expect(res.body.inserted).toBe(0)
   })
@@ -158,7 +166,7 @@ describe('GET /api/matches/:gameId/exists', () => {
   })
 
   it('returns true after insert', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/matches/5001/exists')
     expect(res.status).toBe(200)
     expect(res.body).toBe(true)
@@ -205,7 +213,7 @@ describe('Sync queue endpoints', () => {
 
 describe('GET /api/augments', () => {
   it('includes wilsonScore as a number on each augment', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments')
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
@@ -217,7 +225,7 @@ describe('GET /api/augments', () => {
   })
 
   it('returns fallback name and empty iconPath when no cache is injected', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -232,7 +240,7 @@ describe('GET /api/augments', () => {
         200: { name: 'Iron Will', rarity: 1, iconPath: 'mayhem-asset://augment-icons/200.png' }
       })
     })
-    await request(appWithCache).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(appWithCache, [sampleMatch])
     const res = await request(appWithCache).get('/api/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -242,7 +250,7 @@ describe('GET /api/augments', () => {
   })
 
   it('filters by championId — returns augments picked by that champion', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments?championId=10')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -252,14 +260,14 @@ describe('GET /api/augments', () => {
   })
 
   it('filters by championId — returns empty for champion with no augments', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments?championId=20')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters by championId and patch — returns empty for unknown patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments?championId=10&patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
@@ -268,7 +276,7 @@ describe('GET /api/augments', () => {
 
 describe('GET /api/players/:puuid/augments', () => {
   it('returns fallback name and empty iconPath when no cache is injected', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -283,7 +291,7 @@ describe('GET /api/players/:puuid/augments', () => {
         200: { name: 'Iron Will', rarity: 1, iconPath: 'mayhem-asset://augment-icons/200.png' }
       })
     })
-    await request(appWithCache).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(appWithCache, [sampleMatch])
     const res = await request(appWithCache).get('/api/players/test-puuid-1/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -292,7 +300,7 @@ describe('GET /api/players/:puuid/augments', () => {
   })
 
   it('returns correct pickCount and wins', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/augments')
     expect(res.status).toBe(200)
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -301,22 +309,22 @@ describe('GET /api/players/:puuid/augments', () => {
   })
 
   it('returns empty for player with no augments', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-2/augments')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('returns empty for unknown patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/augments?patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('is idempotent — duplicate insert does not double the pickCount', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/augments')
     const aug = res.body.find((a: any) => a.augmentId === 200)
     expect(aug.pickCount).toBe(1)
@@ -331,7 +339,7 @@ describe('GET /api/augments/:augmentId/champions', () => {
   })
 
   it('returns champion breakdown for a known augment', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -344,14 +352,14 @@ describe('GET /api/augments/:augmentId/champions', () => {
   })
 
   it('returns empty array for an augment not in any game', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/999/champions')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters by patch — returns data for matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions?patches=15.12')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -359,21 +367,21 @@ describe('GET /api/augments/:augmentId/champions', () => {
   })
 
   it('filters by patch — returns empty for unknown patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions?patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters to a specific puuid — returns empty when that player has no picks', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions?puuid=test-puuid-2')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters to a specific puuid — returns data when that player has picks', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions?puuid=test-puuid-1')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -411,14 +419,14 @@ describe('GET /api/players/:puuid/coplayers', () => {
   })
 
   it('requires >= 2 games together — single shared game returns empty', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2] })
+    await bulkInsert(app, [sampleMatch2])
     const res = await request(app).get('/api/players/test-puuid-1/coplayers')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('returns coplayer stats after 2+ shared games on same team', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2, sampleMatch3] })
+    await bulkInsert(app, [sampleMatch2, sampleMatch3])
     const res = await request(app).get('/api/players/test-puuid-1/coplayers')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -430,14 +438,14 @@ describe('GET /api/players/:puuid/coplayers', () => {
   })
 
   it('opposite-team players do not appear as coplayers', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/coplayers')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters by patch — returns empty for non-matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch2, sampleMatch3] })
+    await bulkInsert(app, [sampleMatch2, sampleMatch3])
     const res = await request(app).get('/api/players/test-puuid-1/coplayers?patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
@@ -488,7 +496,7 @@ describe('GET /api/players/search', () => {
   })
 
   it('returns matching players by summonerName', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/search?q=Foo')
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
@@ -497,7 +505,7 @@ describe('GET /api/players/search', () => {
   })
 
   it('returns empty array when no names match', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/search?q=zzz')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
@@ -512,7 +520,7 @@ describe('GET /api/players/:puuid/stats', () => {
   })
 
   it('returns aggregate stats for a known player', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    await bulkInsert(app, [sampleMatch, sampleMatch2, sampleMatch3])
     const res = await request(app).get('/api/players/test-puuid-1/stats')
     expect(res.status).toBe(200)
     expect(res.body.puuid).toBe('test-puuid-1')
@@ -524,7 +532,7 @@ describe('GET /api/players/:puuid/stats', () => {
   })
 
   it('returns null when patch filter matches no games', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/stats?patches=99.99')
     expect(res.status).toBe(200)
     expect(res.body).toBeNull()
@@ -539,7 +547,7 @@ describe('POST /api/players/bulk-stats', () => {
   })
 
   it('returns stats keyed by puuid', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
+    await bulkInsert(app, [sampleMatch, sampleMatch2])
     const res = await request(app).post('/api/players/bulk-stats').send({ puuids: ['test-puuid-1', 'test-puuid-2'] })
     expect(res.status).toBe(200)
     expect(res.body['test-puuid-1'].games).toBe(2)
@@ -555,7 +563,7 @@ describe('POST /api/players/bulk-stats', () => {
   })
 
   it('respects patch filter', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).post('/api/players/bulk-stats?patches=99.99').send({ puuids: ['test-puuid-1'] })
     expect(res.status).toBe(200)
     expect(res.body).toEqual({})
@@ -570,7 +578,7 @@ describe('GET /api/players/:puuid/champions', () => {
   })
 
   it('returns per-champion stats for the player', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    await bulkInsert(app, [sampleMatch, sampleMatch2, sampleMatch3])
     const res = await request(app).get('/api/players/test-puuid-1/champions')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -582,7 +590,7 @@ describe('GET /api/players/:puuid/champions', () => {
   })
 
   it('cross-player isolation — puuid-2 sees only Teemo', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-2/champions')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -591,7 +599,7 @@ describe('GET /api/players/:puuid/champions', () => {
   })
 
   it('respects patch filter', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/champions?patches=99.99')
     expect(res.body).toEqual([])
   })
@@ -605,7 +613,7 @@ describe('GET /api/players/:puuid/matches', () => {
   })
 
   it('returns only matches containing the requested player', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2] })
+    await bulkInsert(app, [sampleMatch, sampleMatch2])
     const res = await request(app).get('/api/players/test-puuid-2/matches')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(1)
@@ -613,14 +621,14 @@ describe('GET /api/players/:puuid/matches', () => {
   })
 
   it('respects limit param', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, sampleMatch2, sampleMatch3] })
+    await bulkInsert(app, [sampleMatch, sampleMatch2, sampleMatch3])
     const res = await request(app).get('/api/players/test-puuid-1/matches?limit=2')
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(2)
   })
 
   it('match shape includes participants and augments', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/matches')
     const match = res.body[0]
     expect(match.gameId).toBe(5001)
@@ -639,7 +647,7 @@ describe('GET /api/players/:puuid/name', () => {
   })
 
   it('returns the most recent summonerName for a known puuid', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/name')
     expect(res.status).toBe(200)
     expect(res.body).toBe('Foo#NA1')
@@ -658,7 +666,7 @@ describe('PUT /api/matches/:gameId', () => {
   })
 
   it('overwrites participants on an existing match', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const updated = { ...sampleMatch, gameDuration: 9999 }
     await request(app).put('/api/matches/5001').send(updated)
     const matches = await request(app).get('/api/players/test-puuid-1/matches')
@@ -666,14 +674,14 @@ describe('PUT /api/matches/:gameId', () => {
   })
 
   it('upsert does not double champion game count', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     await request(app).put('/api/matches/5001').send(sampleMatch)
     const res = await request(app).get('/api/players/test-puuid-1/champions')
     expect(res.body[0].games).toBe(1)
   })
 
   it('upsert does not double player augment count', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     await request(app).put('/api/matches/5001').send(sampleMatch)
     const res = await request(app).get('/api/players/test-puuid-1/augments')
     const aug = res.body.find((a: any) => a.augmentId === 200)
@@ -689,7 +697,7 @@ describe('GET /api/incomplete-games', () => {
   })
 
   it('returns gameIds where participant count is below 10', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/incomplete-games')
     expect(res.body).toContain(5001)
   })
@@ -705,7 +713,7 @@ describe('GET /api/incomplete-games', () => {
         goldEarned: 5000, champLevel: 10, augments: []
       }))
     }
-    await request(app).post('/api/matches/bulk').send({ matches: [fullMatch] })
+    await bulkInsert(app, [fullMatch])
     const res = await request(app).get('/api/incomplete-games')
     expect(res.body).not.toContain(6001)
   })
@@ -720,7 +728,7 @@ describe('DELETE /api/synctimes', () => {
 
   it('resets existing sync times without removing them', async () => {
     // Set a sync time then invalidate — player should still appear in /api/players (JOIN still finds row)
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     await request(app).post('/api/sync/done/test-puuid-1')
     await request(app).post('/api/sync/done/test-puuid-2')
     await request(app).delete('/api/synctimes')
@@ -838,7 +846,7 @@ describe('GET /api/items/picks', () => {
   })
 
   it('returns item pick counts after match insertion', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
     expect(res.status).toBe(200)
     expect(res.body.items.length).toBeGreaterThan(0)
@@ -847,7 +855,7 @@ describe('GET /api/items/picks', () => {
   })
 
   it('each row has picks and wins fields', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`)
     for (const row of res.body.items) {
       expect(typeof row.picks).toBe('number')
@@ -857,14 +865,14 @@ describe('GET /api/items/picks', () => {
   })
 
   it('filters by patch — returns empty for non-matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=99.99`)
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
   })
 
   it('filters by patch — returns data for matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsOldPatch])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&patches=15.12`)
     expect(res.status).toBe(200)
     expect(res.body.items.length).toBeGreaterThan(0)
@@ -875,7 +883,7 @@ describe('GET /api/items/picks', () => {
   })
 
   it('does not return picks for other champions', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get('/api/items/picks?championId=999')
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
@@ -915,7 +923,7 @@ describe('GET /api/items/summary', () => {
   })
 
   it('totalGames and items match the /items/picks response', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const [summary, picks] = await Promise.all([
       request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}`),
       request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}`),
@@ -926,7 +934,7 @@ describe('GET /api/items/summary', () => {
   })
 
   it('filters by patch — returns empty for non-matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=99.99`)
     expect(res.status).toBe(200)
     expect(res.body.archetypes).toEqual([])
@@ -935,7 +943,7 @@ describe('GET /api/items/summary', () => {
   })
 
   it('does not return data for other champions', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get('/api/items/summary?championId=999')
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
@@ -944,7 +952,7 @@ describe('GET /api/items/summary', () => {
 
   it('returns archetypes with valid structure when enough games share a core', async () => {
     // Two games sharing 4 items ([3001,3003,3089,3157]) are enough to form an archetype
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsAlt])
     const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
     expect(res.status).toBe(200)
     expect(res.body.archetypes.length).toBeGreaterThan(0)
@@ -975,7 +983,7 @@ describe('GET /api/items/summary', () => {
         items: toSlotItems([3001, 3003, 3089, 3135, 3157, 3165]),
       }]
     }
-    await request(app).post('/api/matches/bulk').send({ matches: [sixItemMatch] })
+    await bulkInsert(app, [sixItemMatch])
     const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
     expect(res.status).toBe(200)
     expect(res.body.archetypes.length).toBeGreaterThan(0)
@@ -988,7 +996,7 @@ describe('GET /api/items/summary', () => {
   it('orders archetype items by average purchase slot ascending', async () => {
     // matchWithItems: ITEMS_CORE slots 0-4; matchWithItemsAlt: ITEMS_ALT slots 0-4
     // Shared core [3001,3003,3089,3157] has avg slots 0,1,2,4 — so openingId must be 3001
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsAlt])
     const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&patches=15.12`)
     expect(res.status).toBe(200)
     expect(res.body.archetypes.length).toBeGreaterThan(0)
@@ -1015,7 +1023,7 @@ describe('GET /api/items/builds', () => {
   })
 
   it('returns build rows after match insertion', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
@@ -1026,7 +1034,7 @@ describe('GET /api/items/builds', () => {
   })
 
   it('allowedIds filter — excludes builds containing items not in allowed list', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     // Provide only 4 of the 5 core items — the one build should be excluded
     const partialAllowed = ITEMS_CORE.slice(0, 4).join(',')
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${partialAllowed}`)
@@ -1035,7 +1043,7 @@ describe('GET /api/items/builds', () => {
   })
 
   it('returned builds only contain items present in the allowed list', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsAlt] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsAlt])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
     expect(res.status).toBe(200)
     const allowedSet = new Set(ITEMS_ALLOWED)
@@ -1047,14 +1055,14 @@ describe('GET /api/items/builds', () => {
   })
 
   it('filters by patch — returns empty for non-matching patch', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=99.99`)
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('filters by patch — returns data for matching patch only', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsOldPatch])
     // Both patches have the same build; filtering to 15.12 should return games=1
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=15.12`)
     expect(res.status).toBe(200)
@@ -1064,7 +1072,7 @@ describe('GET /api/items/builds', () => {
   })
 
   it('aggregates games across patches when no patch filter given', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, matchWithItemsOldPatch] })
+    await bulkInsert(app, [matchWithItems, matchWithItemsOldPatch])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}`)
     expect(res.status).toBe(200)
     expect(res.body.length).toBeGreaterThan(0)
@@ -1073,8 +1081,8 @@ describe('GET /api/items/builds', () => {
   })
 
   it('is idempotent — duplicate match insert does not double the build count', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&patches=15.12`)
     expect(res.status).toBe(200)
     const total = res.body.reduce((s: number, r: any) => s + r.games, 0)
@@ -1098,14 +1106,14 @@ const classicMatchWithItems: Match = {
 
 describe('queueId isolation — champion stats', () => {
   it('GET /api/champions returns empty for queueId=2450 when only 2400 data exists', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/champions?queueId=2450')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('GET /api/champions returns 2450 data only when queried with queueId=2450', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    await bulkInsert(app, [sampleMatch, classicMatch])
     const r2400 = await request(app).get('/api/champions?queueId=2400')
     const r2450 = await request(app).get('/api/champions?queueId=2450')
     expect(r2400.body.find((c: any) => c.championId === 10).games).toBe(1)
@@ -1116,7 +1124,7 @@ describe('queueId isolation — champion stats', () => {
   })
 
   it('GET /api/players/:puuid/champions?queueId=2450 is empty when only 2400 games', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/champions?queueId=2450')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
@@ -1125,21 +1133,21 @@ describe('queueId isolation — champion stats', () => {
 
 describe('queueId isolation — player stats', () => {
   it('GET /api/players/:puuid/stats?queueId=2450 returns null when only 2400 data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/players/test-puuid-1/stats?queueId=2450')
     expect(res.status).toBe(200)
     expect(res.body).toBeNull()
   })
 
   it('POST /api/players/bulk-stats?queueId=2450 returns empty when only 2400 data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).post('/api/players/bulk-stats?queueId=2450').send({ puuids: ['test-puuid-1'] })
     expect(res.status).toBe(200)
     expect(res.body).toEqual({})
   })
 
   it('player stats are stored separately — 2400 game count is unaffected by 2450 insert', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    await bulkInsert(app, [sampleMatch, classicMatch])
     const r2400 = await request(app).get('/api/players/test-puuid-1/stats?queueId=2400')
     const r2450 = await request(app).get('/api/players/test-puuid-1/stats?queueId=2450')
     expect(r2400.body.games).toBe(1)
@@ -1149,21 +1157,21 @@ describe('queueId isolation — player stats', () => {
 
 describe('queueId isolation — augment stats', () => {
   it('GET /api/augments?queueId=2450 returns empty when only 2400 data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments?queueId=2450')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('GET /api/augments?queueId=2400 ignores 2450 games', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [classicMatch] })
+    await bulkInsert(app, [classicMatch])
     const res = await request(app).get('/api/augments?queueId=2400')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
 
   it('each queue accumulates its own augment pick count', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch, classicMatch] })
+    await bulkInsert(app, [sampleMatch, classicMatch])
     const r2400 = await request(app).get('/api/augments?queueId=2400')
     const r2450 = await request(app).get('/api/augments?queueId=2450')
     const aug2400 = r2400.body.find((a: any) => a.augmentId === 200)
@@ -1173,7 +1181,7 @@ describe('queueId isolation — augment stats', () => {
   })
 
   it('GET /api/augments/:id/champions?queueId=2450 returns empty for 2400-only data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [sampleMatch] })
+    await bulkInsert(app, [sampleMatch])
     const res = await request(app).get('/api/augments/200/champions?queueId=2450')
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
@@ -1182,7 +1190,7 @@ describe('queueId isolation — augment stats', () => {
 
 describe('queueId isolation — item stats', () => {
   it('GET /api/items/picks?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2450`)
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
@@ -1190,14 +1198,14 @@ describe('queueId isolation — item stats', () => {
   })
 
   it('GET /api/items/picks?championId=X&queueId=2400 ignores 2450 games', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [classicMatchWithItems] })
+    await bulkInsert(app, [classicMatchWithItems])
     const res = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2400`)
     expect(res.status).toBe(200)
     expect(res.body.items).toEqual([])
   })
 
   it('item pick counts are stored separately per queue', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems, classicMatchWithItems] })
+    await bulkInsert(app, [matchWithItems, classicMatchWithItems])
     const r2400 = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2400`)
     const r2450 = await request(app).get(`/api/items/picks?championId=${ITEM_CHAMP_ID}&queueId=2450`)
     expect(r2400.body.totalGames).toBe(1)
@@ -1205,7 +1213,7 @@ describe('queueId isolation — item stats', () => {
   })
 
   it('GET /api/items/summary?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/summary?championId=${ITEM_CHAMP_ID}&queueId=2450`)
     expect(res.status).toBe(200)
     expect(res.body.totalGames).toBe(0)
@@ -1214,7 +1222,7 @@ describe('queueId isolation — item stats', () => {
   })
 
   it('GET /api/items/builds?championId=X&queueId=2450 returns empty for 2400-only data', async () => {
-    await request(app).post('/api/matches/bulk').send({ matches: [matchWithItems] })
+    await bulkInsert(app, [matchWithItems])
     const res = await request(app).get(`/api/items/builds?championId=${ITEM_CHAMP_ID}&allowed=${ITEMS_ALLOWED.join(',')}&queueId=2450`)
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])

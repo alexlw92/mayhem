@@ -2,7 +2,6 @@ import { Router, NextFunction } from 'express'
 import {
   matchExists,
   insertMatches,
-  flushPendingCaches,
   upsertMatch,
   getIncompleteGameIds,
   invalidateAllSyncTimes,
@@ -24,7 +23,6 @@ export function createSyncRouter(): Router {
     try {
       const { matches } = req.body as { matches: Match[] }
       const inserted = await insertMatches(matches)
-      await flushPendingCaches()
       res.json({ inserted })
     } catch (err) { next(err) }
   })

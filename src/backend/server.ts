@@ -19,7 +19,7 @@ export function createExpressApp(opts: AppOptions = {}) {
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = Date.now()
     res.on('finish', () => {
-      const route = (req as any).route?.path ?? req.path
+      const route = req.route?.path ?? req.path
       recordRequest(req.method, route, res.statusCode, Date.now() - start)
     })
     next()
@@ -41,10 +41,12 @@ export function createExpressApp(opts: AppOptions = {}) {
   app.use('/api', createMetaRouter(opts))
 
   // Global error handler — catches unhandled async errors in route handlers
-  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     logger.error({ err, req: { method: req.method, url: req.url } }, 'unhandled route error')
-    console.error(`[api] ${req.method} ${req.url} —`, err.message)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error(`[api] ${req.method} ${req.url} —`, err instanceof Error ? err.message : err)
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' })
+    }
   })
 
   return app

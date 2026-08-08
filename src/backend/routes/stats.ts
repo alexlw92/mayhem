@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getOrFetch } from '../queryCache'
+import { getMetrics, resetMetrics } from '../metrics'
 import {
   getPatches,
   getPlayerStats,
@@ -234,6 +235,15 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
       ),
     ])
     res.json({ ...perf, percentiles })
+  })
+
+  router.get('/metrics', (_req, res) => {
+    res.json(getMetrics())
+  })
+
+  router.post('/metrics/reset', (_req, res) => {
+    resetMetrics()
+    res.json({ ok: true })
   })
 
   return router

@@ -15,6 +15,7 @@
     "worker:start": "node dist-worker/src/worker/index.js",
     "dist": "npm run build && electron-builder",
     "db:recalculate-elo": "npm run server:build && node scripts/recalculate-elo.mjs",
+    "db:backfill-player-augments": "node scripts/backfill-player-augments.mjs",
     "e2e": "playwright test",
     "prepare": "git config core.hooksPath .githooks"
   },
@@ -45,6 +46,9 @@
     "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "lru-cache": "^11.5.2",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "pino-roll": "^4.0.0",
     "postgres": "^3.4.9",
     "react-router-dom": "^6.23.1",
     "recharts": "^2.12.7",

@@ -84,7 +84,7 @@ export function recordRequest(method: string, route: string, status: number, ms:
     store.set(key, m)
   }
   m.requests++
-  if (status >= 500) m.errors++
+  if (status >= 500 || status === 499) m.errors++
   m.latencies[m.head % 1000] = ms
   m.head++
 

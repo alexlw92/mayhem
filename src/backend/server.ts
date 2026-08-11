@@ -15,13 +15,28 @@ export function createExpressApp(opts: AppOptions = {}) {
   // Log every request to file
   app.use(pinoHttp({ logger }))
 
+  const SLOW_REQUEST_MS = 30_000
+
   // Record metrics on response finish (req.route is set by this point)
   app.use((req: Request, res: Response, next: NextFunction) => {
     const start = Date.now()
-    res.on('finish', () => {
+    let recorded = false
+    const record = (status: number) => {
+      if (recorded) return
+      recorded = true
       const route = req.route ? req.baseUrl + req.route.path : req.path
       if (req.method === 'GET' && route === '/api/metrics') return
-      recordRequest(req.method, route, res.statusCode, Date.now() - start)
+      recordRequest(req.method, route, status, Date.now() - start)
+    }
+    res.on('finish', () => {
+      const ms = Date.now() - start
+      // Treat slow-but-successful responses as gateway timeouts
+      const status = res.statusCode < 500 && ms >= SLOW_REQUEST_MS ? 504 : res.statusCode
+      record(status)
+    })
+    res.on('close', () => {
+      // Client disconnected before response was sent
+      if (!res.writableEnded) record(499)
     })
     next()
   })

@@ -121,18 +121,18 @@ async function main() {
     console.log(`[server] ready — listening on :${PORT}`)
     ;(process as any).parentPort?.postMessage({ type: 'ready' })
 
-    backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
-    rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
     setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
+    setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
     setTimeout(() => {
+      backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
+      rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
       flushPendingCaches()
         .then(() => warmLruCaches())
         .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
-    }, 60_000)
-    setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
+    }, 90_000)
     const logFile = process.env.MAYHEM_LOG_FILE
     if (logFile) initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
   })

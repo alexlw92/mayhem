@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, markPerfDirty, flushDirtyPerfCache, rebuildMissingPerfPairs, flushPendingCaches } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, refreshAllMatviews } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -12,11 +12,15 @@ async function truncate() {
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
   await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
-    champion_stats_cache, augment_stats_cache, player_stats_cache,
-    player_champion_stats_cache, augment_champion_stats_cache, player_augment_stats_cache,
     player_performance_cache, item_builds_cache, item_picks_cache,
-    item_archetypes_cache, player_elo, elo_history, pending_cache_games
+    item_archetypes_cache, player_elo, elo_history
     RESTART IDENTITY CASCADE`
+  await db`REFRESH MATERIALIZED VIEW player_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW champion_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW augment_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW player_champion_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW player_augment_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW augment_champion_stats_cache`
   await db.end()
 }
 
@@ -106,7 +110,7 @@ const championMap: Record<number, { name: string; tags: string[] }> = {
 describe('getPlayerPerformance', () => {
   it('returns zero metrics for unknown player', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('unknown', championMap, ['15.12'], 2400)
     expect(result.poolUniqueChampions).toBe(0)
     expect(result.kpDelta).toBe(0)
@@ -117,7 +121,7 @@ describe('getPlayerPerformance', () => {
 
   it('reports correct pool depth', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     expect(result.poolUniqueChampions).toBe(1)
     expect(result.poolTopChampions).toHaveLength(1)
@@ -128,7 +132,7 @@ describe('getPlayerPerformance', () => {
 
   it('buckets champion games by primary role tag', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     expect(result.classBuckets).toHaveLength(1)
     expect(result.classBuckets[0].class).toBe('Fighter')
@@ -138,7 +142,7 @@ describe('getPlayerPerformance', () => {
 
   it('kpDelta is ~0 when player is sole representative of their champion', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     // p1 is the only Kayle player so global Kayle KP% === p1's KP%
     expect(Math.abs(result.kpDelta)).toBeLessThan(0.01)
@@ -148,7 +152,7 @@ describe('getPlayerPerformance', () => {
 describe('champion_stats_cache total_team_kills and total_gold', () => {
   it('accumulates correct team kills and gold per champion', async () => {
     await insertMatches([makeGame()])
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const kayle = await queryChampCache(10)
     expect(Number(kayle.total_team_kills)).toBe(7)   // team 100: 4+3
     expect(Number(kayle.total_gold)).toBe(12000)
@@ -172,7 +176,7 @@ async function queryPlayerChampCache(puuid: string, championId: number, version 
 describe('player_champion_stats_cache total_gold and total_team_kills', () => {
   it('accumulates total_gold and total_team_kills per player-champion', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const row = await queryPlayerChampCache('p1', 10)
     // game1: gold=12000, team_kills=7 (4+3); game2: gold=9000, team_kills=3 (1+2)
     expect(Number(row.total_gold)).toBe(21000)
@@ -183,7 +187,7 @@ describe('player_champion_stats_cache total_gold and total_team_kills', () => {
 describe('player_augment_stats_cache', () => {
   it('accumulates player augment pick counts', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const postgres = (await import('postgres')).default
     const db = postgres(TEST_URL!, { onnotice: () => {} })
     const [row] = await db`
@@ -199,8 +203,7 @@ describe('player_augment_stats_cache', () => {
 describe('player_performance_cache / buildPlayerPerformanceCache', () => {
   it('populates correct metrics for sole champion representative', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
-    await buildPlayerPerformanceCache('15.12', 2400)
+    await refreshAllMatviews()
 
     const postgres = (await import('postgres')).default
     const db = postgres(TEST_URL!, { onnotice: () => {} })
@@ -211,20 +214,16 @@ describe('player_performance_cache / buildPlayerPerformanceCache', () => {
     await db.end()
 
     expect(row.games).toBe(2)
-    // p1 plays Kayle with 100% WR → cpq = 1.0 - 0.5 = 0.5
     expect(Number(row.cpq)).toBeCloseTo(0.5)
-    // p1 is sole Kayle player → delta vs expected ≈ 0
     expect(Math.abs(Number(row.kp_delta))).toBeLessThan(0.01)
     expect(Math.abs(Number(row.dpm_pct))).toBeLessThan(0.01)
     expect(Math.abs(Number(row.gpm_pct))).toBeLessThan(0.01)
-    // p1 is sole aug 100 picker → apq ≈ 0
     expect(Math.abs(Number(row.apq))).toBeLessThan(0.01)
   })
 
-  it('buildPlayerPerformanceCache populates cache after insertMatches+flush', async () => {
+  it('populates player_performance_cache after insertMatches + refreshAllMatviews', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
-    await flushDirtyPerfCache()
+    await refreshAllMatviews()
     const postgres = (await import('postgres')).default
     const db = postgres(TEST_URL!, { onnotice: () => {} })
     const rows = await db`SELECT * FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
@@ -236,7 +235,7 @@ describe('player_performance_cache / buildPlayerPerformanceCache', () => {
 describe('getPerformancePercentiles', () => {
   it('returns null when fewer than 10 qualifying players', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     // makeGames has only 5 distinct players
     const result = await getPerformancePercentiles('p1', ['15.12'], 2400)
     expect(result).toBeNull()
@@ -246,7 +245,7 @@ describe('getPerformancePercentiles', () => {
 describe('getPlayerPerformance dpmPct and gpmPct', () => {
   it('includes dpmPct and gpmPct as fractional deltas', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     expect(result).toHaveProperty('dpmPct')
     expect(result).toHaveProperty('gpmPct')
@@ -261,7 +260,7 @@ describe('getPlayerPerformance dpmPct and gpmPct', () => {
 describe('getPlayerPerformance cache-based computation', () => {
   it('computes kpDelta from cache tables', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     // p1 is sole Kayle player so kpDelta ≈ 0
     expect(Math.abs(result.kpDelta)).toBeLessThan(0.01)
@@ -269,7 +268,7 @@ describe('getPlayerPerformance cache-based computation', () => {
 
   it('computes dpmPct and gpmPct from cache tables', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     expect(Math.abs(result.dpmPct)).toBeLessThan(0.01)
     expect(Math.abs(result.gpmPct)).toBeLessThan(0.01)
@@ -277,184 +276,10 @@ describe('getPlayerPerformance cache-based computation', () => {
 
   it('computes augmentPickQuality from player_augment_stats_cache', async () => {
     await insertMatches(makeGames())
-    await flushPendingCaches()
+    await refreshAllMatviews()
     const result = await getPlayerPerformance('p1', championMap, ['15.12'], 2400)
     expect(typeof result.augmentPickQuality).toBe('number')
     // p1 is sole picker of augId 100 so apq ≈ 0
     expect(Math.abs(result.augmentPickQuality)).toBeLessThan(0.01)
-  })
-})
-
-describe('dirty perf cache machinery', () => {
-  it('flushPendingCaches deletes player_performance_cache for affected pairs', async () => {
-    const postgres = (await import('postgres')).default
-    const db = postgres(TEST_URL!, { onnotice: () => {} })
-
-    await db`
-      INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
-      VALUES ('p1', 2400, '15.12', 5, 0.1, 0.05, 0.02, 0.1, 0.1)
-    `
-
-    await insertMatches([{
-      gameId: 99001, queueId: 2400, gameCreation: 1000, gameDuration: 1200, gameVersion: '15.12',
-      participants: [
-        { puuid: 'p1', summonerName: 'P1', championId: 10, championName: 'Kayle',
-          teamId: 100, win: true, kills: 1, deaths: 0, assists: 0,
-          damageDealt: 1000, damageTaken: 500, goldEarned: 3000, champLevel: 10, augments: [] },
-        { puuid: 'p2', summonerName: 'P2', championId: 20, championName: 'Lux',
-          teamId: 200, win: false, kills: 0, deaths: 1, assists: 0,
-          damageDealt: 500, damageTaken: 1000, goldEarned: 2000, champLevel: 8, augments: [] },
-      ]
-    }])
-
-    // Row still present — insertMatches no longer deletes it
-    const [before] = await db`SELECT * FROM player_performance_cache WHERE puuid = 'p1' AND "queueId" = 2400 AND "gameVersion" = '15.12'`
-    expect(before).toBeDefined()
-
-    await flushPendingCaches()
-
-    // Row gone after flush
-    const [after] = await db`SELECT * FROM player_performance_cache WHERE puuid = 'p1' AND "queueId" = 2400 AND "gameVersion" = '15.12'`
-    expect(after).toBeUndefined()
-    await db.end()
-  })
-
-  it('flushDirtyPerfCache is a no-op when nothing is dirty', async () => {
-    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
-  })
-
-  it('flushDirtyPerfCache runs and clears the dirty set', async () => {
-    markPerfDirty('15.12', 2400)
-    // buildPlayerPerformanceCache returns early when no player_champion_stats_cache data exists
-    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
-    // Calling again is a no-op (set was cleared)
-    await expect(flushDirtyPerfCache()).resolves.toBeUndefined()
-  })
-
-  it('rebuildMissingPerfPairs is a no-op when all pairs are present', async () => {
-    // No data in player_champion_stats_cache — nothing to rebuild
-    await expect(rebuildMissingPerfPairs()).resolves.toBeUndefined()
-  })
-
-  it('rebuildMissingPerfPairs rebuilds pairs missing from player_performance_cache', async () => {
-    const postgres = (await import('postgres')).default
-    const db = postgres(TEST_URL!, { onnotice: () => {} })
-
-    await insertMatches(makeGames())
-    // flushPendingCaches populates player_champion_stats_cache and deletes player_performance_cache
-    await flushPendingCaches()
-
-    // Confirm perf cache is absent (deleted by flushPendingCaches, not yet rebuilt)
-    const before = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
-    expect(Number(before[0].count)).toBe(0)
-
-    // Recovery: rebuild missing pairs (dirty set is populated but rebuildMissingPerfPairs uses DB state)
-    await rebuildMissingPerfPairs()
-
-    // Perf cache should now have rows for the affected players
-    const after = await db`SELECT COUNT(*) FROM player_performance_cache WHERE "gameVersion" = '15.12' AND "queueId" = 2400`
-    expect(Number(after[0].count)).toBeGreaterThan(0)
-
-    await db.end()
-  })
-})
-
-describe('flushPendingCaches', () => {
-  it('is a no-op when pending_cache_games is empty', async () => {
-    await expect(flushPendingCaches()).resolves.toBeUndefined()
-  })
-
-  it('populates all cache tables from pending games', async () => {
-    const postgres = (await import('postgres')).default
-    const db = postgres(TEST_URL!, { onnotice: () => {} })
-
-    // Insert raw data directly — simulating what insertMatches will do after Task 3
-    await db`
-      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-      VALUES (9001, 2400, 1000, 1200, '15.12'), (9002, 2400, 2000, 1000, '15.12')
-    `
-    await db`
-      INSERT INTO participants
-        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
-      VALUES
-        (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200),
-        (9001,'p2','P2',11,'Other',100,true,3,2,4,30000,18000,9000,13,'15.12',1200),
-        (9001,'p3','P3',20,'Lux',200,false,2,4,2,20000,30000,6000,11,'15.12',1200),
-        (9002,'p1','P1',10,'Kayle',100,true,1,0,1,30000,10000,9000,14,'15.12',1000),
-        (9002,'p4','P4',11,'Other',100,true,2,1,3,25000,15000,8000,12,'15.12',1000),
-        (9002,'p5','P5',20,'Lux',200,false,3,2,2,22000,28000,7500,12,'15.12',1000)
-    `
-    await db`
-      INSERT INTO participant_augments ("participantId","augmentId")
-      SELECT id, 100 FROM participants WHERE puuid = 'p1'
-    `
-    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001), (9002)`
-    await db.end()
-
-    await flushPendingCaches()
-
-    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
-    const champRow = await db2`SELECT games FROM champion_stats_cache WHERE "championId" = 10 AND "gameVersion" = '15.12' AND "queueId" = 2400`
-    const playerRow = await db2`SELECT games FROM player_stats_cache WHERE puuid = 'p1' AND "gameVersion" = '15.12' AND "queueId" = 2400`
-    const playerChampRow = await db2`SELECT games FROM player_champion_stats_cache WHERE puuid = 'p1' AND "championId" = 10 AND "gameVersion" = '15.12' AND "queueId" = 2400`
-    const augRow = await db2`SELECT pick_count FROM player_augment_stats_cache WHERE puuid = 'p1' AND "augmentId" = 100 AND "gameVersion" = '15.12' AND "queueId" = 2400`
-    await db2.end()
-
-    expect(Number(champRow[0].games)).toBe(2)
-    expect(Number(playerRow[0].games)).toBe(2)
-    expect(Number(playerChampRow[0].games)).toBe(2)
-    expect(Number(augRow[0].pick_count)).toBe(2)
-  })
-
-  it('clears pending_cache_games after processing', async () => {
-    const postgres = (await import('postgres')).default
-    const db = postgres(TEST_URL!, { onnotice: () => {} })
-
-    await db`
-      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-      VALUES (9001, 2400, 1000, 1200, '15.12')
-    `
-    await db`
-      INSERT INTO participants
-        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
-      VALUES (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200)
-    `
-    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001)`
-    await db.end()
-
-    await flushPendingCaches()
-
-    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
-    const [{ count }] = await db2`SELECT COUNT(*) FROM pending_cache_games`
-    await db2.end()
-    expect(Number(count)).toBe(0)
-  })
-
-  it('deletes player_performance_cache and marks pairs dirty for later flush', async () => {
-    const postgres = (await import('postgres')).default
-    const db = postgres(TEST_URL!, { onnotice: () => {} })
-
-    await db`
-      INSERT INTO matches ("gameId","queueId","gameCreation","gameDuration","gameVersion")
-      VALUES (9001, 2400, 1000, 1200, '15.12')
-    `
-    await db`
-      INSERT INTO participants
-        ("gameId",puuid,"summonerName","championId","championName","teamId",win,kills,deaths,assists,"damageDealt","damageTaken","goldEarned","champLevel","gameVersion","gameDuration")
-      VALUES (9001,'p1','P1',10,'Kayle',100,true,4,1,3,50000,20000,12000,15,'15.12',1200)
-    `
-    await db`
-      INSERT INTO player_performance_cache (puuid,"queueId","gameVersion",games,cpq,apq,kp_delta,dpm_pct,gpm_pct)
-      VALUES ('p1', 2400, '15.12', 5, 0.1, 0.05, 0.02, 0.1, 0.1)
-    `
-    await db`INSERT INTO pending_cache_games (game_id) VALUES (9001)`
-    await db.end()
-
-    await flushPendingCaches()
-
-    const db2 = postgres(TEST_URL!, { onnotice: () => {} })
-    const [row] = await db2`SELECT * FROM player_performance_cache WHERE puuid = 'p1' AND "queueId" = 2400 AND "gameVersion" = '15.12'`
-    await db2.end()
-    expect(row).toBeUndefined()
   })
 })

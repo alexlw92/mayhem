@@ -2,14 +2,10 @@ import axios from 'axios'
 import { initMetricsPersistence } from './metrics'
 import {
   initDb,
-  backfillDetailCaches,
   upsertChampions, upsertAugments,
   getChampionsFromDb, getAugmentsFromDb,
   getPatches,
   upsertItemMeta,
-  flushDirtyPerfCache,
-  rebuildMissingPerfPairs,
-  flushPendingCaches,
   getPlayerStats,
   getChampionStats,
   getAugmentStats,
@@ -124,21 +120,12 @@ async function main() {
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
-    setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
-    setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
+    warmLruCaches().catch(err => console.warn('[cache] LRU warm failed:', (err as Error).message))
     const logFile = process.env.MAYHEM_LOG_FILE
     if (logFile) {
       initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
       initLruPersistence(logFile.replace(/\.log$/, '-lru-cache.json'))
     }
-    warmLruCaches().catch(err => console.warn('[cache] LRU warm failed:', (err as Error).message))
-    setTimeout(() => {
-      backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
-      rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
-      flushPendingCaches()
-        .then(() => warmLruCaches())
-        .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
-    }, 90_000)
   })
 }
 

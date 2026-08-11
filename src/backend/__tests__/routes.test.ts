@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import request from 'supertest'
-import { initDb, Match, flushPendingCaches } from '../db'
+import { initDb, Match, refreshAllMatviews } from '../db'
 import { createExpressApp } from '../server'
 import { clearAll } from '../queryCache'
 
@@ -20,10 +20,15 @@ async function truncate() {
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
   await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participant_items, participants, matches,
-    champion_stats_cache, augment_stats_cache, player_stats_cache,
-    player_champion_stats_cache, augment_champion_stats_cache, item_builds_cache, item_picks_cache,
+    player_performance_cache, item_builds_cache, item_picks_cache,
     item_archetypes_cache, player_elo, elo_history
     RESTART IDENTITY CASCADE`
+  await db`REFRESH MATERIALIZED VIEW player_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW champion_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW augment_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW player_champion_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW player_augment_stats_cache`
+  await db`REFRESH MATERIALIZED VIEW augment_champion_stats_cache`
   await db.end()
 }
 
@@ -36,7 +41,7 @@ beforeEach(async () => {
  *  that query cache tables see the data immediately. */
 async function bulkInsert(appInstance: ReturnType<typeof createExpressApp>, matches: Match[]) {
   const res = await request(appInstance).post('/api/matches/bulk').send({ matches })
-  await flushPendingCaches()
+  await refreshAllMatviews()
   return res
 }
 

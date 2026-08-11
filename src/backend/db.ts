@@ -90,7 +90,13 @@ export async function rebuildMissingPerfPairs(): Promise<void> {
   }
 }
 
+let _flushRunning = false
 export async function flushPendingCaches(): Promise<void> {
+  if (_flushRunning) return
+  _flushRunning = true
+  try { return await _flushPendingCaches() } finally { _flushRunning = false }
+}
+async function _flushPendingCaches(): Promise<void> {
   const batchRows = await sql_`SELECT game_id FROM pending_cache_games LIMIT 500`
   if ((batchRows as any[]).length === 0) return
   const batch = (batchRows as any[]).map(r => Number(r.game_id))

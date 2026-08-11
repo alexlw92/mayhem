@@ -115,6 +115,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
   const [scannedAugIds, setScannedAugIds] = useState<number[]>([])
   const [ocrDebugText, setOcrDebugText] = useState<string | null>(null)
   const [ocrScreenshot, setOcrScreenshot] = useState<string | null>(null)
+  const [ocrEnabled, setOcrEnabled] = useState(false)
 
   useEffect(() => {
     api.db.augmentCache().then(setAugmentCache).catch(() => {})
@@ -166,6 +167,12 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
         if (currentPhase === 'ChampSelect' && !hasSyncedChampSelectRef.current && puuids.length > 0) {
           hasSyncedChampSelectRef.current = true
           api.lcu.syncCurrentGame(puuids).catch(() => {})
+        }
+        if (prevPhase !== 'ChampSelect' && currentPhase === 'ChampSelect') {
+          fetchedPuuidsRef.current = new Set()
+          setPlayerStats({})
+          setChampionStats({})
+          setChampAugStats(null)
         }
         if (prevPhase === 'ChampSelect' && currentPhase !== 'ChampSelect') {
           hasSyncedChampSelectRef.current = false
@@ -231,7 +238,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
     poll()
     const id = setInterval(poll, POLL_MS)
     return () => { cancelled = true; clearInterval(id) }
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   useEffect(() => {
     setPlayerStats({})
@@ -240,7 +247,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
     setChampAugStats(null)
     setSearch('')
     fetchedPuuidsRef.current = new Set()
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   useEffect(() => {
     const unsub = api.on('sync-progress', ({ puuid }: { puuid: string }) => {
@@ -264,7 +271,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
       })
     })
     return unsub
-  }, [selectedPatches])
+  }, [selectedPatches, selectedMode])
 
   useEffect(() => {
     if (!myPuuid || !gameState) return
@@ -282,7 +289,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
   const phase = gameState?.phase
 
   useEffect(() => {
-    if (phase !== 'InProgress') {
+    if (phase !== 'InProgress' || !ocrEnabled) {
       setScannedAugIds([])
       setOcrDebugText(null)
       setOcrScreenshot(null)
@@ -317,7 +324,7 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
     scan()
     const id = setInterval(scan, OCR_POLL_MS)
     return () => { cancelled = true; clearInterval(id) }
-  }, [phase, augmentCache, selectedPatches])
+  }, [phase, ocrEnabled, augmentCache, selectedPatches])
 
   if (!phase || phase === 'None' || phase === 'Lobby' || phase === 'Matchmaking' || phase === 'ReadyCheck') {
     return (
@@ -398,8 +405,17 @@ export default function CurrentGame({ selectedPatches, selectedMode, onChampionC
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Augments on Screen</span>
-          {phase === 'InProgress' && (
+          {phase === 'InProgress' && ocrEnabled && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>auto-scanning</span>
+          )}
+          {phase === 'InProgress' && (
+            <button
+              className="aug-btn"
+              onClick={() => setOcrEnabled((v) => !v)}
+              style={ocrEnabled ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+            >
+              {ocrEnabled ? 'Disable OCR' : 'Enable OCR'}
+            </button>
           )}
         </div>
         {scannedAugIds.length > 0 && (

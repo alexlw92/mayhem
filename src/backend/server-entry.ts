@@ -126,6 +126,7 @@ async function main() {
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
     setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
     setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
+    warmLruCaches().catch(err => console.warn('[cache] LRU warm failed:', (err as Error).message))
     setTimeout(() => {
       backfillDetailCaches(sendProgress).catch(err => console.warn('[backfill] failed:', (err as Error).message))
       rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))

@@ -17,7 +17,7 @@ export const apiClient = {
     http.get('/api/patches').then((r) => r.data),
 
   playerStats: (patches?: string[], queueId = 2400) =>
-    http.get('/api/players', { params: { patches: patches?.join(','), queueId }, timeout: 30_000 }).then((r) => r.data),
+    http.get('/api/players', { params: { patches: patches?.join(','), queueId }, timeout: 60_000 }).then((r) => r.data),
 
   playerOneStats: (puuid: string, patches?: string[], queueId = 2400) =>
     http.get(`/api/players/${puuid}/stats`, { params: { patches: patches?.join(','), queueId }, timeout: 30_000 }).then((r) => r.data),

@@ -194,6 +194,7 @@ export default function Players({ onPlayersChange, selectedPatches, selectedMode
 
 function RecentPlayerCard({
   entry,
+  stats: propStats,
   selectedPatches,
   selectedMode,
   onSelect,
@@ -201,20 +202,18 @@ function RecentPlayerCard({
   onRemove,
 }: {
   entry: RecentEntry
+  stats: PlayerStats | null
   selectedPatches: string[] | null
   selectedMode?: number
   onSelect: (puuid: string, player: PlayerStats) => void
   onPlayersChange: () => void
   onRemove: (puuid: string) => void
 }) {
-  const [stats, setStats] = useState<PlayerStats | null>(null)
+  const [stats, setStats] = useState<PlayerStats | null>(propStats)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
 
-  useEffect(() => {
-    if (selectedPatches === null) return
-    api.db.playerOneStats(entry.puuid, selectedPatches, selectedMode ?? 2400).then(setStats).catch(() => {})
-  }, [entry.puuid, selectedPatches, selectedMode])
+  useEffect(() => { setStats(propStats) }, [propStats])
 
   const handleSync = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -312,6 +311,7 @@ function PlayerList({
   const [addError, setAddError] = useState('')
   const [addLoading, setAddLoading] = useState(false)
   const [recents, setRecents] = useState<RecentEntry[]>([])
+  const [statsMap, setStatsMap] = useState<Record<string, PlayerStats>>({})
   const [showRecents, setShowRecents] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ puuid: string; summonerName: string }[]>([])
@@ -319,6 +319,13 @@ function PlayerList({
   const [searchFired, setSearchFired] = useState(false)
 
   useEffect(() => { loadRecents().then(setRecents) }, [])
+
+  useEffect(() => {
+    if (selectedPatches === null || recents.length === 0) return
+    api.db.playerBulkStats(recents.map(r => r.puuid), selectedPatches, selectedMode ?? 2400)
+      .then((map: Record<string, PlayerStats>) => setStatsMap(map))
+      .catch(() => {})
+  }, [recents, selectedPatches, selectedMode])
 
   useEffect(() => {
     if (searchQuery.length < 2) {
@@ -515,6 +522,7 @@ function PlayerList({
             <RecentPlayerCard
               key={r.puuid}
               entry={r}
+              stats={statsMap[r.puuid] ?? null}
               selectedPatches={selectedPatches}
               selectedMode={selectedMode}
               onSelect={handleSelect}

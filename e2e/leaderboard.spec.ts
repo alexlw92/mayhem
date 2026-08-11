@@ -81,7 +81,10 @@ test('sync button label changes to "Sync Recent Players" when switching to Recen
 test('Sync Recent Players button is disabled when no recents are loaded', async ({ window }) => {
   await window.locator('tbody tr:visible').first().waitFor({ timeout: 10_000 })
   await window.locator('button', { hasText: /^Recent$/ }).click()
-  // No recents in a fresh e2e session — button should be visible but disabled
+  // Clear any recents left by previous tests (elo.spec.ts adds entries via search)
+  while (await window.locator('.lb-remove-btn').first().isVisible({ timeout: 500 }).catch(() => false)) {
+    await window.locator('.lb-remove-btn').first().click()
+  }
   const btn = window.locator('button', { hasText: 'Sync Recent Players' })
   await expect(btn).toBeVisible()
   await expect(btn).toBeDisabled()

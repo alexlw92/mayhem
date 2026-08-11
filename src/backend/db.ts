@@ -1708,9 +1708,11 @@ export async function getBulkPlayerStats(
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
           END AS "avgDpm",
-          MAX(pe.elo) AS elo
+          MAX(pe.elo) AS elo,
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
         FROM player_stats_cache pc
         LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
+        LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
         WHERE pc.puuid = ANY(${puuids}) AND pc."queueId" = ${queueId} AND pc."gameVersion" = ANY(${patches})
         GROUP BY pc.puuid`
     : await sql_`
@@ -1721,9 +1723,11 @@ export async function getBulkPlayerStats(
           CASE WHEN SUM(pc.total_duration) > 0
             THEN SUM(pc.total_damage)::float / (SUM(pc.total_duration) / 60.0) ELSE 0
           END AS "avgDpm",
-          MAX(pe.elo) AS elo
+          MAX(pe.elo) AS elo,
+          COALESCE(MAX(pst."syncedAt"), 0) AS "syncedAt"
         FROM player_stats_cache pc
         LEFT JOIN player_elo pe ON pe.puuid = pc.puuid AND pe."queueId" = ${queueId}
+        LEFT JOIN player_sync_times pst ON pst.puuid = pc.puuid
         WHERE pc.puuid = ANY(${puuids}) AND pc."queueId" = ${queueId}
         GROUP BY pc.puuid`
   const result: Record<string, PlayerStats> = {}
@@ -1740,7 +1744,7 @@ export async function getBulkPlayerStats(
       avgDpm: parseFloat(r.avgDpm),
       avgGold: 0,
       syncedFull: true,
-      syncedAt: 0,
+      syncedAt: Number(r.syncedAt ?? 0),
       elo: r.elo != null ? parseFloat(r.elo) : null,
     }
   }

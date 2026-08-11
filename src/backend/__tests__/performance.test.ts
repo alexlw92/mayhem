@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { initDb, insertMatches, Match, getPlayerPerformance, buildPlayerPerformanceCache, getPerformancePercentiles, refreshAllMatviews } from '../db'
+import { initDb, insertMatches, Match, getPlayerPerformance, getPerformancePercentiles, refreshAllMatviews } from '../db'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')

@@ -10,6 +10,7 @@
     "preview": "electron-vite preview",
     "start": "electron-vite dev",
     "test": "vitest run",
+    "bench": "vitest bench --run src/backend/__tests__/perf.bench.ts",
     "server:build": "tsc --project tsconfig.server.json",
     "server:start": "node dist-server/server-entry.js",
     "worker:build": "tsc --project tsconfig.worker.json",

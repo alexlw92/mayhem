@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { getLastRefreshMs } from './db'
 
 interface RouteMetrics {
   requests: number
@@ -23,6 +24,7 @@ export interface MetricsSnapshot {
   globalP50: number
   globalP95: number
   globalP99: number
+  matviewLastRefreshMs: number   // -1 if never refreshed since start
   routes: RouteSnapshot[]
 }
 
@@ -124,6 +126,7 @@ export function getMetrics(): MetricsSnapshot {
     globalP50: percentile(gSample, 50),
     globalP95: percentile(gSample, 95),
     globalP99: percentile(gSample, 99),
+    matviewLastRefreshMs: getLastRefreshMs(),
     routes,
   }
 }

@@ -6,6 +6,7 @@ dist-worker/
 dist-electron/
 .env
 .env.dev
+.env.staging
 *.backup
 .idea/
 *.iml

@@ -14,6 +14,8 @@ import dotenv from 'dotenv'
 dotenv.config({ path: join(process.cwd(), '.env.dev'), override: true })
 if (process.env.RELEASE_BUILD === 'true') {
   dotenv.config({ path: join(process.cwd(), '.env'), override: true })
+} else if (process.env.STAGING === 'true') {
+  dotenv.config({ path: join(process.cwd(), '.env.staging'), override: true })
 }
 
 export default defineConfig({

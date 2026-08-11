@@ -5,6 +5,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "npm run server:build && electron-vite dev",
+    "staging": "cross-env STAGING=true npm run server:build && cross-env STAGING=true electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite dev",
@@ -67,6 +68,7 @@
     "@types/react-dom": "^18.3.0",
     "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
     "electron": "^36.0.0",
     "electron-builder": "^26.15.3",

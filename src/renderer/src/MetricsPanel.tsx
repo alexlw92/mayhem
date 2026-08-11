@@ -58,7 +58,7 @@ export default function MetricsPanel() {
   }
 
   return (
-    <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#ccc', background: '#111', minHeight: '100vh' }}>
+    <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#ccc', background: '#111', height: '100vh', overflowY: 'auto' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #333', background: '#1a1a1a' }}>

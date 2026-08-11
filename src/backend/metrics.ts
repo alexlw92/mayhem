@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 interface RouteMetrics {
   requests: number
   errors: number
@@ -29,6 +31,50 @@ const store = new Map<string, RouteMetrics>()
 const globalLatencies = new Array(1000).fill(0)
 let globalHead = 0
 let startTime = Date.now()
+let persistPath: string | null = null
+
+function writeSnapshot(): void {
+  if (!persistPath) return
+  try {
+    const routes: Record<string, { requests: number; errors: number; latencies: number[]; head: number }> = {}
+    for (const [key, m] of store.entries()) {
+      routes[key] = { requests: m.requests, errors: m.errors, latencies: [...m.latencies], head: m.head }
+    }
+    fs.writeFileSync(persistPath, JSON.stringify({
+      startTime,
+      globalLatencies: [...globalLatencies],
+      globalHead,
+      routes,
+    }))
+  } catch (err) {
+    console.warn('[metrics] snapshot write failed:', (err as Error).message)
+  }
+}
+
+export function initMetricsPersistence(filePath: string): void {
+  persistPath = filePath
+  try {
+    const snap = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    if (typeof snap.startTime === 'number') startTime = snap.startTime
+    if (Array.isArray(snap.globalLatencies)) {
+      for (let i = 0; i < Math.min(snap.globalLatencies.length, 1000); i++)
+        globalLatencies[i] = snap.globalLatencies[i] ?? 0
+    }
+    if (typeof snap.globalHead === 'number') globalHead = snap.globalHead
+    if (snap.routes && typeof snap.routes === 'object') {
+      for (const [key, r] of Object.entries(snap.routes) as [string, any][]) {
+        const latencies = new Array(1000).fill(0)
+        if (Array.isArray(r.latencies)) {
+          for (let i = 0; i < Math.min(r.latencies.length, 1000); i++)
+            latencies[i] = r.latencies[i] ?? 0
+        }
+        store.set(key, { requests: r.requests ?? 0, errors: r.errors ?? 0, latencies, head: r.head ?? 0 })
+      }
+    }
+  } catch { /* no file or corrupt — start fresh */ }
+  setInterval(writeSnapshot, 30_000)
+  process.on('exit', writeSnapshot)
+}
 
 export function recordRequest(method: string, route: string, status: number, ms: number): void {
   const key = `${method} ${route}`
@@ -87,4 +133,5 @@ export function resetMetrics(): void {
   globalLatencies.fill(0)
   globalHead = 0
   startTime = Date.now()
+  writeSnapshot()
 }

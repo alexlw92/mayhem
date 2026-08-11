@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { initMetricsPersistence } from './metrics'
 import {
   initDb,
   backfillDetailCaches,
@@ -130,6 +131,8 @@ async function main() {
       .then(() => warmLruCaches())
       .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
     setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
+    const logFile = process.env.MAYHEM_LOG_FILE
+    if (logFile) initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
   })
 }
 

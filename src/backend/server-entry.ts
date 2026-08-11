@@ -120,12 +120,12 @@ async function main() {
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
-    warmLruCaches().catch(err => console.warn('[cache] LRU warm failed:', (err as Error).message))
     const logFile = process.env.MAYHEM_LOG_FILE
     if (logFile) {
       initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
       initLruPersistence(logFile.replace(/\.log$/, '-lru-cache.json'))
     }
+    warmLruCaches().catch(err => console.warn('[cache] LRU warm failed:', (err as Error).message))
   })
 }
 

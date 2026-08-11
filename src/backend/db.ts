@@ -54,89 +54,102 @@ let sql_: ReturnType<typeof postgres>
 // ─── Materialized view refresh ────────────────────────────────────────────────
 
 let lastRefreshMs = -1
+let _refreshPromise: Promise<void> | null = null
 
 export function getLastRefreshMs(): number {
   return lastRefreshMs
 }
 
 export async function refreshAllMatviews(): Promise<void> {
-  const start = Date.now()
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_stats_cache`
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY champion_stats_cache`
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY augment_stats_cache`
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_champion_stats_cache`
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_augment_stats_cache`
-  await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY augment_champion_stats_cache`
+  if (_refreshPromise) return _refreshPromise
+  _refreshPromise = (async () => {
+  try {
+    const start = Date.now()
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_stats_cache`
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY champion_stats_cache`
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY augment_stats_cache`
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_champion_stats_cache`
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_augment_stats_cache`
+    await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY augment_champion_stats_cache`
 
-  // Rebuild player_performance_cache for all active version/queue pairs
-  const pairs: any[] = await sql_`
-    SELECT DISTINCT "gameVersion", "queueId"
-    FROM player_champion_stats_cache
-    WHERE "gameVersion" IS NOT NULL
-  `
-  for (const { gameVersion, queueId } of pairs) {
-    await buildPlayerPerformanceCache(gameVersion as string, Number(queueId))
+    // Rebuild player_performance_cache for all active version/queue pairs
+    const pairs: any[] = await sql_`
+      SELECT DISTINCT "gameVersion", "queueId"
+      FROM player_champion_stats_cache
+      WHERE "gameVersion" IS NOT NULL
+    `
+    for (const { gameVersion, queueId } of pairs) {
+      await buildPlayerPerformanceCache(gameVersion as string, Number(queueId))
+    }
+
+    // Rebuild item_builds_cache and item_picks_cache from scratch for all patches
+    await sql_.begin(async tx => {
+      await tx`DELETE FROM item_builds_cache`
+      await tx`
+        WITH agg AS (
+          SELECT p."gameVersion", m."queueId", p."championId", p.win::int AS win,
+            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+          FROM participants p
+          JOIN matches m ON m."gameId" = p."gameId"
+          JOIN participant_items pi ON pi."participantId" = p.id
+          WHERE p."gameVersion" IS NOT NULL
+          GROUP BY p."gameVersion", m."queueId", p.id, p."championId", p.win
+          HAVING count(*) >= 5
+        ),
+        combos AS (
+          SELECT agg."gameVersion", agg."queueId", agg."championId", agg.win,
+            ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
+          FROM agg,
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
+            LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
+          WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
+        )
+        INSERT INTO item_builds_cache ("gameVersion","queueId","championId",build,games,wins)
+        SELECT "gameVersion","queueId","championId",build,COUNT(*)::int,SUM(win)::int
+        FROM combos GROUP BY "gameVersion","queueId","championId",build
+        ON CONFLICT DO NOTHING
+      `
+    })
+    await sql_.begin(async tx => {
+      await tx`DELETE FROM item_picks_cache`
+      await tx`
+        INSERT INTO item_picks_cache ("gameVersion","queueId","championId","itemId",picks,wins,slot_emptiness_sum,slot_emptiness_count)
+        SELECT p."gameVersion", m."queueId", p."championId", pi."itemId",
+               COUNT(*)::int, SUM(p.win::int)::int,
+               SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float,
+               COUNT(*)::int
+        FROM participants p
+        JOIN matches m ON m."gameId" = p."gameId"
+        JOIN participant_items pi ON pi."participantId" = p.id
+        LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
+        WHERE p."gameVersion" IS NOT NULL
+        GROUP BY p."gameVersion", m."queueId", p."championId", pi."itemId"
+        ON CONFLICT DO NOTHING
+      `
+    })
+
+    lastRefreshMs = Date.now() - start
+
+    invalidatePrefix('champions:')
+    invalidatePrefix('players:')
+    invalidatePrefix('augments:')
+    invalidatePrefix('perf:')
+    invalidatePrefix('perf_data:')
+    invalidatePrefix('item_builds:')
+    invalidatePrefix('item_picks:')
+    invalidatePrefix('item_archetypes:')
+    invalidatePrefix('champ_player:')
+    invalidatePrefix('matches_player:')
+    invalidatePrefix('aug_player:')
+    invalidatePrefix('coplayers:')
+  } finally {
+    _refreshPromise = null
   }
-
-  // Rebuild item_builds_cache and item_picks_cache from scratch for all patches
-  await sql_`TRUNCATE item_builds_cache`
-  await sql_`
-    WITH agg AS (
-      SELECT p."gameVersion", m."queueId", p."championId", p.win::int AS win,
-        array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-      FROM participants p
-      JOIN matches m ON m."gameId" = p."gameId"
-      JOIN participant_items pi ON pi."participantId" = p.id
-      WHERE p."gameVersion" IS NOT NULL
-      GROUP BY p."gameVersion", m."queueId", p.id, p."championId", p.win
-      HAVING count(*) >= 5
-    ),
-    combos AS (
-      SELECT agg."gameVersion", agg."queueId", agg."championId", agg.win,
-        ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
-      FROM agg,
-        LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
-        LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
-        LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
-        LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
-        LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
-      WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
-    )
-    INSERT INTO item_builds_cache ("gameVersion","queueId","championId",build,games,wins)
-    SELECT "gameVersion","queueId","championId",build,COUNT(*)::int,SUM(win)::int
-    FROM combos GROUP BY "gameVersion","queueId","championId",build
-    ON CONFLICT DO NOTHING
-  `
-  await sql_`TRUNCATE item_picks_cache`
-  await sql_`
-    INSERT INTO item_picks_cache ("gameVersion","queueId","championId","itemId",picks,wins,slot_emptiness_sum,slot_emptiness_count)
-    SELECT p."gameVersion", m."queueId", p."championId", pi."itemId",
-           COUNT(*)::int, SUM(p.win::int)::int,
-           SUM(COALESCE(6 - array_length(pis."itemIds", 1), 0))::float,
-           COUNT(*)::int
-    FROM participants p
-    JOIN matches m ON m."gameId" = p."gameId"
-    JOIN participant_items pi ON pi."participantId" = p.id
-    LEFT JOIN participant_item_sets pis ON pis."participantId" = p.id
-    WHERE p."gameVersion" IS NOT NULL
-    GROUP BY p."gameVersion", m."queueId", p."championId", pi."itemId"
-    ON CONFLICT DO NOTHING
-  `
-
-  lastRefreshMs = Date.now() - start
-
-  invalidatePrefix('champions:')
-  invalidatePrefix('players:')
-  invalidatePrefix('augments:')
-  invalidatePrefix('perf:')
-  invalidatePrefix('perf_data:')
-  invalidatePrefix('item_builds:')
-  invalidatePrefix('item_picks:')
-  invalidatePrefix('item_archetypes:')
-  invalidatePrefix('champ_player:')
-  invalidatePrefix('matches_player:')
-  invalidatePrefix('aug_player:')
-  invalidatePrefix('coplayers:')
+  })()
+  return _refreshPromise
 }
 
 export async function connectDb(url?: string): Promise<void> {

@@ -4,7 +4,7 @@ import type { Match } from '../backend/db'
 
 const http = axios.create({
   baseURL: BACKEND_URL,
-  timeout: 10_000,
+  timeout: 60_000,
 })
 
 http.interceptors.request.use((config) => {

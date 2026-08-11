@@ -127,9 +127,11 @@ async function main() {
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
     rebuildMissingPerfPairs().catch(err => console.warn('[perf] startup recovery failed:', (err as Error).message))
     setInterval(() => { flushDirtyPerfCache().catch(console.error) }, 60_000)
-    flushPendingCaches()
-      .then(() => warmLruCaches())
-      .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
+    setTimeout(() => {
+      flushPendingCaches()
+        .then(() => warmLruCaches())
+        .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
+    }, 60_000)
     setInterval(() => { flushPendingCaches().catch(console.error) }, 30_000)
     const logFile = process.env.MAYHEM_LOG_FILE
     if (logFile) initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))

@@ -14,7 +14,7 @@ import {
   getChampionStats,
   getAugmentStats,
 } from './db'
-import { getOrFetch } from './queryCache'
+import { getOrFetch, initLruPersistence } from './queryCache'
 import { createExpressApp } from './server'
 import type { AugmentInfo } from './db'
 
@@ -135,7 +135,10 @@ async function main() {
         .catch(err => console.warn('[cache] startup warmup failed:', (err as Error).message))
     }, 90_000)
     const logFile = process.env.MAYHEM_LOG_FILE
-    if (logFile) initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
+    if (logFile) {
+      initMetricsPersistence(logFile.replace(/\.log$/, '-metrics.json'))
+      initLruPersistence(logFile.replace(/\.log$/, '-lru-cache.json'))
+    }
   })
 }
 

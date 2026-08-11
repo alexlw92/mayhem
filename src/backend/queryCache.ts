@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { LRUCache } from 'lru-cache'
 
 const cache = new LRUCache<string, NonNullable<unknown>>({
@@ -7,13 +8,13 @@ const cache = new LRUCache<string, NonNullable<unknown>>({
 
 const inFlight = new Map<string, Promise<unknown>>()
 
-export async function getOrFetch<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
+export async function getOrFetch<T>(key: string, fetchFn: () => Promise<T>, ttl?: number): Promise<T> {
   const hit = cache.get(key)
   if (hit !== undefined) return hit as T
   if (inFlight.has(key)) return inFlight.get(key) as Promise<T>
   const promise = Promise.resolve().then(() => fetchFn()).then(value => {
     inFlight.delete(key)
-    if (value != null) cache.set(key, value as NonNullable<unknown>)
+    if (value != null) cache.set(key, value as NonNullable<unknown>, ttl ? { ttl } : undefined)
     return value
   }).catch(err => {
     inFlight.delete(key)
@@ -35,4 +36,32 @@ export function invalidatePrefix(prefix: string): void {
 
 export function clearAll(): void {
   cache.clear()
+}
+
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+
+export function initLruPersistence(filePath: string): void {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8')
+    const entries: [string, LRUCache.Entry<NonNullable<unknown>>][] = JSON.parse(raw)
+    const now = Date.now()
+    for (const [key, entry] of entries) {
+      if (entry.start && now - entry.start > TWO_HOURS_MS) continue
+      cache.load([[key, entry]])
+    }
+    console.log(`[cache] restored ${cache.size} LRU entries from ${filePath}`)
+  } catch { /* no file or corrupt — start fresh */ }
+
+  const save = () => {
+    try {
+      const tmp = filePath + '.tmp'
+      fs.writeFileSync(tmp, JSON.stringify(cache.dump()))
+      fs.renameSync(tmp, filePath)
+    } catch (err) {
+      console.warn('[cache] LRU save failed:', (err as Error).message)
+    }
+  }
+
+  setInterval(save, 60_000)
+  process.on('exit', save)
 }

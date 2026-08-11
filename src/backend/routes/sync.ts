@@ -1,4 +1,5 @@
 import { Router, NextFunction } from 'express'
+import { getOrFetch, invalidate } from '../queryCache'
 import {
   matchExists,
   insertMatches,
@@ -98,13 +99,14 @@ export function createSyncRouter(): Router {
 
   router.get('/sync/queue', async (_req, res, next: NextFunction) => {
     try {
-      res.json(await getQueueStatus())
+      res.json(await getOrFetch('sync_queue', () => getQueueStatus(), 10_000))
     } catch (err) { next(err) }
   })
 
   router.delete('/sync/queue', async (_req, res, next: NextFunction) => {
     try {
       await clearQueue()
+      invalidate('sync_queue')
       res.json({ ok: true })
     } catch (err) { next(err) }
   })

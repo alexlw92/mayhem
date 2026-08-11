@@ -1344,6 +1344,12 @@ export async function insertMatches(matches: Match[]): Promise<number> {
 
   const puuids = [...new Set(matches.flatMap(m => m.participants.map(p => p.puuid).filter(Boolean)))]
   await enqueueAll(puuids)
+  for (const puuid of puuids) {
+    invalidatePrefix(`champ_player:${puuid}:`)
+    invalidatePrefix(`matches_player:${puuid}:`)
+    invalidatePrefix(`aug_player:${puuid}:`)
+    invalidatePrefix(`coplayers:${puuid}:`)
+  }
   return insertedCount
 }
 

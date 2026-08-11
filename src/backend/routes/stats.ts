@@ -95,21 +95,39 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players/:puuid/champions', async (req, res, next: NextFunction) => {
     try {
-      res.json(await getChampionStats(req.params.puuid, parsePatches(req.query.patches), parseQueueId(req.query.queueId)))
+      const puuid = req.params.puuid
+      const patches = parsePatches(req.query.patches)
+      const queueId = parseQueueId(req.query.queueId)
+      res.json(await getOrFetch(
+        `champ_player:${puuid}:${patchKey(patches)}:${queueId}`,
+        () => getChampionStats(puuid, patches, queueId)
+      ))
     } catch (err) { next(err) }
   })
 
   router.get('/players/:puuid/matches', async (req, res, next: NextFunction) => {
     try {
+      const puuid = req.params.puuid
+      const patches = parsePatches(req.query.patches)
+      const queueId = parseQueueId(req.query.queueId)
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined
-      res.json(await getRecentMatches(limit, req.params.puuid, parsePatches(req.query.patches), parseQueueId(req.query.queueId)))
+      res.json(await getOrFetch(
+        `matches_player:${puuid}:${patchKey(patches)}:${queueId}:${limit ?? ''}`,
+        () => getRecentMatches(limit, puuid, patches, queueId)
+      ))
     } catch (err) { next(err) }
   })
 
   router.get('/players/:puuid/augments', async (req, res, next: NextFunction) => {
     try {
+      const puuid = req.params.puuid
+      const patches = parsePatches(req.query.patches)
+      const queueId = parseQueueId(req.query.queueId)
       const augCache = opts.getAugments?.() ?? {}
-      res.json(await getAugmentStats(req.params.puuid, undefined, parsePatches(req.query.patches), augCache, parseQueueId(req.query.queueId)))
+      res.json(await getOrFetch(
+        `aug_player:${puuid}:${patchKey(patches)}:${queueId}`,
+        () => getAugmentStats(puuid, undefined, patches, augCache, queueId)
+      ))
     } catch (err) { next(err) }
   })
 
@@ -121,7 +139,13 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
 
   router.get('/players/:puuid/coplayers', async (req, res, next: NextFunction) => {
     try {
-      res.json(await getCoplayerStats(req.params.puuid, parsePatches(req.query.patches), parseQueueId(req.query.queueId)))
+      const puuid = req.params.puuid
+      const patches = parsePatches(req.query.patches)
+      const queueId = parseQueueId(req.query.queueId)
+      res.json(await getOrFetch(
+        `coplayers:${puuid}:${patchKey(patches)}:${queueId}`,
+        () => getCoplayerStats(puuid, patches, queueId)
+      ))
     } catch (err) { next(err) }
   })
 

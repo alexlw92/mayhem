@@ -14,7 +14,7 @@ export async function getOrFetch<T>(key: string, fetchFn: () => Promise<T>, ttl?
   if (inFlight.has(key)) return inFlight.get(key) as Promise<T>
   const promise = Promise.resolve().then(() => fetchFn()).then(value => {
     inFlight.delete(key)
-    if (value != null) cache.set(key, value as NonNullable<unknown>, ttl ? { ttl } : undefined)
+    if (value != null) cache.set(key, value as NonNullable<unknown>, ttl !== undefined ? { ttl } : undefined)
     return value
   }).catch(err => {
     inFlight.delete(key)
@@ -45,10 +45,8 @@ export function initLruPersistence(filePath: string): void {
     const raw = fs.readFileSync(filePath, 'utf8')
     const entries: [string, LRUCache.Entry<NonNullable<unknown>>][] = JSON.parse(raw)
     const now = Date.now()
-    for (const [key, entry] of entries) {
-      if (entry.start && now - entry.start > TWO_HOURS_MS) continue
-      cache.load([[key, entry]])
-    }
+    const fresh = entries.filter(([, entry]) => !entry.start || now - entry.start <= TWO_HOURS_MS)
+    if (fresh.length > 0) cache.load(fresh)
     console.log(`[cache] restored ${cache.size} LRU entries from ${filePath}`)
   } catch { /* no file or corrupt — start fresh */ }
 

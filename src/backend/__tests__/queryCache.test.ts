@@ -108,6 +108,28 @@ describe('initLruPersistence', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('restores multiple entries from disk', async () => {
+    const { LRUCache } = await import('lru-cache')
+    const tempCache = new LRUCache<string, unknown>({ max: 200, ttl: 30 * 60 * 1000 })
+    tempCache.set('key-a', 'value-a')
+    tempCache.set('key-b', 'value-b')
+    tempCache.set('key-c', 'value-c')
+    fs.writeFileSync(tmpFile, JSON.stringify(tempCache.dump()))
+
+    clearAll()
+    initLruPersistence(tmpFile)
+
+    const fetchA = vi.fn().mockResolvedValue('miss')
+    const fetchB = vi.fn().mockResolvedValue('miss')
+    const fetchC = vi.fn().mockResolvedValue('miss')
+    expect(await getOrFetch('key-a', fetchA)).toBe('value-a')
+    expect(await getOrFetch('key-b', fetchB)).toBe('value-b')
+    expect(await getOrFetch('key-c', fetchC)).toBe('value-c')
+    expect(fetchA).not.toHaveBeenCalled()
+    expect(fetchB).not.toHaveBeenCalled()
+    expect(fetchC).not.toHaveBeenCalled()
+  })
+
   it('starts fresh when file is missing', () => {
     expect(() => initLruPersistence('/nonexistent/path/lru.json')).not.toThrow()
   })

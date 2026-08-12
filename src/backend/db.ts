@@ -60,6 +60,16 @@ export function getLastRefreshMs(): number {
   return lastRefreshMs
 }
 
+let pendingMatchCount = 0
+
+export function getPendingMatchCount(): number {
+  return pendingMatchCount
+}
+
+export function isRefreshInProgress(): boolean {
+  return _refreshPromise !== null
+}
+
 export async function refreshAllMatviews(): Promise<void> {
   if (_refreshPromise) return _refreshPromise
   _refreshPromise = (async () => {
@@ -132,6 +142,7 @@ export async function refreshAllMatviews(): Promise<void> {
     })
 
     lastRefreshMs = Date.now() - start
+    pendingMatchCount = 0
 
     invalidatePrefix('champions:')
     invalidatePrefix('players:')
@@ -260,6 +271,18 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
       priority         INT NOT NULL DEFAULT 0
     )
   `
+  await sql_`
+    CREATE TABLE IF NOT EXISTS sync_log (
+      id            BIGSERIAL PRIMARY KEY,
+      puuid         TEXT NOT NULL,
+      summoner_name TEXT NOT NULL DEFAULT '',
+      games_imported INTEGER NOT NULL DEFAULT 0,
+      duration_ms   INTEGER,
+      error         TEXT,
+      synced_at     BIGINT NOT NULL
+    )
+  `
+  await sql_`CREATE INDEX IF NOT EXISTS idx_sync_log_synced_at ON sync_log (synced_at DESC)`
 
   console.log(`[db] tables done (${Date.now() - _t0}ms)`)
   console.log('[db] creating indexes...')
@@ -876,6 +899,82 @@ export async function clearQueue(): Promise<void> {
   await sql_`DELETE FROM sync_queue`
 }
 
+export async function recordSyncResult(entry: {
+  puuid: string
+  summonerName: string
+  gamesImported: number
+  durationMs: number
+  error?: string
+}): Promise<void> {
+  await sql_`
+    INSERT INTO sync_log (puuid, summoner_name, games_imported, duration_ms, error, synced_at)
+    VALUES (
+      ${entry.puuid},
+      ${entry.summonerName},
+      ${entry.gamesImported},
+      ${entry.durationMs},
+      ${entry.error ?? null},
+      ${Date.now()}
+    )
+  `
+  await sql_`
+    DELETE FROM sync_log WHERE id NOT IN (
+      SELECT id FROM sync_log ORDER BY synced_at DESC LIMIT 1000
+    )
+  `
+}
+
+export async function getSyncLog(limit: number): Promise<{
+  id: number
+  puuid: string
+  summonerName: string
+  gamesImported: number
+  durationMs: number | null
+  error: string | null
+  syncedAt: number
+}[]> {
+  const rows = await sql_`
+    SELECT id, puuid, summoner_name, games_imported, duration_ms, error, synced_at
+    FROM sync_log
+    ORDER BY synced_at DESC
+    LIMIT ${limit}
+  `
+  return rows.map(r => ({
+    id: Number(r.id),
+    puuid: r.puuid as string,
+    summonerName: r.summoner_name as string,
+    gamesImported: Number(r.games_imported),
+    durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
+    error: r.error as string | null,
+    syncedAt: Number(r.synced_at),
+  }))
+}
+
+export async function getNextQueuedPlayers(limit: number): Promise<{
+  puuid: string
+  name: string
+  queuedAt: number
+  priority: number
+  claimedBy: string | null
+}[]> {
+  const rows = await sql_`
+    SELECT sq.puuid, sq.queued_at, sq.priority, sq.claimed_by,
+      COALESCE(MAX(psc."summonerName"), LEFT(sq.puuid, 8) || '…') AS name
+    FROM sync_queue sq
+    LEFT JOIN player_stats_cache psc ON psc.puuid = sq.puuid
+    GROUP BY sq.puuid, sq.queued_at, sq.priority, sq.claimed_by
+    ORDER BY sq.priority DESC, sq.queued_at ASC
+    LIMIT ${limit}
+  `
+  return rows.map(r => ({
+    puuid: r.puuid as string,
+    name: r.name as string,
+    queuedAt: Number(r.queued_at),
+    priority: Number(r.priority),
+    claimedBy: r.claimed_by as string | null,
+  }))
+}
+
 // ─── Write ops ───────────────────────────────────────────────────────────────
 
 export async function setPlayerSyncTime(puuid: string): Promise<void> {
@@ -977,6 +1076,7 @@ export async function insertMatches(matches: Match[]): Promise<number> {
     invalidatePrefix(`coplayers:${puuid}:`)
   }
 
+  if (insertedCount > 0) pendingMatchCount += insertedCount
   if (insertedCount > 0) {
     refreshAllMatviews().catch(err => console.warn('[matview] refresh failed:', (err as Error).message))
   }

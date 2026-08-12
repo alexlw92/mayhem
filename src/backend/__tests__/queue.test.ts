@@ -10,6 +10,10 @@ import {
   clearQueue,
   insertMatches,
   invalidateAllSyncTimes,
+  recordSyncResult,
+  getSyncLog,
+  getNextQueuedPlayers,
+  getPendingMatchCount,
   Match
 } from '../db'
 
@@ -38,7 +42,7 @@ async function truncateQueue() {
   // Best approach: expose a test-only truncate, or use a separate postgres connection.
   const postgres = (await import('postgres')).default
   const db = postgres(TEST_URL!, { onnotice: () => {} })
-  await db`TRUNCATE sync_queue, player_sync_times, participant_augments, participants, matches RESTART IDENTITY CASCADE`
+  await db`TRUNCATE sync_log, sync_queue, player_sync_times, participant_augments, participants, matches RESTART IDENTITY CASCADE`
   await db.end()
 }
 
@@ -206,5 +210,84 @@ describe('invalidateAllSyncTimes', () => {
     // But players are now stale (syncedAt = 0)
     const { isPlayerStale } = await import('../db')
     expect(await isPlayerStale('puuid-alpha', 1)).toBe(true)
+  })
+})
+
+describe('recordSyncResult / getSyncLog', () => {
+  it('records a successful sync and retrieves it', async () => {
+    await recordSyncResult({ puuid: 'p1', summonerName: 'Alpha#1234', gamesImported: 5, durationMs: 800 })
+    const log = await getSyncLog(10)
+    expect(log).toHaveLength(1)
+    expect(log[0].puuid).toBe('p1')
+    expect(log[0].summonerName).toBe('Alpha#1234')
+    expect(log[0].gamesImported).toBe(5)
+    expect(log[0].durationMs).toBe(800)
+    expect(log[0].error).toBeNull()
+    expect(log[0].syncedAt).toBeGreaterThan(0)
+  })
+
+  it('records an error sync', async () => {
+    await recordSyncResult({ puuid: 'p2', summonerName: 'Beta#5678', gamesImported: 0, durationMs: 0, error: 'fetch failed' })
+    const log = await getSyncLog(10)
+    expect(log[0].error).toBe('fetch failed')
+    expect(log[0].gamesImported).toBe(0)
+  })
+
+  it('returns entries newest-first', async () => {
+    await recordSyncResult({ puuid: 'p1', summonerName: 'Alpha', gamesImported: 1, durationMs: 100 })
+    await recordSyncResult({ puuid: 'p2', summonerName: 'Beta', gamesImported: 2, durationMs: 200 })
+    const log = await getSyncLog(10)
+    expect(log[0].puuid).toBe('p2')
+    expect(log[1].puuid).toBe('p1')
+  })
+
+  it('respects the limit parameter', async () => {
+    await recordSyncResult({ puuid: 'p1', summonerName: 'A', gamesImported: 1, durationMs: 100 })
+    await recordSyncResult({ puuid: 'p2', summonerName: 'B', gamesImported: 2, durationMs: 200 })
+    await recordSyncResult({ puuid: 'p3', summonerName: 'C', gamesImported: 3, durationMs: 300 })
+    const log = await getSyncLog(2)
+    expect(log).toHaveLength(2)
+  })
+})
+
+describe('getNextQueuedPlayers', () => {
+  it('returns queued players ordered by priority DESC then queued_at ASC', async () => {
+    await enqueuePlayer('puuid-normal')
+    await new Promise(r => setTimeout(r, 10))
+    await enqueuePlayer('puuid-normal2')
+    // Enqueue a priority player
+    const postgres = (await import('postgres')).default
+    const db = postgres(TEST_URL!, { onnotice: () => {} })
+    await db`INSERT INTO sync_queue (puuid, queued_at, priority) VALUES ('puuid-vip', ${Date.now()}, 1) ON CONFLICT DO NOTHING`
+    await db.end()
+
+    const players = await getNextQueuedPlayers(10)
+    expect(players[0].puuid).toBe('puuid-vip')
+    expect(players[0].priority).toBe(1)
+    expect(players[1].puuid).toBe('puuid-normal')
+    expect(players[2].puuid).toBe('puuid-normal2')
+  })
+
+  it('returns empty array when queue is empty', async () => {
+    const players = await getNextQueuedPlayers(20)
+    expect(players).toHaveLength(0)
+  })
+
+  it('respects the limit parameter', async () => {
+    await enqueueAll(['a', 'b', 'c', 'd', 'e'])
+    const players = await getNextQueuedPlayers(3)
+    expect(players).toHaveLength(3)
+  })
+})
+
+describe('pendingMatchCount', () => {
+  it('starts at 0', () => {
+    expect(getPendingMatchCount()).toBe(0)
+  })
+
+  it('increments when matches are inserted', async () => {
+    const before = getPendingMatchCount()
+    await insertMatches([sampleMatch(99901)])
+    expect(getPendingMatchCount()).toBeGreaterThan(before)
   })
 })

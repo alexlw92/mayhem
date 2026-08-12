@@ -1002,6 +1002,14 @@ export async function matchExists(gameId: number): Promise<boolean> {
   return rows.length > 0
 }
 
+export async function getExistingMatchIds(gameIds: number[]): Promise<Set<number>> {
+  if (gameIds.length === 0) return new Set()
+  const rows = await sql_<{ gameId: number }[]>`
+    SELECT "gameId" FROM matches WHERE "gameId" = ANY(${gameIds})
+  `
+  return new Set(rows.map(r => Number(r.gameId)))
+}
+
 export async function insertMatches(matches: Match[]): Promise<number> {
   if (matches.length === 0) return 0
 

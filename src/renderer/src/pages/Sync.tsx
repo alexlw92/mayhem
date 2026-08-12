@@ -40,7 +40,7 @@ function timeAgo(ms: number): string {
 }
 
 function pendingColor(count: number): string {
-  if (count === 0) return 'var(--accent, #4dabf7)'
+  if (count === 0) return '#69db7c'
   if (count <= 50) return '#ffa94d'
   return 'var(--red, #ff6b6b)'
 }
@@ -194,7 +194,7 @@ export default function Sync({ syncing, stopping }: SyncProps) {
             {nextPlayers.map(p => (
               <div key={p.puuid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 4, background: 'var(--bg-secondary)', fontSize: 13 }}>
                 <span style={{ width: 12, color: '#ffd43b', flexShrink: 0 }}>{p.priority > 0 ? '★' : ''}</span>
-                <span style={{ flex: 1, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                <span style={{ flex: 1, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name || p.puuid.slice(0, 8) + '…'}</span>
                 {p.claimedBy && (
                   <span style={{ fontSize: 11, color: '#ffa94d', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ffa94d', display: 'inline-block' }} />

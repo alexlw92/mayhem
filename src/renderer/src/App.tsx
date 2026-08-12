@@ -5,9 +5,10 @@ import Augments from './pages/Augments'
 import AugmentDetail from './pages/AugmentDetail'
 import CurrentGame from './pages/CurrentGame'
 import ChampionDetail from './pages/ChampionDetail'
+import Sync from './pages/Sync'
 import './App.css'
 
-type Page = 'players' | 'champions' | 'augments' | 'augment-detail' | 'current-game' | 'champion-detail'
+type Page = 'players' | 'champions' | 'augments' | 'augment-detail' | 'current-game' | 'champion-detail' | 'sync'
 
 export type PatchFilter = string[] | undefined
 
@@ -172,6 +173,7 @@ export default function App() {
     { id: 'players', label: 'Players', icon: '👤' },
     { id: 'champions', label: 'Champions', icon: '🛡' },
     { id: 'augments', label: 'Augments', icon: '✦' },
+    { id: 'sync', label: 'Sync', icon: '⟳' },
   ]
 
   if (dbError) {
@@ -423,6 +425,9 @@ export default function App() {
               onAugmentClick={(id) => handleAugmentClick(id, 'augments')}
             />
           )}
+        </div>
+        <div style={{ display: page === 'sync' ? 'block' : 'none', height: '100%' }}>
+          <Sync syncing={syncing} stopping={stopping} />
         </div>
       </main>
     </div>

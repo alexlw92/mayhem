@@ -55,7 +55,7 @@ export const apiClient = {
     http.get(`/api/matches/${gameId}/exists`).then((r) => r.data),
 
   insertMatches: (matches: Match[]): Promise<{ inserted: number }> =>
-    http.post('/api/matches/bulk', { matches }, { timeout: 30_000 }).then(r => r.data),
+    http.post('/api/matches/bulk', { matches }, { timeout: 120_000 }).then(r => r.data),
 
   upsertMatch: (match: Match) =>
     http.put(`/api/matches/${match.gameId}`, match, { timeout: 30_000 }),

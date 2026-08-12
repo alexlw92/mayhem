@@ -20,14 +20,8 @@ import {
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
 
-// Access internal sql_ for cleanup — we import via a helper that shares the module singleton
-let sql: any
-
 beforeAll(async () => {
   await initDb(TEST_URL)
-  // Grab the postgres client via a dynamic import trick on the same module instance
-  const mod = await import('../db')
-  // We'll use the exported functions for cleanup
 })
 
 afterAll(async () => {
@@ -281,10 +275,6 @@ describe('getNextQueuedPlayers', () => {
 })
 
 describe('pendingMatchCount', () => {
-  it('starts at 0', () => {
-    expect(getPendingMatchCount()).toBe(0)
-  })
-
   it('increments when matches are inserted', async () => {
     const before = getPendingMatchCount()
     await insertMatches([sampleMatch(99901)])

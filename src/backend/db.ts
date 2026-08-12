@@ -665,6 +665,7 @@ export async function initDb(url?: string, onProgress?: (phase: string) => void)
     const pruned = await deleteOldMatches(keepPatches)
     if (pruned > 0) console.log(`[db] pruned ${pruned} old matches (${Date.now() - _tp}ms, keeping: ${keepPatches.join(', ')})`)
   }
+  pendingMatchCount = 0
 }
 
 export async function deleteOldMatches(keepPatches: string[]): Promise<number> {
@@ -906,22 +907,24 @@ export async function recordSyncResult(entry: {
   durationMs: number
   error?: string
 }): Promise<void> {
-  await sql_`
-    INSERT INTO sync_log (puuid, summoner_name, games_imported, duration_ms, error, synced_at)
-    VALUES (
-      ${entry.puuid},
-      ${entry.summonerName},
-      ${entry.gamesImported},
-      ${entry.durationMs},
-      ${entry.error ?? null},
-      ${Date.now()}
-    )
-  `
-  await sql_`
-    DELETE FROM sync_log WHERE id NOT IN (
-      SELECT id FROM sync_log ORDER BY synced_at DESC LIMIT 1000
-    )
-  `
+  await sql_.begin(async tx => {
+    await tx`
+      INSERT INTO sync_log (puuid, summoner_name, games_imported, duration_ms, error, synced_at)
+      VALUES (
+        ${entry.puuid},
+        ${entry.summonerName},
+        ${entry.gamesImported},
+        ${entry.durationMs},
+        ${entry.error ?? null},
+        ${Date.now()}
+      )
+    `
+    await tx`
+      DELETE FROM sync_log WHERE id NOT IN (
+        SELECT id FROM sync_log ORDER BY synced_at DESC LIMIT 1000
+      )
+    `
+  })
 }
 
 export async function getSyncLog(limit: number): Promise<{

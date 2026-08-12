@@ -707,6 +707,6 @@ ipcMain.handle('metrics:reset', () => apiClient.metricsReset())
 ipcMain.handle('sync:queueStatus',  () => apiClient.queueStatus())
 ipcMain.handle('sync:nextPlayers',  (_e, limit: number) => apiClient.nextQueuedPlayers(limit))
 ipcMain.handle('sync:log',          (_e, limit: number) => apiClient.syncLog(limit))
-ipcMain.handle('sync:clearQueue',   () => apiClient.clearQueue())
+ipcMain.handle('sync:clearQueue',   () => apiClient.clearQueue().then(() => ({ ok: true })))
 ipcMain.handle('sync:forceRefresh', () => apiClient.forceRefresh())
 

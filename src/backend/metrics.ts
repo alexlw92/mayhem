@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { getLastRefreshMs } from './db'
+import { getLastRefreshMs, isRefreshInProgress, getPendingMatchCount } from './db'
 
 interface RouteMetrics {
   requests: number
@@ -25,6 +25,8 @@ export interface MetricsSnapshot {
   globalP95: number
   globalP99: number
   matviewLastRefreshMs: number   // -1 if never refreshed since start
+  matviewRefreshInProgress: boolean
+  pendingMatchCount: number
   routes: RouteSnapshot[]
 }
 
@@ -127,6 +129,8 @@ export function getMetrics(): MetricsSnapshot {
     globalP95: percentile(gSample, 95),
     globalP99: percentile(gSample, 99),
     matviewLastRefreshMs: getLastRefreshMs(),
+    matviewRefreshInProgress: isRefreshInProgress(),
+    pendingMatchCount: getPendingMatchCount(),
     routes,
   }
 }

@@ -14,7 +14,8 @@ import {
   getQueueStatus,
   clearQueue,
   setPlayerSyncTime,
-  Match
+  Match,
+  recordSyncResult, getSyncLog, getNextQueuedPlayers, refreshAllMatviews
 } from '../db'
 
 export function createSyncRouter(): Router {
@@ -107,6 +108,38 @@ export function createSyncRouter(): Router {
     try {
       await clearQueue()
       invalidate('sync_queue')
+      res.json({ ok: true })
+    } catch (err) { next(err) }
+  })
+
+  router.post('/sync/log', async (req, res, next: NextFunction) => {
+    try {
+      const { puuid, summonerName, gamesImported, durationMs, error } = req.body as {
+        puuid: string; summonerName: string; gamesImported: number
+        durationMs: number; error?: string
+      }
+      await recordSyncResult({ puuid, summonerName, gamesImported, durationMs, error })
+      res.json({ ok: true })
+    } catch (err) { next(err) }
+  })
+
+  router.get('/sync/log', async (req, res, next: NextFunction) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) ?? '100', 10), 500)
+      res.json(await getSyncLog(limit))
+    } catch (err) { next(err) }
+  })
+
+  router.get('/sync/queue/players', async (req, res, next: NextFunction) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) ?? '20', 10), 100)
+      res.json(await getOrFetch(`sync_queue_players:${limit}`, () => getNextQueuedPlayers(limit), 5_000))
+    } catch (err) { next(err) }
+  })
+
+  router.post('/sync/refresh', async (_req, res, next: NextFunction) => {
+    try {
+      refreshAllMatviews().catch(err => console.warn('[matview] forced refresh failed:', (err as Error).message))
       res.json({ ok: true })
     } catch (err) { next(err) }
   })

@@ -3,6 +3,7 @@ import request from 'supertest'
 import { initDb, Match, refreshAllMatviews } from '../db'
 import { createExpressApp } from '../server'
 import { clearAll } from '../queryCache'
+import { drainForTest } from '../matchQueue'
 
 const TEST_URL = process.env.TEST_DATABASE_URL
 if (!TEST_URL) throw new Error('TEST_DATABASE_URL is not set')
@@ -37,10 +38,11 @@ beforeEach(async () => {
   clearAll()
 })
 
-/** Insert matches via the HTTP route, then flush the pending cache so tests
- *  that query cache tables see the data immediately. */
+/** Insert matches via the HTTP route, drain the async queue, then flush the
+ *  pending cache so tests that query cache tables see the data immediately. */
 async function bulkInsert(appInstance: ReturnType<typeof createExpressApp>, matches: Match[]) {
   const res = await request(appInstance).post('/api/matches/bulk').send({ matches })
+  await drainForTest()
   await refreshAllMatviews()
   return res
 }
@@ -149,17 +151,17 @@ describe('GET /api/champions', () => {
 })
 
 describe('POST /api/matches/bulk', () => {
-  it('inserts matches and returns inserted count', async () => {
+  it('enqueues matches and returns queued count', async () => {
     const res = await bulkInsert(app, [sampleMatch])
     expect(res.status).toBe(200)
-    expect(res.body.inserted).toBe(1)
+    expect(res.body.queued).toBe(1)
   })
 
-  it('is idempotent — duplicate insert returns 0 inserted', async () => {
+  it('is idempotent — duplicate enqueue still acks the batch size', async () => {
     await bulkInsert(app, [sampleMatch])
     const res = await bulkInsert(app, [sampleMatch])
     expect(res.status).toBe(200)
-    expect(res.body.inserted).toBe(0)
+    expect(res.body.queued).toBe(1)
   })
 })
 

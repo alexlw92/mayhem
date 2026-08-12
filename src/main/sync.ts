@@ -73,8 +73,8 @@ export async function importGamesForPuuid(
   const BATCH_SIZE = 10
   let imported = 0
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-    const { inserted } = await apiClient.insertMatches(toInsert.slice(i, i + BATCH_SIZE))
-    imported += inserted
+    const { queued } = await apiClient.insertMatches(toInsert.slice(i, i + BATCH_SIZE))
+    imported += queued
   }
   return { imported, fetchFailed: false }
 }

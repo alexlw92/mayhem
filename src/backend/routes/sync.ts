@@ -2,7 +2,6 @@ import { Router, NextFunction } from 'express'
 import { getOrFetch, invalidate } from '../queryCache'
 import {
   matchExists,
-  insertMatches,
   upsertMatch,
   getIncompleteGameIds,
   invalidateAllSyncTimes,
@@ -17,6 +16,7 @@ import {
   Match,
   recordSyncResult, getSyncLog, getNextQueuedPlayers, refreshAllMatviews
 } from '../db'
+import { enqueueMatches } from '../matchQueue'
 
 export function createSyncRouter(): Router {
   const router = Router()
@@ -24,8 +24,8 @@ export function createSyncRouter(): Router {
   router.post('/matches/bulk', async (req, res, next: NextFunction) => {
     try {
       const { matches } = req.body as { matches: Match[] }
-      const inserted = await insertMatches(matches)
-      res.json({ inserted })
+      const queued = enqueueMatches(matches)
+      res.json({ queued })
     } catch (err) { next(err) }
   })
 

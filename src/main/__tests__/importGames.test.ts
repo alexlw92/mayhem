@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(getMatchHistory).mockResolvedValue({ games: [makeGame()], totalInWindow: 1 })
   vi.mocked(getGameDetails).mockResolvedValue(null)
-  vi.mocked(apiClient.insertMatches).mockResolvedValue({ inserted: 1 })
+  vi.mocked(apiClient.insertMatches).mockResolvedValue({ queued: 1 })
 })
 
 describe('importGamesForPuuid', () => {
@@ -58,7 +58,7 @@ describe('importGamesForPuuid', () => {
       games: [makeGame({ gameId: 1 }), makeGame({ gameId: 2 }), makeGame({ gameId: 3 })],
       totalInWindow: 3
     })
-    vi.mocked(apiClient.insertMatches).mockResolvedValue({ inserted: 3 })
+    vi.mocked(apiClient.insertMatches).mockResolvedValue({ queued: 3 })
     await importGamesForPuuid('puuid-a')
     expect(apiClient.insertMatches).toHaveBeenCalledTimes(1)
     const [matches] = vi.mocked(apiClient.insertMatches).mock.calls[0]
@@ -70,7 +70,7 @@ describe('importGamesForPuuid', () => {
       games: [makeGame({ gameId: 1 }), makeGame({ gameId: 2 })],
       totalInWindow: 2
     })
-    vi.mocked(apiClient.insertMatches).mockResolvedValue({ inserted: 1 })
+    vi.mocked(apiClient.insertMatches).mockResolvedValue({ queued: 1 })
     const result = await importGamesForPuuid('puuid-a')
     expect(result.imported).toBe(1)
     expect(result.fetchFailed).toBe(false)
@@ -106,7 +106,7 @@ describe('importGamesForPuuid', () => {
   it('stops before next batch when shouldStop returns true', async () => {
     const games = Array.from({ length: 10 }, (_, i) => makeGame({ gameId: i + 1 }))
     vi.mocked(getMatchHistory).mockResolvedValue({ games, totalInWindow: 10 })
-    vi.mocked(apiClient.insertMatches).mockResolvedValue({ inserted: 0 })
+    vi.mocked(apiClient.insertMatches).mockResolvedValue({ queued: 0 })
 
     let calls = 0
     const shouldStop = () => { calls++; return calls > 1 }

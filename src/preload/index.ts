@@ -51,6 +51,13 @@ const api = {
     get: () => ipcRenderer.invoke('metrics:get'),
     reset: () => ipcRenderer.invoke('metrics:reset'),
   },
+  sync: {
+    queueStatus:  ()               => ipcRenderer.invoke('sync:queueStatus'),
+    nextPlayers:  (limit: number)  => ipcRenderer.invoke('sync:nextPlayers', limit),
+    log:          (limit: number)  => ipcRenderer.invoke('sync:log', limit),
+    clearQueue:   ()               => ipcRenderer.invoke('sync:clearQueue'),
+    forceRefresh: ()               => ipcRenderer.invoke('sync:forceRefresh'),
+  },
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...args)
     ipcRenderer.on(channel, handler)

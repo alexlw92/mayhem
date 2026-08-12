@@ -353,6 +353,7 @@ async function syncWorker(): Promise<void> {
         return
       }
 
+      const jobStartTime = Date.now()
       const playerName = (await apiClient.playerName(puuid).catch(() => null)) ?? puuid.slice(0, 8) + '…'
 
       try {
@@ -360,8 +361,10 @@ async function syncWorker(): Promise<void> {
         if (fetchFailed) {
           console.warn(`[sync] no ARAM history for ${playerName}, skipping`)
           await apiClient.completeJob(puuid)
+          apiClient.recordSyncResult({ puuid, summonerName: playerName, gamesImported: 0, durationMs: Date.now() - jobStartTime }).catch(() => {})
         } else {
           await apiClient.completeJob(puuid)
+          apiClient.recordSyncResult({ puuid, summonerName: playerName, gamesImported: imported, durationMs: Date.now() - jobStartTime }).catch(() => {})
           if (imported > 0) {
             await apiClient.recomputeAffectedElo([puuid]).catch(() => {})
           }
@@ -382,6 +385,7 @@ async function syncWorker(): Promise<void> {
       } catch (err) {
         console.error(`[sync] error syncing ${playerName}:`, err)
         await apiClient.failJob(puuid).catch(() => {})
+        apiClient.recordSyncResult({ puuid, summonerName: playerName, gamesImported: 0, durationMs: Date.now() - jobStartTime, error: (err as Error).message }).catch(() => {})
       }
     }
   } finally {
@@ -699,4 +703,10 @@ ipcMain.handle('overlay:ocrScreen', async () => {
 
 ipcMain.handle('metrics:get', () => apiClient.metrics())
 ipcMain.handle('metrics:reset', () => apiClient.metricsReset())
+
+ipcMain.handle('sync:queueStatus',  () => apiClient.queueStatus())
+ipcMain.handle('sync:nextPlayers',  (_e, limit: number) => apiClient.nextQueuedPlayers(limit))
+ipcMain.handle('sync:log',          (_e, limit: number) => apiClient.syncLog(limit))
+ipcMain.handle('sync:clearQueue',   () => apiClient.clearQueue())
+ipcMain.handle('sync:forceRefresh', () => apiClient.forceRefresh())
 

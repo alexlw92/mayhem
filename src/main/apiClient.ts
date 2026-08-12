@@ -87,6 +87,26 @@ export const apiClient = {
   clearQueue: () =>
     http.delete('/api/sync/queue'),
 
+  recordSyncResult: (entry: {
+    puuid: string; summonerName: string; gamesImported: number
+    durationMs: number; error?: string
+  }): Promise<void> =>
+    http.post('/api/sync/log', entry, { timeout: 5_000 }).then(() => undefined),
+
+  nextQueuedPlayers: (limit: number): Promise<{
+    puuid: string; name: string; queuedAt: number; priority: number; claimedBy: string | null
+  }[]> =>
+    http.get('/api/sync/queue/players', { params: { limit } }).then(r => r.data),
+
+  syncLog: (limit: number): Promise<{
+    id: number; puuid: string; summonerName: string; gamesImported: number
+    durationMs: number | null; error: string | null; syncedAt: number
+  }[]> =>
+    http.get('/api/sync/log', { params: { limit } }).then(r => r.data),
+
+  forceRefresh: (): Promise<{ ok: boolean }> =>
+    http.post('/api/sync/refresh').then(r => r.data),
+
   championCache: (): Promise<Record<number, { name: string; tags: string[] }>> =>
     http.get('/api/meta/champions').then((r) => r.data),
 

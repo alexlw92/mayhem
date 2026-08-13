@@ -53,6 +53,8 @@ let sql_: ReturnType<typeof postgres>
 
 // ─── Materialized view refresh ────────────────────────────────────────────────
 
+const REFRESH_TIMEOUT_MS = 5 * 60 * 1000
+
 let lastRefreshMs = -1
 let _refreshPromise: Promise<void> | null = null
 
@@ -70,11 +72,29 @@ export function isRefreshInProgress(): boolean {
   return _refreshPromise !== null
 }
 
+function choose5(items: number[]): number[][] {
+  const result: number[][] = []
+  const n = items.length
+  for (let a = 0; a < n - 4; a++)
+    for (let b = a + 1; b < n - 3; b++)
+      for (let c = b + 1; c < n - 2; c++)
+        for (let d = c + 1; d < n - 1; d++)
+          for (let e = d + 1; e < n; e++)
+            result.push([items[a], items[b], items[c], items[d], items[e]])
+  return result
+}
+
 export async function refreshAllMatviews(): Promise<void> {
   if (_refreshPromise) return _refreshPromise
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
   _refreshPromise = (async () => {
   try {
     const start = Date.now()
+    timeoutHandle = setTimeout(() => {
+      console.warn('[matview] refresh timed out after 5 minutes — unlocking button')
+      _refreshPromise = null
+    }, REFRESH_TIMEOUT_MS)
+
     await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_stats_cache`
     await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY champion_stats_cache`
     await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY augment_stats_cache`
@@ -92,37 +112,56 @@ export async function refreshAllMatviews(): Promise<void> {
       await buildPlayerPerformanceCache(gameVersion as string, Number(queueId))
     }
 
-    // Rebuild item_builds_cache and item_picks_cache from scratch for all patches
-    await sql_.begin(async tx => {
-      await tx`DELETE FROM item_builds_cache`
-      await tx`
-        WITH agg AS (
-          SELECT p."gameVersion", m."queueId", p."championId", p.win::int AS win,
-            array_agg(pi."itemId" ORDER BY pi."itemId") AS items
-          FROM participants p
-          JOIN matches m ON m."gameId" = p."gameId"
-          JOIN participant_items pi ON pi."participantId" = p.id
-          WHERE p."gameVersion" IS NOT NULL
-          GROUP BY p."gameVersion", m."queueId", p.id, p."championId", p.win
-          HAVING count(*) >= 5
-        ),
-        combos AS (
-          SELECT agg."gameVersion", agg."queueId", agg."championId", agg.win,
-            ARRAY[ua.item, ub.item, uc.item, ud.item, ue.item] AS build
-          FROM agg,
-            LATERAL unnest(agg.items) WITH ORDINALITY AS ua(item, pa),
-            LATERAL unnest(agg.items) WITH ORDINALITY AS ub(item, pb),
-            LATERAL unnest(agg.items) WITH ORDINALITY AS uc(item, pc),
-            LATERAL unnest(agg.items) WITH ORDINALITY AS ud(item, pd),
-            LATERAL unnest(agg.items) WITH ORDINALITY AS ue(item, pe)
-          WHERE ub.pb > ua.pa AND uc.pc > ub.pb AND ud.pd > uc.pc AND ue.pe > ud.pd
-        )
-        INSERT INTO item_builds_cache ("gameVersion","queueId","championId",build,games,wins)
-        SELECT "gameVersion","queueId","championId",build,COUNT(*)::int,SUM(win)::int
-        FROM combos GROUP BY "gameVersion","queueId","championId",build
-        ON CONFLICT DO NOTHING
+    // Rebuild item_builds_cache: generate 5-item combos in Node.js per version/queue
+    // (avoids a 5-way SQL cross-join that blocks for minutes on large datasets)
+    await sql_`TRUNCATE item_builds_cache`
+    const vqPairs: { gameVersion: string; queueId: number }[] = await sql_`
+      SELECT DISTINCT "gameVersion", "queueId"
+      FROM player_champion_stats_cache
+      WHERE "gameVersion" IS NOT NULL
+    `
+    for (const { gameVersion, queueId } of vqPairs) {
+      const rows: { championId: number; win: number; items: number[] }[] = await sql_`
+        SELECT p."championId", p.win::int AS win,
+          array_agg(pi."itemId" ORDER BY pi."itemId") AS items
+        FROM participants p
+        JOIN matches m ON m."gameId" = p."gameId"
+        JOIN participant_items pi ON pi."participantId" = p.id
+        WHERE p."gameVersion" = ${gameVersion} AND m."queueId" = ${queueId}
+          AND p."gameVersion" IS NOT NULL
+        GROUP BY p.id, p."championId", p.win
+        HAVING count(*) >= 5
       `
-    })
+
+      const buildMap = new Map<string, { championId: number; build: number[]; games: number; wins: number }>()
+      for (const row of rows) {
+        for (const combo of choose5(row.items)) {
+          const key = `${row.championId}:${combo.join(',')}`
+          const existing = buildMap.get(key)
+          if (existing) { existing.games++; existing.wins += row.win }
+          else buildMap.set(key, { championId: Number(row.championId), build: combo, games: 1, wins: row.win })
+        }
+      }
+
+      const entries = [...buildMap.values()]
+      const BATCH_SIZE = 500
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE)
+        await sql_`
+          INSERT INTO item_builds_cache
+          ${sql_(batch.map(e => ({
+            gameVersion,
+            queueId: Number(queueId),
+            championId: e.championId,
+            build: e.build,
+            games: e.games,
+            wins: e.wins,
+          })))}
+          ON CONFLICT DO NOTHING
+        `
+      }
+    }
+
     await sql_.begin(async tx => {
       await tx`DELETE FROM item_picks_cache`
       await tx`
@@ -157,6 +196,7 @@ export async function refreshAllMatviews(): Promise<void> {
     invalidatePrefix('aug_player:')
     invalidatePrefix('coplayers:')
   } finally {
+    if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
     _refreshPromise = null
   }
   })()

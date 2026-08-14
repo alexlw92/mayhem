@@ -64,27 +64,6 @@ export default function App() {
     } catch { /* silent — LCU may not be running */ }
   }, [])
 
-  const handleSync = useCallback(async () => {
-    const result = await api.lcu.sync()
-    if (result.started === false) {
-      setLastSync(result.reason === 'no-summoner' ? 'Client not ready' : 'Sync already running…')
-      setTimeout(() => setLastSync(''), 3000)
-    }
-  }, [])
-
-  const handleStopSync = useCallback(async () => {
-    setStopping(true)
-    await api.lcu.stopSync()
-  }, [])
-
-  const handleFullSync = useCallback(async () => {
-    const result = await api.lcu.fullSync()
-    if (result?.started === false && result?.reason === 'no-summoner') {
-      setLastSync('Client not ready')
-      setTimeout(() => setLastSync(''), 3000)
-    }
-  }, [])
-
   useEffect(() => {
     const unsubReady = api.on('db-ready', () => setDbReady(true))
     const unsubAssetsReady = api.on('assets-ready', () => setAssetsReady(true))
@@ -328,20 +307,6 @@ export default function App() {
             {clientRunning ? 'Client Online' : 'Client Offline'}
           </div>
           <button
-            className={`sync-btn${syncing && !stopping ? ' sync-btn--stop' : ''}`}
-            onClick={syncing && !stopping ? handleStopSync : handleSync}
-            disabled={(!clientRunning && !syncing) || stopping}
-          >
-            {stopping ? 'Stopping…' : syncing ? 'Stop Sync' : 'Sync Now'}
-          </button>
-          <button
-            className="sync-btn sync-btn--full"
-            onClick={handleFullSync}
-            disabled={!clientRunning}
-          >
-            Full Reload
-          </button>
-          <button
             className="sync-btn sync-btn--full"
             onClick={() => window.api.app.reload()}
           >
@@ -427,7 +392,7 @@ export default function App() {
           )}
         </div>
         <div style={{ display: page === 'sync' ? 'block' : 'none', height: '100%' }}>
-          <Sync syncing={syncing} stopping={stopping} />
+          <Sync syncing={syncing} stopping={stopping} clientRunning={clientRunning} />
         </div>
       </main>
     </div>

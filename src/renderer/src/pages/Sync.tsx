@@ -29,6 +29,7 @@ interface MetricsData {
 interface SyncProps {
   syncing: boolean
   stopping: boolean
+  clientRunning: boolean
 }
 
 function timeAgo(ms: number): string {
@@ -45,7 +46,7 @@ function pendingColor(count: number): string {
   return 'var(--red, #ff6b6b)'
 }
 
-export default function Sync({ syncing, stopping }: SyncProps) {
+export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
   const [queueStatus, setQueueStatus] = useState<{ total: number; claimed: number } | null>(null)
   const [nextPlayers, setNextPlayers] = useState<QueuedPlayer[]>([])
   const [log, setLog] = useState<SyncLogEntry[]>([])
@@ -138,6 +139,18 @@ export default function Sync({ syncing, stopping }: SyncProps) {
         >
           {inProgress ? '↺ Refreshing…' : '↺ Force Refresh'}
         </button>
+        <button
+          className="sync-btn sync-btn--full"
+          onClick={() => api.lcu.fullSync()}
+          disabled={!clientRunning}
+          style={{ fontSize: 12 }}
+        >
+          ↺ Full Reload
+        </button>
+        <div className={`client-status ${clientRunning ? 'online' : 'offline'}`} style={{ marginLeft: 'auto' }}>
+          <span className="status-dot" />
+          {clientRunning ? 'Client Online' : 'Client Offline'}
+        </div>
       </div>
 
       {/* Stat cards */}

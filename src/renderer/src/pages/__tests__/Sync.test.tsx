@@ -48,19 +48,19 @@ describe('Sync page — client status indicator', () => {
   })
 })
 
-describe('Sync page — Full Reload button', () => {
-  it('renders Full Reload button in the action bar', async () => {
+describe('Sync page — Force Re-sync button', () => {
+  it('renders Force Re-sync button in the action bar', async () => {
     await act(async () => {
       render(<Sync syncing={false} stopping={false} clientRunning={true} />)
     })
-    expect(screen.getByRole('button', { name: /Full Reload/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Force Re-sync/ })).toBeTruthy()
   })
 
   it('is disabled when client is offline', async () => {
     await act(async () => {
       render(<Sync syncing={false} stopping={false} clientRunning={false} />)
     })
-    const btn = screen.getByRole('button', { name: /Full Reload/ }) as HTMLButtonElement
+    const btn = screen.getByRole('button', { name: /Force Re-sync/ }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
   })
 
@@ -68,7 +68,7 @@ describe('Sync page — Full Reload button', () => {
     await act(async () => {
       render(<Sync syncing={false} stopping={false} clientRunning={true} />)
     })
-    const btn = screen.getByRole('button', { name: /Full Reload/ }) as HTMLButtonElement
+    const btn = screen.getByRole('button', { name: /Force Re-sync/ }) as HTMLButtonElement
     expect(btn.disabled).toBe(false)
   })
 })

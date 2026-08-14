@@ -140,12 +140,12 @@ export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
           {inProgress ? '↺ Refreshing…' : '↺ Force Refresh'}
         </button>
         <button
-          className="sync-btn sync-btn--full"
+          className="sync-btn"
           onClick={() => api.lcu.fullSync()}
           disabled={!clientRunning}
           style={{ fontSize: 12 }}
         >
-          ↺ Full Reload
+          ↺ Force Re-sync
         </button>
         <div className={`client-status ${clientRunning ? 'online' : 'offline'}`} style={{ marginLeft: 'auto' }}>
           <span className="status-dot" />

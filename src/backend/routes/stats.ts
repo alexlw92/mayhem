@@ -307,8 +307,8 @@ export function createStatsRouter(opts: StatsOptions = {}): Router {
     } catch (err) { next(err) }
   })
 
-  router.get('/metrics', (_req, res) => {
-    res.json(getMetrics())
+  router.get('/metrics', async (_req, res, next: NextFunction) => {
+    try { res.json(await getMetrics()) } catch (err) { next(err) }
   })
 
   router.post('/metrics/reset', (_req, res) => {

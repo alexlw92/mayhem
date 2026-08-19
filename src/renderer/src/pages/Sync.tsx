@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const api = (window as any).api
 
@@ -22,6 +22,7 @@ interface SyncLogEntry {
 
 interface MetricsData {
   matviewLastRefreshMs: number
+  matviewLastRefreshedAt: number | null
   matviewRefreshInProgress: boolean
   pendingMatchCount: number
 }
@@ -52,6 +53,8 @@ export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
   const [log, setLog] = useState<SyncLogEntry[]>([])
   const [metrics, setMetrics] = useState<MetricsData | null>(null)
   const [clearing, setClearing] = useState(false)
+  const [refreshFlash, setRefreshFlash] = useState(false)
+  const refreshClickedAtRef = useRef<number | null>(null)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -74,6 +77,18 @@ export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
     return () => clearInterval(id)
   }, [fetchAll])
 
+  const lastRefreshedAt = metrics?.matviewLastRefreshedAt ?? null
+
+  useEffect(() => {
+    const clicked = refreshClickedAtRef.current
+    if (clicked !== null && lastRefreshedAt !== null && lastRefreshedAt > clicked) {
+      refreshClickedAtRef.current = null
+      setRefreshFlash(true)
+      const t = setTimeout(() => setRefreshFlash(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [lastRefreshedAt])
+
   const handleClearQueue = useCallback(async () => {
     if (!confirm('Clear the sync queue? All pending players will be removed.')) return
     setClearing(true)
@@ -87,6 +102,7 @@ export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
   }, [])
 
   const handleForceRefresh = useCallback(async () => {
+    refreshClickedAtRef.current = Date.now()
     try { await api.sync.forceRefresh() } catch { /* ignore */ }
   }, [])
 
@@ -184,10 +200,20 @@ export default function Sync({ syncing, stopping, clientRunning }: SyncProps) {
             {inProgress && (
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ffa94d', display: 'inline-block', animation: 'pulse 1s infinite' }} />
             )}
+            {refreshFlash && (
+              <span style={{ fontSize: 11, color: '#69db7c', marginLeft: 'auto' }}>✓ refreshed</span>
+            )}
           </div>
           <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-            {lastRefreshMs === -1 ? 'Not yet run' : `last: ${lastRefreshMs.toLocaleString()}ms`}
+            {lastRefreshedAt
+              ? timeAgo(lastRefreshedAt)
+              : inProgress ? 'Running…' : 'Not yet run'}
           </div>
+          {lastRefreshMs > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>
+              took {lastRefreshMs.toLocaleString()}ms
+            </div>
+          )}
           <div style={{ fontSize: 12, color: pendingColor(pending) }}>
             {pending === 0 ? '✓ up to date' : `${pending} unprocessed`}
           </div>

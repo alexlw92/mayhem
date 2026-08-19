@@ -62,6 +62,19 @@ export function getLastRefreshMs(): number {
   return lastRefreshMs
 }
 
+export async function getMatviewLastRefreshedAt(): Promise<number | null> {
+  const rows: { last_analyze: Date | null }[] = await sql_`
+    SELECT MIN(last_analyze) AS last_analyze
+    FROM pg_stat_user_tables
+    WHERE relname IN (
+      'player_stats_cache', 'champion_stats_cache', 'augment_stats_cache',
+      'player_champion_stats_cache', 'player_augment_stats_cache', 'augment_champion_stats_cache'
+    )
+  `
+  const val = rows[0]?.last_analyze
+  return val ? new Date(val).getTime() : null
+}
+
 let pendingMatchCount = 0
 
 export function getPendingMatchCount(): number {
@@ -91,8 +104,7 @@ export async function refreshAllMatviews(): Promise<void> {
   try {
     const start = Date.now()
     timeoutHandle = setTimeout(() => {
-      console.warn('[matview] refresh timed out after 5 minutes — unlocking button')
-      _refreshPromise = null
+      console.warn('[matview] refresh timed out after 5 minutes — still running in DB')
     }, REFRESH_TIMEOUT_MS)
 
     await sql_`REFRESH MATERIALIZED VIEW CONCURRENTLY player_stats_cache`

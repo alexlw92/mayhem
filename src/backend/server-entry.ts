@@ -9,6 +9,7 @@ import {
   getPlayerStats,
   getChampionStats,
   getAugmentStats,
+  refreshAllMatviews,
 } from './db'
 import { getOrFetch, initLruPersistence } from './queryCache'
 import { createExpressApp } from './server'
@@ -119,6 +120,7 @@ async function main() {
 
     fetchAndStoreItems().catch(err => console.warn('[meta] item seed failed:', (err as Error).message))
     refreshMetadata(champRef, augRef)
+    refreshAllMatviews().catch(err => console.warn('[matview] startup refresh failed:', (err as Error).message))
     setInterval(() => refreshMetadata(champRef, augRef), REFRESH_INTERVAL_MS)
     const logFile = process.env.MAYHEM_LOG_FILE
     if (logFile) {

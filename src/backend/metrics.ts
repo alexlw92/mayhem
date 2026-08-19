@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { getLastRefreshMs, isRefreshInProgress, getPendingMatchCount } from './db'
+import { getLastRefreshMs, isRefreshInProgress, getPendingMatchCount, getMatviewLastRefreshedAt } from './db'
 
 interface RouteMetrics {
   requests: number
@@ -25,6 +25,7 @@ export interface MetricsSnapshot {
   globalP95: number
   globalP99: number
   matviewLastRefreshMs: number   // -1 if never refreshed since start
+  matviewLastRefreshedAt: number | null  // unix ms from pg_stat_user_tables, survives restarts
   matviewRefreshInProgress: boolean
   pendingMatchCount: number
   routes: RouteSnapshot[]
@@ -102,7 +103,7 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, idx)]
 }
 
-export function getMetrics(): MetricsSnapshot {
+export async function getMetrics(): Promise<MetricsSnapshot> {
   const routes: RouteSnapshot[] = []
   for (const [key, m] of store.entries()) {
     const count = Math.min(m.head, 1000)
@@ -129,6 +130,7 @@ export function getMetrics(): MetricsSnapshot {
     globalP95: percentile(gSample, 95),
     globalP99: percentile(gSample, 99),
     matviewLastRefreshMs: getLastRefreshMs(),
+    matviewLastRefreshedAt: await getMatviewLastRefreshedAt(),
     matviewRefreshInProgress: isRefreshInProgress(),
     pendingMatchCount: getPendingMatchCount(),
     routes,
